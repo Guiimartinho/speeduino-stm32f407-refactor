@@ -51,6 +51,48 @@ See page 136 of the processors datasheet: http://www.atmel.com/Images/doc2549.pd
 #define DWELL_AVERAGE(input) LOW_PASS_FILTER((input), DWELL_AVERAGE_ALPHA, currentStatus.actualDwell)
 //#define DWELL_AVERAGE(input) (currentStatus.dwell) //Can be use to disable the above for testing
 
+// ============================================================================
+// MODULAR SCHEDULER SYSTEM (SCG-ECU 2.0)
+// ============================================================================
+/*
+ * OPTIONAL MODULAR API:
+ *
+ * This scheduler module has been organized into a modular architecture for
+ * SCG-ECU 2.0 while maintaining 100% backward compatibility.
+ *
+ * ARCHITECTURE:
+ * - schedulers/scheduler_coordinator.h    : Unified API with validation
+ * - schedulers/fuel_scheduler/            : Fuel scheduling documentation
+ * - schedulers/ignition_scheduler/        : Ignition scheduling documentation
+ *
+ * USAGE OPTIONS:
+ *
+ * 1. DIRECT API (Maximum Performance - Original):
+ *    - Use functions below directly (setFuelSchedule, setIgnitionSchedule, etc)
+ *    - Zero overhead (inline functions)
+ *    - Best for performance-critical code
+ *
+ * 2. COORDINATOR API (Convenience + Validation):
+ *    - Include "schedulers/scheduler_coordinator.h"
+ *    - Provides channel validation and guard clauses
+ *    - Unified naming convention
+ *    - Example: schedulerCoordinatorSetFuel(0, timeout, duration);
+ *
+ * PERFORMANCE NOTES:
+ * - All original functions remain 100% unchanged
+ * - ISRs remain inline (<10µs requirement preserved)
+ * - Coordinator adds minimal overhead (guard clauses only)
+ * - Choose API based on your needs (performance vs safety)
+ *
+ * COORDINATOR API (opt-in):
+ * Uncomment the line below to enable convenience wrappers:
+ */
+// #include "schedulers/scheduler_coordinator.h"
+
+// ============================================================================
+// ORIGINAL SCHEDULER API (100% Preserved)
+// ============================================================================
+
 void initialiseSchedulers(void);
 void beginInjectorPriming(void);
 
