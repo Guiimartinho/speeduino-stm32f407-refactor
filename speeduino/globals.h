@@ -1,26 +1,26 @@
 /** @file
  * Global defines, macros, struct definitions (@ref statuses, @ref config2, @ref config4, config*), extern-definitions (for globally accessible vars).
- * 
+ *
  * ### Note on configuration struct layouts
- * 
+ *
  * Once the struct members have been assigned to certain "role" (in certain SW version), they should not be "moved around"
  * as the structs are stored onto EEPROM as-is and the offset and size of member needs to remain constant. Also removing existing struct members
  * would disturb layouts. Because of this a certain amount unused old members will be left into the structs. For the storage related reasons also the
  * bit fields are defined in byte-size (or multiple of ...) chunks.
- * 
+ *
  * ### Config Structs and 2D, 3D Tables
- * 
+ *
  * The config* structures contain information coming from tuning SW (e.g. TS) for 2D and 3D tables, where looked up value is not a result of direct
  * array lookup, but from interpolation algorithm. Because of standard, reusable interpolation routines associated with structs table2D and table3D,
  * the values from config are copied from config* structs to table2D (table3D destined configurations are not stored in config* structures).
- * 
- * ### Board choice
- * There's a C-preprocessor based "#if defined" logic present in this header file based on the Arduino IDE compiler set CPU
- * (+board?) type, e.g. `__AVR_ATmega2560__`. This respectively drives (withi it's "#if defined ..." block):
- * - The setting of various BOARD_* C-preprocessor variables (e.g. BOARD_MAX_ADC_PINS)
- * - Setting of BOARD_H (Board header) file (e.g. "board_avr2560.h"), which is later used to include the header file
- *   - Seems Arduino ide implicitly compiles and links respective .ino file (by it's internal build/compilation rules) (?)
- * - Setting of CPU (?) CORE_* variables (e.g. CORE_AVR), that is used across codebase to distinguish CPU.
+ *
+ * ### SCG-ECU 2.0 - STM32F407VE Board
+ * This firmware is configured exclusively for the SCG-ECU 2.0 board based on STM32F407VGT6.
+ * Hardware features:
+ * - STM32F407VGT6: 168 MHz ARM Cortex-M4, 1MB Flash, 192KB RAM
+ * - 8x8 configuration: 8 independent fuel injector + 8 independent ignition channels
+ * - W25Q16JVSSIQ: 2MB SPI flash for EEPROM emulation
+ * - Hardware timers: TIM1 (auxiliaries), TIM2 (IGN1-4), TIM3 (INJ1-4), TIM4 (IGN5-8), TIM5 (INJ5-8), TIM11 (1ms interrupt)
  */
 #ifndef GLOBALS_H
 #define GLOBALS_H
@@ -34,69 +34,28 @@
 #if __has_include(<SimplyAtomic.h>)
   #include <SimplyAtomic.h>
 #else
-  //Fallback for Arduino IDE when SimplyAtomic is not installed. Only works for AVR
-  #include <util/atomic.h>
-  #define ATOMIC() ATOMIC_BLOCK(ATOMIC_RESTORESTATE)
-  #warning It is strongly recommended to install the SimplyAtomic library rather than relying on the built-in ATOMIC
-#endif 
+  #error SimplyAtomic library is required. Please install via PlatformIO or Arduino Library Manager.
+#endif
 
-#if defined(__AVR_ATmega1280__) || defined(__AVR_ATmega2560__) || defined(__AVR_ATmega2561__)
-  #define BOARD_MAX_DIGITAL_PINS 54 //digital pins +1
-  #define BOARD_MAX_IO_PINS 70 //digital pins + analog channels + 1
-  #define BOARD_MAX_ADC_PINS  15 //Number of analog pins
-  #ifndef LED_BUILTIN
-    #define LED_BUILTIN 13
-  #endif
-  #define CORE_AVR
-  #define BOARD_H "board_avr2560.h"
-  #ifndef INJ_CHANNELS
-    #define INJ_CHANNELS 4
-  #endif
-  #ifndef IGN_CHANNELS
-    #define IGN_CHANNELS 5
-  #endif
-
-#elif defined(CORE_TEENSY)
-  #if defined(__MK64FX512__) || defined(__MK66FX1M0__)
-    #define CORE_TEENSY35
-    #define BOARD_H "board_teensy35.h"
-  #elif defined(__IMXRT1062__)
-    #define CORE_TEENSY41
-    #define BOARD_H "board_teensy41.h"
-  #endif
-  #define INJ_CHANNELS 8
-  #define IGN_CHANNELS 8
-
-#elif defined(STM32_MCU_SERIES) || defined(ARDUINO_ARCH_STM32) || defined(STM32)
+// SCG-ECU 2.0 - STM32F407VE Configuration
+#if defined(STM32_MCU_SERIES) || defined(ARDUINO_ARCH_STM32) || defined(STM32)
   #define BOARD_H "board_stm32_official.h"
   #define CORE_STM32
+  #define BOARD_MAX_ADC_PINS (NUM_ANALOG_INPUTS-1)
 
-  #define BOARD_MAX_ADC_PINS  NUM_ANALOG_INPUTS-1 //Number of analog pins from core.
-  #if defined(STM32F407xx) //F407 can do 8x8 STM32F401/STM32F411 don't
-   #define INJ_CHANNELS 8
-   #define IGN_CHANNELS 8
-  #else
-   #define INJ_CHANNELS 4
-   #define IGN_CHANNELS 5
+  // STM32F407xx is the only supported MCU for SCG-ECU 2.0 (8x8 configuration)
+  #if !defined(STM32F407xx)
+    #error SCG-ECU 2.0 requires STM32F407xx. Please check your platformio.ini board configuration.
   #endif
-#elif defined(__SAMD21G18A__)
-  #define BOARD_H "board_samd21.h"
-  #define CORE_SAMD21
-  #define CORE_SAM
-  #define INJ_CHANNELS 4
-  #define IGN_CHANNELS 4
-#elif defined(__SAME51J19A__)
-  #define BOARD_H "board_same51.h"
-  #define CORE_SAME51
-  #define CORE_SAM
+
   #define INJ_CHANNELS 8
   #define IGN_CHANNELS 8
 #else
-  #error Incorrect board selected. Please select the correct board (Usually Mega 2560) and upload again
+  #error SCG-ECU 2.0 firmware requires STM32F407xx. Please select 'black_f407ve' board in platformio.ini
 #endif
 
-//This can only be included after the above section
-#include BOARD_H //Note that this is not a real file, it is defined in globals.h. 
+// Include board-specific definitions
+#include BOARD_H 
 
 #define CRANK_ANGLE_MAX (max(CRANK_ANGLE_MAX_IGN, CRANK_ANGLE_MAX_INJ))
 
@@ -278,16 +237,12 @@ extern volatile uint8_t compositeLogHistory[TOOTH_LOG_SIZE];
 extern volatile unsigned int toothHistoryIndex;
 extern unsigned long currentLoopTime; /**< The time (in uS) that the current mainloop started */
 extern volatile uint16_t ignitionCount; /**< The count of ignition events that have taken place since the engine started */
-//The below shouldn't be needed and probably should be cleaned up, but the Atmel SAM (ARM) boards use a specific type for the trigger edge values rather than a simple byte/int
-#if defined(CORE_SAMD21)
-  extern PinStatus primaryTriggerEdge;
-  extern PinStatus secondaryTriggerEdge;
-  extern PinStatus tertiaryTriggerEdge;
-#else
-  extern byte primaryTriggerEdge;
-  extern byte secondaryTriggerEdge;
-  extern byte tertiaryTriggerEdge;
-#endif
+
+// Trigger edge configuration (STM32F407 uses byte type)
+extern byte primaryTriggerEdge;
+extern byte secondaryTriggerEdge;
+extern byte tertiaryTriggerEdge;
+
 extern int CRANK_ANGLE_MAX_IGN;
 extern int CRANK_ANGLE_MAX_INJ;       ///< The number of crank degrees that the system track over. 360 for wasted / timed batch and 720 for sequential
 extern volatile uint32_t runSecsX10;  /**< Counter of seconds since cranking commenced (similar to runSecs) but in increments of 0.1 seconds */

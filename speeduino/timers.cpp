@@ -1,15 +1,17 @@
 /*
-Speeduino - Simple engine management for the Arduino Mega 2560 platform
-Copyright (C) Josh Stewart
-A full copy of the license may be found in the projects root directory
-*/
-
-/*
-Timers are used for having actions performed repeatedly at a fixed interval (Eg every 100ms)
-They should not be confused with Schedulers, which are for performing an action once at a given point of time in the future
-
-Timers are typically low resolution (Compared to Schedulers), with maximum frequency currently being approximately every 10ms
-*/
+ * SCG-ECU 2.0 - STM32F407 Timer Management
+ * Based on Speeduino project
+ * Copyright (C) Josh Stewart
+ *
+ * Timers are used for having actions performed repeatedly at a fixed interval (eg. every 100ms)
+ * They should not be confused with Schedulers, which are for performing an action once at a given
+ * point of time in the future.
+ *
+ * Timers are typically low resolution (compared to Schedulers), with maximum frequency currently
+ * being approximately every 10ms.
+ *
+ * STM32F407 uses TIM11 for 1ms system interrupt (oneMSInterval callback)
+ */
 #include "timers.h"
 #include "globals.h"
 #include "sensors.h"
@@ -21,11 +23,7 @@ Timers are typically low resolution (Compared to Schedulers), with maximum frequ
 #include "comms.h"
 #include "maths.h"
 
-#if defined(CORE_AVR)
-  #include <avr/wdt.h>
-#endif
-
-volatile uint16_t lastRPM_100ms; //Need to record this for rpmDOT calculation
+volatile uint16_t lastRPM_100ms; // For rpmDOT calculation
 volatile byte loop5ms;
 volatile byte loop20ms;
 volatile byte loop33ms;
@@ -36,16 +34,12 @@ volatile int loopSec;
 
 volatile unsigned int dwellLimit_uS;
 
-volatile uint8_t tachoEndTime; //The time (in ms) that the tacho pulse needs to end at
+volatile uint8_t tachoEndTime; // Time (ms) when tacho pulse needs to end
 volatile TachoOutputStatus tachoOutputFlag;
 volatile uint16_t tachoSweepIncr;
 volatile uint16_t tachoSweepAccum;
 volatile uint8_t testInjectorPulseCount = 0;
 volatile uint8_t testIgnitionPulseCount = 0;
-
-#if defined (CORE_TEENSY)
-  IntervalTimer lowResTimer;
-#endif
 
 void initialiseTimers(void)
 {
@@ -67,14 +61,12 @@ static inline void applyOverDwellCheck(IgnitionSchedule &schedule, uint32_t targ
   }
 }
 
-//Timer2 Overflow Interrupt Vector, called when the timer overflows.
-//Executes every ~1ms.
-#if defined(CORE_AVR) //AVR chips use the ISR for this
-//This MUST be no block. Turning NO_BLOCK off messes with timing accuracy. 
-ISR(TIMER2_OVF_vect, ISR_NOBLOCK) //cppcheck-suppress misra-c2012-8.2
-#else
-void oneMSInterval(void) //Most ARM chips can simply call a function
-#endif
+/**
+ * 1ms timer interrupt callback for STM32F407
+ * Called by TIM11 ISR (configured in board_stm32_official.cpp)
+ * Executes every 1ms for low-frequency periodic tasks
+ */
+void oneMSInterval(void)
 {
   BIT_SET(TIMER_mask, BIT_TIMER_1KHZ);
   ms_counter++;
