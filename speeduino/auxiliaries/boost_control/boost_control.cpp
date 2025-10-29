@@ -7,14 +7,15 @@
 #include "../../globals.h"
 #include "../../auxiliaries.h"
 #include "../../table3d.h"
+#include "../../timers.h"
 #include "../../src/PID_v1/PID_v1.h"
 
 namespace speeduino {
 namespace boost {
 
-// External PID controller (defined in auxiliaries.cpp)
-extern integerPID_ideal boostPID;
-extern table2D_u8_s16_6 flexBoostTable;
+// PID controller and table (declared in auxiliaries.h, accessed from global scope)
+using ::boostPID;
+using ::flexBoostTable;
 
 // Boost PWM state
 static long boost_pwm_target_value = 0;

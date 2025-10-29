@@ -27,8 +27,8 @@ struct FanPWMState {
 static FanPWMState pwm_state;
 #endif
 
-// Fan table (defined in auxiliaries.cpp originally)
-extern table2D_u8_u8_4 fanPWMTable;
+// Fan table (declared in auxiliaries.h, accessed from global scope)
+using ::fanPWMTable;
 
 /**
  * @brief Check if fan is permitted to run

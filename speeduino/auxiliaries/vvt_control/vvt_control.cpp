@@ -19,24 +19,25 @@
 #include "../../table3d.h"
 #include "../../decoders.h"
 #include "../../idle.h"
+#include "../../units.h"
 
 namespace speeduino {
 namespace vvt {
 
-// External VVT PWM state (shared with ISR in vvt_interrupt.cpp)
-extern long vvt1_pwm_value;
-extern long vvt2_pwm_value;
-extern volatile bool vvt1_pwm_state;
-extern volatile bool vvt2_pwm_state;
-extern volatile bool vvt1_max_pwm;
-extern volatile bool vvt2_max_pwm;
-extern uint16_t vvt_pwm_max_count;
+// VVT PWM state (declared in auxiliaries.h, accessed from global scope)
+using ::vvt1_pwm_value;
+using ::vvt2_pwm_value;
+using ::vvt1_pwm_state;
+using ::vvt2_pwm_state;
+using ::vvt1_max_pwm;
+using ::vvt2_max_pwm;
+using ::vvt_pwm_max_count;
 
-// PID input/output variables (external linkage required by PID library)
-extern unsigned long vvt_pid_target_angle;
-extern long vvt_pid_current_angle;
-extern unsigned long vvt2_pid_target_angle;
-extern long vvt2_pid_current_angle;
+// PID input/output variables (declared in auxiliaries.h, accessed from global scope)
+using ::vvt_pid_target_angle;
+using ::vvt_pid_current_angle;
+using ::vvt2_pid_target_angle;
+using ::vvt2_pid_current_angle;
 
 // Anonymous namespace for private implementation
 namespace {

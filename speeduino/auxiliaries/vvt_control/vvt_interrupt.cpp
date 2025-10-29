@@ -12,21 +12,22 @@
 
 #include "../../globals.h"
 #include "../../auxiliaries.h"
+#include "../../timers.h"
 
 namespace speeduino {
 namespace vvt {
 
-// VVT PWM state (shared with vvt_control.cpp)
-extern long vvt1_pwm_value;
-extern long vvt2_pwm_value;
-extern volatile uint16_t vvt1_pwm_cur_value;
-extern volatile uint16_t vvt2_pwm_cur_value;
-extern volatile bool vvt1_pwm_state;
-extern volatile bool vvt2_pwm_state;
-extern volatile bool vvt1_max_pwm;
-extern volatile bool vvt2_max_pwm;
-extern volatile char nextVVT;
-extern uint16_t vvt_pwm_max_count;
+// VVT PWM state (declared in auxiliaries.h, accessed from global scope)
+using ::vvt1_pwm_value;
+using ::vvt2_pwm_value;
+using ::vvt1_pwm_cur_value;
+using ::vvt2_pwm_cur_value;
+using ::vvt1_pwm_state;
+using ::vvt2_pwm_state;
+using ::vvt1_max_pwm;
+using ::vvt2_max_pwm;
+using ::nextVVT;
+using ::vvt_pwm_max_count;
 
 /**
  * @brief VVT interrupt state machine states

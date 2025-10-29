@@ -27,14 +27,9 @@
 #include <stdint.h>
 #include <stdbool.h>
 
-// Bit positions in currentStatus.airConStatus
-#define BIT_AIRCON_REQUEST     0U  ///< A/C button pressed
-#define BIT_AIRCON_COMPRESSOR  1U  ///< Compressor active
-#define BIT_AIRCON_RPM_LOCKOUT 2U  ///< RPM out of range
-#define BIT_AIRCON_TPS_LOCKOUT 3U  ///< TPS above threshold
-#define BIT_AIRCON_TURNING_ON  4U  ///< In turn-on delay
-#define BIT_AIRCON_CLT_LOCKOUT 5U  ///< Coolant too hot
-#define BIT_AIRCON_FAN         6U  ///< Standalone fan active
+// Bit positions in currentStatus.airConStatus are defined in statuses.h:
+// BIT_AIRCON_REQUEST, BIT_AIRCON_COMPRESSOR, BIT_AIRCON_RPM_LOCKOUT,
+// BIT_AIRCON_TPS_LOCKOUT, BIT_AIRCON_TURNING_ON, BIT_AIRCON_CLT_LOCKOUT, BIT_AIRCON_FAN
 
 namespace speeduino {
 namespace aircon {

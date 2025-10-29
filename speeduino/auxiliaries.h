@@ -1,10 +1,11 @@
 #ifndef AUX_H
 #define AUX_H
 
-#include BOARD_H //Note that this is not a real file, it is defined in globals.h. 
+#include BOARD_H //Note that this is not a real file, it is defined in globals.h.
 
 #include <SimplyAtomic.h>
 #include "port_pin.h"
+#include "src/PID_v1/PID_v1.h"
 
 void initialiseAuxPWM(void);
 void boostControl(void);
@@ -86,12 +87,26 @@ void wmiControl(void);
 
 #define WMI_TANK_IS_EMPTY() ((configPage10.wmiEmptyEnabled) ? ((configPage10.wmiEmptyPolarity) ? digitalRead(pinWMIEmpty) : !digitalRead(pinWMIEmpty)) : 1)
 
+extern PORT_TYPE boost_pin_port;
+extern PINMASK_TYPE boost_pin_mask;
 extern PORT_TYPE vvt1_pin_port;
 extern PINMASK_TYPE vvt1_pin_mask;
 extern PORT_TYPE vvt2_pin_port;
 extern PINMASK_TYPE vvt2_pin_mask;
 extern PORT_TYPE fan_pin_port;
 extern PINMASK_TYPE fan_pin_mask;
+extern PORT_TYPE n2o_stage1_pin_port;
+extern PINMASK_TYPE n2o_stage1_pin_mask;
+extern PORT_TYPE n2o_stage2_pin_port;
+extern PINMASK_TYPE n2o_stage2_pin_mask;
+extern PORT_TYPE n2o_arming_pin_port;
+extern PINMASK_TYPE n2o_arming_pin_mask;
+extern PORT_TYPE aircon_req_pin_port;
+extern PINMASK_TYPE aircon_req_pin_mask;
+extern PORT_TYPE aircon_comp_pin_port;
+extern PINMASK_TYPE aircon_comp_pin_mask;
+extern PORT_TYPE aircon_fan_pin_port;
+extern PINMASK_TYPE aircon_fan_pin_mask;
 
 #if defined(PWM_FAN_AVAILABLE)//PWM fan not available on Arduino MEGA
 extern uint16_t fan_pwm_max_count; //Used for variable PWM frequency
@@ -100,6 +115,57 @@ void fanInterrupt(void);
 
 extern uint16_t vvt_pwm_max_count; //Used for variable PWM frequency
 extern uint16_t boost_pwm_max_count; //Used for variable PWM frequency
+
+extern integerPID vvtPID;
+extern integerPID vvt2PID;
+extern integerPID_ideal boostPID;
+
+// VVT PWM state variables
+extern long vvt1_pwm_value;
+extern long vvt2_pwm_value;
+extern volatile unsigned int vvt1_pwm_cur_value;
+extern volatile unsigned int vvt2_pwm_cur_value;
+extern long vvt_pid_target_angle;
+extern long vvt2_pid_target_angle;
+extern long vvt_pid_current_angle;
+extern long vvt2_pid_current_angle;
+extern volatile bool vvt1_pwm_state;
+extern volatile bool vvt2_pwm_state;
+extern volatile bool vvt1_max_pwm;
+extern volatile bool vvt2_max_pwm;
+extern volatile char nextVVT;
+extern byte boostCounter;
+extern byte vvtCounter;
+
+// Boost PWM state
+extern long boost_pwm_target_value;
+extern volatile bool boost_pwm_state;
+extern volatile unsigned int boost_pwm_cur_value;
+
+// Fan PWM state (STM32)
+#if defined(PWM_FAN_AVAILABLE)
+extern volatile bool fan_pwm_state;
+extern volatile unsigned int fan_pwm_cur_value;
+extern long fan_pwm_value;
+#endif
+
+// Air conditioning state
+extern bool acIsEnabled;
+extern bool acStandAloneFanIsEnabled;
+extern uint8_t acStartDelay;
+extern uint8_t acTPSLockoutDelay;
+extern uint8_t acRPMLockoutDelay;
+extern uint8_t acAfterEngineStartDelay;
+extern bool waitedAfterCranking;
+
+// VVT timing
+extern uint32_t vvtWarmTime;
+extern bool vvtIsHot;
+extern bool vvtTimeHold;
+
+// Tables
+extern table2D_u8_u8_4 fanPWMTable;
+extern table2D_u8_s16_6 flexBoostTable;
 
 void boostInterrupt(void);
 void vvtInterrupt(void);

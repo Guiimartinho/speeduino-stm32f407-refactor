@@ -12,10 +12,11 @@
 namespace speeduino {
 namespace wmi {
 
-extern uint16_t vvt_pwm_max_count;
-extern long vvt2_pwm_value;
-extern volatile bool vvt2_pwm_state;
-extern volatile bool vvt2_max_pwm;
+// VVT PWM state (declared in auxiliaries.h, accessed from global scope)
+using ::vvt_pwm_max_count;
+using ::vvt2_pwm_value;
+using ::vvt2_pwm_state;
+using ::vvt2_max_pwm;
 
 bool initialise(void) {
     currentStatus.wmiPW = 0U;
