@@ -1,0 +1,180 @@
+name: Create Release - SCG-ECU 2.0
+
+# Automated release workflow for SCG-ECU 2.0
+# Triggered when a version tag is pushed (e.g., v1.0.0, v2.1.3)
+#
+# Replaces: create-release.yml (simplified for single platform)
+# No external server uploads (Speeduino server removed)
+
+on:
+  push:
+    tags:
+      - 'v*'  # Triggers on version tags: v1.0.0, v2.1.3, etc.
+
+jobs:
+  # ============================================================================
+  # JOB 1: BUILD RELEASE FIRMWARE
+  # ============================================================================
+  build-release:
+    name: Build Release
+    runs-on: ubuntu-latest
+
+    steps:
+    - name: Checkout repository
+      uses: actions/checkout@v4
+
+    - name: Cache pip dependencies
+      uses: actions/cache@v4
+      with:
+        path: ~/.cache/pip
+        key: ${{ runner.os }}-pip-${{ hashFiles('**/requirements.txt') }}
+        restore-keys: |
+          ${{ runner.os }}-pip-
+
+    - name: Cache PlatformIO
+      uses: actions/cache@v4
+      with:
+        path: ~/.platformio
+        key: ${{ runner.os }}-pio-${{ hashFiles('**/platformio.ini') }}
+        restore-keys: |
+          ${{ runner.os }}-pio-
+
+    - name: Set up Python
+      uses: actions/setup-python@v5
+      with:
+        python-version: '3.10'
+
+    - name: Install PlatformIO
+      run: |
+        python -m pip install --upgrade pip
+        pip install --upgrade platformio
+
+    - name: Build STM32F407 Firmware (Release)
+      run: platformio run -e black_F407VE-EEPROM-SPI
+
+    - name: Get version from tag
+      id: tag_version
+      run: echo "VERSION=${GITHUB_REF#refs/tags/}" >> $GITHUB_OUTPUT
+
+    - name: Rename firmware with version
+      run: |
+        VERSION=${{ steps.tag_version.outputs.VERSION }}
+        cp .pio/build/black_F407VE-EEPROM-SPI/firmware.bin firmware-scu-ecu-2.0-${VERSION}.bin
+        cp .pio/build/black_F407VE-EEPROM-SPI/firmware.elf firmware-scu-ecu-2.0-${VERSION}.elf
+
+    - name: Upload build artifacts
+      uses: actions/upload-artifact@v4
+      with:
+        name: release-firmware-${{ steps.tag_version.outputs.VERSION }}
+        path: |
+          firmware-scu-ecu-2.0-*.bin
+          firmware-scu-ecu-2.0-*.elf
+        retention-days: 90
+
+  # ============================================================================
+  # JOB 2: CREATE GITHUB RELEASE
+  # ============================================================================
+  create-release:
+    name: Create GitHub Release
+    runs-on: ubuntu-latest
+    needs: build-release
+
+    steps:
+    - name: Checkout repository
+      uses: actions/checkout@v4
+      with:
+        fetch-depth: 0  # Full history for changelog
+
+    - name: Get version from tag
+      id: tag_version
+      run: echo "VERSION=${GITHUB_REF#refs/tags/}" >> $GITHUB_OUTPUT
+
+    - name: Download firmware artifacts
+      uses: actions/download-artifact@v4
+      with:
+        name: release-firmware-${{ steps.tag_version.outputs.VERSION }}
+
+    - name: Build Changelog
+      id: changelog
+      uses: mikepenz/release-changelog-builder-action@v5
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      with:
+        mode: "COMMIT"
+        fromTag: "v1.0.0"  # Change this to your first release tag
+        configuration: |
+          {
+            "categories": [
+              {
+                "title": "## 🚀 Features",
+                "labels": ["feature", "enhancement"]
+              },
+              {
+                "title": "## 🐛 Bug Fixes",
+                "labels": ["bug", "fix"]
+              },
+              {
+                "title": "## 📚 Documentation",
+                "labels": ["documentation", "docs"]
+              },
+              {
+                "title": "## 🔧 Other Changes",
+                "labels": []
+              }
+            ]
+          }
+
+    - name: Create release notes
+      id: release_notes
+      run: |
+        cat > release_notes.md << 'EOF'
+        # SCG-ECU 2.0 - Release ${{ steps.tag_version.outputs.VERSION }}
+
+        ## Platform
+        - **Target:** STM32F407VGT6
+        - **Configuration:** 8x8 (8 fuel + 8 ignition channels)
+        - **Memory:** SPI EEPROM (W25Q16)
+
+        ## Firmware Files
+        - `firmware-scu-ecu-2.0-${{ steps.tag_version.outputs.VERSION }}.bin` - Flash binary (upload via DFU/ST-Link)
+        - `firmware-scu-ecu-2.0-${{ steps.tag_version.outputs.VERSION }}.elf` - Debug symbols
+        - `speeduino.ini` - TunerStudio configuration
+
+        ## Installation
+        ```bash
+        # Option 1: DFU Upload
+        dfu-util -a 0 -s 0x08000000:leave -D firmware-scu-ecu-2.0-${{ steps.tag_version.outputs.VERSION }}.bin
+
+        # Option 2: ST-Link
+        st-flash write firmware-scu-ecu-2.0-${{ steps.tag_version.outputs.VERSION }}.bin 0x08000000
+        ```
+
+        ## Changelog
+        ${{ steps.changelog.outputs.changelog }}
+
+        ## Documentation
+        - [Master Reference](docs/PROJETO_SCG_ECU_MASTER_REFERENCE.md)
+        - [Implementation Status](docs/IMPLEMENTACAO_MODULARIZACAO_STATUS.md)
+        - [GitHub Workflows](docs/GITHUB_WORKFLOWS_REFERENCE.md)
+
+        ---
+        **Build Date:** $(date -u +"%Y-%m-%d %H:%M:%S UTC")
+        **Commit:** ${{ github.sha }}
+        EOF
+
+    - name: Create GitHub Release
+      uses: softprops/action-gh-release@v2
+      with:
+        body_path: release_notes.md
+        files: |
+          firmware-scu-ecu-2.0-*.bin
+          firmware-scu-ecu-2.0-*.elf
+          reference/speeduino.ini
+        draft: false
+        prerelease: false
+
+    - name: Summary
+      run: |
+        echo "Release ${{ steps.tag_version.outputs.VERSION }} created successfully"
+        echo "Firmware: firmware-scu-ecu-2.0-${{ steps.tag_version.outputs.VERSION }}.bin"
+        echo "URL: https://github.com/${{ github.repository }}/releases/tag/${{ steps.tag_version.outputs.VERSION }}"

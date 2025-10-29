@@ -1,62 +1,119 @@
-name: Perform MISRA scan
+name: MISRA Compliance - SCG-ECU 2.0
 
-# Controls when the action will run. Triggers the workflow on push or pull request
-# events but only for the master branch
+# MISRA C:2012 compliance scan for automotive safety standards
+# Critical for ECU development - tracks code quality and safety violations
+#
+# Adapted for SCG-ECU 2.0:
+# - Removed Speeduino Gist dependency
+# - Artifacts uploaded to GitHub
+# - Badge can be created manually if needed
+
 on:
   push:
     branches:
       - master
-      - GH_misra
+      - main
+  pull_request:
+    branches:
+      - master
+      - main
+  workflow_dispatch:
 
-# A workflow run is made up of one or more jobs that can run sequentially or in parallel
 jobs:
-  # This workflow contains a single job called "build"
-  build:
-    # The type of runner that the job will run on
+  misra-scan:
+    name: MISRA C:2012 Scan
     runs-on: ubuntu-22.04
 
-    # Steps represent a sequence of tasks that will be executed as part of the job
     steps:
-    # Checks-out your repository under $GITHUB_WORKSPACE, so your job can access it
-    - uses: actions/checkout@v4
+    - name: Checkout repository
+      uses: actions/checkout@v4
 
-    - name: Install cppcheck, dos2unix
+    - name: Install cppcheck and dos2unix
       run: |
-        sudo apt-get install cppcheck
-        sudo apt-get install dos2unix
+        sudo apt-get update
+        sudo apt-get install -y cppcheck dos2unix
 
-    - name: Run MISRA scan
+    - name: Verify cppcheck version
+      run: cppcheck --version
+
+    - name: Run MISRA compliance scan
       continue-on-error: true
       run: |
         cd $GITHUB_WORKSPACE/misra/
-        mkdir .results
+        mkdir -p .results
         chmod +x check_misra.sh
         dos2unix check_misra.sh
-        ./check_misra.sh -c /usr/bin -o ./.results -q
-        echo "Scan complete"
-        NumViolations=`cat .results/error_count.txt`
-        echo $NumViolations
-        echo "VIOLATIONS=$NumViolations" >> $GITHUB_ENV
-        ls $GITHUB_WORKSPACE/misra/.results/
-        
-    - name: Save output to Gist
-      if: github.event_name != 'pull_request' && github.repository_owner == 'speeduino'
-      env:
-        MISRA_GIST: ${{ secrets.MISRA_GIST }}
-        VIOLATIONS: ${{ env.VIOLATIONS }}
-      uses: schneegans/dynamic-badges-action@v1.7.0
-      with:
-        auth: ${{ secrets.MISRA_GIST }}
-        gistID: d8a449a3f6d3307dab457431512502f9
-        filename: misra_results.json
-        label: MISRA Violations
-        color: red
-        message: ${{ env.VIOLATIONS }}
 
-    - name: Archive MISRA scan artifacts
+        echo "=== Running MISRA C:2012 Scan ==="
+        ./check_misra.sh -c /usr/bin -o ./.results -q
+
+        echo "=== Scan Complete ==="
+        if [ -f .results/error_count.txt ]; then
+          NumViolations=$(cat .results/error_count.txt)
+          echo "MISRA Violations: $NumViolations"
+          echo "VIOLATIONS=$NumViolations" >> $GITHUB_ENV
+        else
+          echo "Warning: error_count.txt not found"
+          echo "VIOLATIONS=unknown" >> $GITHUB_ENV
+        fi
+
+        ls -la $GITHUB_WORKSPACE/misra/.results/
+
+    - name: Create MISRA summary
+      run: |
+        cat > misra-summary.md << 'EOF'
+        # MISRA C:2012 Compliance Report
+
+        **Violations:** ${{ env.VIOLATIONS }}
+        **Date:** $(date -u +"%Y-%m-%d %H:%M:%S UTC")
+        **Commit:** ${{ github.sha }}
+
+        ## Severity Breakdown
+        See detailed results in artifacts.
+
+        ## Recommendations
+        - Review all violations in `results.txt`
+        - Prioritize fixing critical safety violations
+        - Document any justified deviations
+
+        EOF
+
+    - name: Upload MISRA results
       uses: actions/upload-artifact@v4
       with:
-        name: MISRA results
+        name: misra-results-${{ github.sha }}
         path: |
           misra/.results/results.txt
           misra/.results/error_count.txt
+          misra-summary.md
+        retention-days: 90
+
+    - name: Comment MISRA results on PR
+      if: github.event_name == 'pull_request'
+      uses: actions/github-script@v7
+      with:
+        script: |
+          const violations = process.env.VIOLATIONS;
+          github.rest.issues.createComment({
+            issue_number: context.issue.number,
+            owner: context.repo.owner,
+            repo: context.repo.repo,
+            body: `## MISRA C:2012 Scan Results\n\n**Violations:** ${violations}\n\nDetailed results available in workflow artifacts.`
+          })
+
+    - name: Check violation threshold
+      if: env.VIOLATIONS != 'unknown'
+      run: |
+        # Fail if violations exceed threshold (adjust as needed)
+        THRESHOLD=1000
+        VIOLATIONS=${{ env.VIOLATIONS }}
+
+        echo "Violations: $VIOLATIONS"
+        echo "Threshold: $THRESHOLD"
+
+        if [ "$VIOLATIONS" -gt "$THRESHOLD" ]; then
+          echo "MISRA violations ($VIOLATIONS) exceed threshold ($THRESHOLD)"
+          exit 1
+        else
+          echo "MISRA violations within acceptable range"
+        fi

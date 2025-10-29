@@ -1,5 +1,6 @@
-# Global owner
-* @noisymime
+# SCG-ECU 2.0 - Global owner
+* @Guiimartinho
 
-#stm32 maintainer
-/speeduino/board_stm32* @VitorBoss
+# Original Speeduino owners (for reference)
+# * @noisymime
+# /speeduino/board_stm32* @VitorBoss

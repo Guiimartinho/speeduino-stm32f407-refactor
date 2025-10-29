@@ -1,44 +1,91 @@
-name: Build and update Doxygen documentation
+name: Documentation - SCG-ECU 2.0
 
-# Controls when the action will run. Triggers the workflow on push or pull request
-# events but only for the master branch
+# Automatic Doxygen documentation generation and deployment
+# Publishes to GitHub Pages for easy access
+#
+# Adapted for SCG-ECU 2.0:
+# - Uses GitHub Pages in same repo (not separate repo)
+# - Simplified deployment process
+# - Automatic updates on master/main push
+
 on:
   push:
-    branches: [ master ]
+    branches: [ master, main ]
+  workflow_dispatch:
 
-# A workflow run is made up of one or more jobs that can run sequentially or in parallel
+# Sets permissions of the GITHUB_TOKEN to allow deployment to GitHub Pages
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+# Allow one concurrent deployment
+concurrency:
+  group: "pages"
+  cancel-in-progress: true
+
 jobs:
-  # This workflow contains a single job called "build"
-  build:
-    # The type of runner that the job will run on
+  build-docs:
+    name: Build Documentation
     runs-on: ubuntu-latest
 
-    # Steps represent a sequence of tasks that will be executed as part of the job
     steps:
-    # Checks-out your repository under $GITHUB_WORKSPACE, so your job can access it
-    - uses: actions/checkout@v4
-        
+    - name: Checkout repository
+      uses: actions/checkout@v4
+
     - name: Build Doxygen documentation
       uses: mattnotmitt/doxygen-action@v1.9
       with:
-        doxyfile-path: "./Doxyfile" # default is ./Doxyfile
-        working-directory: "." # default is .
+        doxyfile-path: "./Doxyfile"
+        working-directory: "."
 
-    - name: Setup git config
-      if: github.repository_owner == 'speeduino'
+    - name: Verify documentation built
       run: |
-        git config --global user.name "GitHub Actions Bot"
-        git config --global user.email "<>"
+        if [ -d "reference/doxygen/html" ]; then
+          echo "Documentation built successfully"
+          ls -la reference/doxygen/html/
+        else
+          echo "ERROR: Documentation directory not found"
+          exit 1
+        fi
 
-    - name: Commit updated Doxygen documentation
-      if: github.event_name != 'pull_request' && github.repository_owner == 'speeduino'
-      env:
-        GH_DOXYGEN: ${{ secrets.GH_DOXYGEN }}
+    - name: Upload documentation artifact
+      uses: actions/upload-artifact@v4
+      with:
+        name: doxygen-docs-${{ github.sha }}
+        path: reference/doxygen/html/
+        retention-days: 30
+
+  deploy-pages:
+    name: Deploy to GitHub Pages
+    runs-on: ubuntu-latest
+    needs: build-docs
+    if: github.event_name != 'pull_request'
+
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+
+    steps:
+    - name: Download documentation artifact
+      uses: actions/download-artifact@v4
+      with:
+        name: doxygen-docs-${{ github.sha }}
+        path: ./docs-html
+
+    - name: Setup Pages
+      uses: actions/configure-pages@v4
+
+    - name: Upload artifact to Pages
+      uses: actions/upload-pages-artifact@v3
+      with:
+        path: './docs-html'
+
+    - name: Deploy to GitHub Pages
+      id: deployment
+      uses: actions/deploy-pages@v4
+
+    - name: Summary
       run: |
-        cd ..
-        git clone https://github.com/speeduino/speeduino-doxygen
-        cp -r speeduino/reference/doxygen/html/* speeduino-doxygen
-        cd speeduino-doxygen
-        git add --all
-        git commit --allow-empty -m "Deploy code docs to GitHub repo. Commit ${GITHUB_SHA}"
-        git push --force "https://${GH_DOXYGEN}@github.com/speeduino/speeduino-doxygen" > /dev/null 2>&1
+        echo "Documentation deployed to GitHub Pages"
+        echo "URL: ${{ steps.deployment.outputs.page_url }}"
