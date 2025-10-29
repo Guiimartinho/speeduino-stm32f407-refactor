@@ -7,28 +7,6 @@ This file is used for everything related to maps/tables including their definiti
 #include <stdint.h>
 #include <Arduino.h>
 
-// ============================================================================
-// MODULARIZED TABLE SYSTEM
-// ============================================================================
-// New modular architecture with coordinator-based table management
-// All table implementations preserved 100% in table2d.h/cpp
-// Coordinator provides unified API with documentation:
-// - 2D tables (linear interpolation)
-// - 3D tables (bilinear interpolation)
-// - Caching system (aggressive for performance)
-// - Iterator support (for serial access)
-// ============================================================================
-//
-// Include modular table coordinator (optional - for future migration)
-// For now, all table code remains in table2d/table3d files
-// Modular headers available in table_access/ directory for documentation
-//
-// #include "table_access/table_coordinator.h"
-//
-// When ready to use modular system, uncomment above and use coordinator
-// functions for unified API access
-// ============================================================================
-
 /// @cond
 // private to table2D implementation
 

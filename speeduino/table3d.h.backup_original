@@ -49,28 +49,6 @@
 #include "table3d_axes.h"
 #include "table3d_values.h"
 
-// ============================================================================
-// MODULARIZED 3D TABLE SYSTEM
-// ============================================================================
-// New modular architecture with coordinator-based 3D table management
-// All 3D table implementations preserved 100% in table3d files
-// Coordinator provides unified API with documentation:
-// - 3D tables (bilinear interpolation)
-// - Axis compression (RPM/100, Load/2)
-// - 2-level caching (bin + value)
-// - Fixed-point math (QU1X8 format)
-// ============================================================================
-//
-// Include modular table coordinator (optional - for future migration)
-// For now, all 3D table code remains in table3d*.h/cpp files
-// Modular headers available in table_access/ directory for documentation
-//
-// #include "table_access/table_coordinator.h"
-//
-// When ready to use modular system, uncomment above and use coordinator
-// functions for unified API access
-// ============================================================================
-
 #define TO_TYPE_KEY(size, xDom, yDom) table3d ## size ## xDom ## yDom ## _key
 
 /**

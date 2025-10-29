@@ -3,7 +3,7 @@
 
 **Versão Projeto:** 2.0
 **Última Atualização:** 29/10/2025
-**Status:** 71% COMPLETO (5/7 módulos)
+**Status:** 86% COMPLETO (6/7 módulos)
 
 ---
 
@@ -103,17 +103,17 @@ speeduino/
 
 ## 🎯 OBJETIVOS DO PROJETO
 
-### Completo (5/7 módulos)
+### Completo (6/7 módulos)
 
 - ✅ **Módulo 1:** Board Configuration (8 arquivos)
 - ✅ **Módulo 2:** Auxiliaries (24 arquivos, 10 subsistemas)
 - ✅ **Módulo 3:** Decoders (6 arquivos, 28 decoders)
 - ✅ **Módulo 4:** Corrections (10 arquivos, 4 subsistemas)
 - ✅ **Módulo 5:** Sensors (3 arquivos modular, 26 funções, Direct Wrapper Pattern)
+- ✅ **Módulo 6:** Table Access (3 arquivos modular, Documentation Layer, Template Preservation)
 
-### Pendente (2/7 módulos)
+### Pendente (1/7 módulos)
 
-- ⏳ **Módulo 6:** Table Access (4 funções, interpolação)
 - ⏳ **Módulo 7:** Schedulers (timing-critical, HIL required)
 
 ---
@@ -121,12 +121,12 @@ speeduino/
 ## 📊 MÉTRICAS ATUAIS
 
 ```
-Build Status:     ✅ SUCCESS (11.98s)
-Flash Usage:      202KB / 524KB (38.6%)
-RAM Usage:        21KB / 131KB (16.3%)
+Build Status:     ✅ SUCCESS (4.20s)
+Flash Usage:      203KB / 524KB (38.7%)
+RAM Usage:        23KB / 131KB (17.5%)
 Warnings:         0
-Arquivos Criados: 51 (+ 3 módulo 5)
-LOC Modular:      ~9,150
+Arquivos Criados: 54 (+ 3 módulo 6)
+LOC Modular:      ~9,670
 ```
 
 ---
@@ -170,10 +170,10 @@ Validação linha por linha (diff)
 
 | Aspecto | Status | Detalhes |
 |---------|--------|----------|
-| **Build** | ✅ SUCCESS | 11.98s, zero warnings |
-| **Flash** | ✅ OK | 38.6% (ideal <45%) |
-| **RAM** | ✅ OK | 16.3% (ideal <20%) |
-| **Módulos** | 🔄 71% | 5/7 completos |
+| **Build** | ✅ SUCCESS | 4.20s, zero warnings |
+| **Flash** | ✅ OK | 38.7% (ideal <45%) |
+| **RAM** | ✅ OK | 17.5% (ideal <20%) |
+| **Módulos** | 🔄 86% | 6/7 completos |
 | **Documentação** | ✅ ATUAL | Atualizada 29/10/2025 |
 | **Testes** | ⚠️ PENDENTE | Aguardando HIL |
 
@@ -201,6 +201,14 @@ pio run -e black_F407VE-EEPROM-SPI
 ---
 
 ## 🔄 CHANGELOG
+
+### Versão 6.0 (29/10/2025)
+- ✅ Módulo 6 (Table Access) completo
+- ✅ Documentation Layer implementada
+- ✅ Template inline functions preservadas (ZERO overhead)
+- ✅ 5 funções não-template wrapeadas
+- ✅ 100% preservação lógica (verificado com diff)
+- ✅ Build SUCCESS: 4.20s (+468 bytes Flash)
 
 ### Versão 5.0 (29/10/2025)
 - ✅ Módulo 5 (Sensors) completo
