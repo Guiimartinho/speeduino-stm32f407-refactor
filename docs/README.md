@@ -3,7 +3,7 @@
 
 **Versão Projeto:** 2.0
 **Última Atualização:** 29/10/2025
-**Status:** 57% COMPLETO (4/7 módulos)
+**Status:** 71% COMPLETO (5/7 módulos)
 
 ---
 
@@ -103,16 +103,16 @@ speeduino/
 
 ## 🎯 OBJETIVOS DO PROJETO
 
-### Completo (4/7 módulos)
+### Completo (5/7 módulos)
 
 - ✅ **Módulo 1:** Board Configuration (8 arquivos)
 - ✅ **Módulo 2:** Auxiliaries (24 arquivos, 10 subsistemas)
 - ✅ **Módulo 3:** Decoders (6 arquivos, 28 decoders)
 - ✅ **Módulo 4:** Corrections (10 arquivos, 4 subsistemas)
+- ✅ **Módulo 5:** Sensors (3 arquivos modular, 26 funções, Direct Wrapper Pattern)
 
-### Pendente (3/7 módulos)
+### Pendente (2/7 módulos)
 
-- ⏳ **Módulo 5:** Sensors (12 funções, 3 subsistemas)
 - ⏳ **Módulo 6:** Table Access (4 funções, interpolação)
 - ⏳ **Módulo 7:** Schedulers (timing-critical, HIL required)
 
@@ -121,12 +121,12 @@ speeduino/
 ## 📊 MÉTRICAS ATUAIS
 
 ```
-Build Status:     ✅ SUCCESS (7.49s)
+Build Status:     ✅ SUCCESS (11.98s)
 Flash Usage:      202KB / 524KB (38.6%)
 RAM Usage:        21KB / 131KB (16.3%)
 Warnings:         0
-Arquivos Criados: 48
-LOC Modular:      ~8,800
+Arquivos Criados: 51 (+ 3 módulo 5)
+LOC Modular:      ~9,150
 ```
 
 ---
@@ -170,10 +170,10 @@ Validação linha por linha (diff)
 
 | Aspecto | Status | Detalhes |
 |---------|--------|----------|
-| **Build** | ✅ SUCCESS | 7.49s, zero warnings |
+| **Build** | ✅ SUCCESS | 11.98s, zero warnings |
 | **Flash** | ✅ OK | 38.6% (ideal <45%) |
 | **RAM** | ✅ OK | 16.3% (ideal <20%) |
-| **Módulos** | 🔄 57% | 4/7 completos |
+| **Módulos** | 🔄 71% | 5/7 completos |
 | **Documentação** | ✅ ATUAL | Atualizada 29/10/2025 |
 | **Testes** | ⚠️ PENDENTE | Aguardando HIL |
 
@@ -201,6 +201,13 @@ pio run -e black_F407VE-EEPROM-SPI
 ---
 
 ## 🔄 CHANGELOG
+
+### Versão 5.0 (29/10/2025)
+- ✅ Módulo 5 (Sensors) completo
+- ✅ Direct Wrapper Pattern implementado
+- ✅ 26 funções modularizadas (24 originais + 2 utils)
+- ✅ 100% preservação lógica (verificado com diff)
+- ✅ Build SUCCESS: 11.98s (0KB Flash growth)
 
 ### Versão 4.0 (29/10/2025)
 - ✅ Módulo 4 (Corrections) completo

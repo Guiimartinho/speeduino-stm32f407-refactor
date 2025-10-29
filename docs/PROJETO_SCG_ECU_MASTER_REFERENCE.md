@@ -551,69 +551,139 @@ speeduino/
 
 ## 5. PRÓXIMOS PASSOS
 
-### 5.1 MÓDULO 5: Sensors (PRÓXIMO)
+### 5.1 MÓDULO 5: Sensors (✅ COMPLETO)
 
+**Data Conclusão:** 29/10/2025
 **Prioridade:** ALTA
 **Complexidade:** MÉDIA
-**Tempo Estimado:** 2-3 dias
+**Tempo Real:** 1 dia
 
-#### Escopo Preliminar
+#### Arquitetura Implementada
 
 ```
 sensors/
-├── sensor_coordinator.h/cpp
-├── analog_sensors/
-│   ├── tps_sensor.h/cpp        (Throttle Position)
-│   ├── map_sensor.h/cpp        (Manifold Pressure)
-│   ├── clt_sensor.h/cpp        (Coolant Temp)
-│   ├── iat_sensor.h/cpp        (Intake Air Temp)
-│   ├── o2_sensor.h/cpp         (Oxygen/Lambda)
-│   └── battery_sensor.h/cpp    (Battery Voltage)
-├── digital_sensors/
-│   ├── vss_sensor.h/cpp        (Vehicle Speed)
-│   └── flex_sensor.h/cpp       (Flex Fuel)
-└── sensor_filtering/
-    ├── ema_filter.h/cpp        (Exponential Moving Average)
-    └── median_filter.h/cpp     (Median 3-5 samples)
+├── sensor_interface.h          (4.3KB) - Interface comum
+├── sensor_coordinator.h        (6.0KB) - API pública
+└── sensor_coordinator.cpp      (5.0KB) - Direct wrapper
+
+backups/
+├── sensors.cpp.backup_original (38KB, 937 linhas)
+└── sensors.h.backup_original   (2.6KB, 81 linhas)
 ```
 
-#### Funções a Modularizar
+#### Decisão Arquitetural: Direct Wrapper Pattern
 
-De **sensors.cpp** (1,450 linhas):
-1. `readCLT()` - Coolant temperature
-2. `readIAT()` - Intake air temperature
-3. `readTPS()` - Throttle position
-4. `readMAP()` - Manifold pressure
-5. `readO2()` - Oxygen sensor
-6. `readO2_2()` - Secondary O2
-7. `readBat()` - Battery voltage
-8. `readBaro()` - Barometric pressure
-9. `readVSS()` - Vehicle speed
-10. `readFlex()` - Flex fuel sensor
-11. `instanteneousRPM()` - RPM calculation
-12. `flexEthanol()` - Ethanol % calculation
+**Por que NÃO usar Function Pointers?**
+- Decoders (Módulo 3) precisam de dispatch dinâmico (28 tipos diferentes)
+- Sensors têm implementação única (não há seleção em runtime)
+- Direct wrapper = ZERO overhead
+- Código mais simples e direto
 
-#### Desafios Identificados
+**Padrão Escolhido:**
+```cpp
+void sensorCoordinatorReadTPS(bool useFilter) {
+  if (!isInitialized) { return; }  // Guard clause
+  readTPS(useFilter);               // Direct call
+}
+```
 
-- **ADC Timing:** Leitura ADC pode levar 100µs+
-- **Filtering:** Implementar filtros sem degradar latência
-- **Calibration:** Tabelas de calibração por sensor
-- **Failure Detection:** Detectar falhas de sensor (open/short)
+#### Funções Modularizadas (26 total)
 
-#### Padrão Proposto
+**ANALOG SENSORS (13):**
+1. `sensorCoordinatorInitialize()` - Setup ADC
+2. `sensorCoordinatorReadTPS(bool)` - Throttle Position
+3. `sensorCoordinatorReadMAP()` - Manifold Pressure
+4. `sensorCoordinatorGetMAPDelta()` - MAP rate of change
+5. `sensorCoordinatorGetMAPDeltaTime()` - Time between reads
+6. `sensorCoordinatorReadCLT(bool)` - Coolant Temp
+7. `sensorCoordinatorReadIAT()` - Intake Air Temp
+8. `sensorCoordinatorReadO2()` - Primary O2
+9. `sensorCoordinatorReadO2_2()` - Secondary O2
+10. `sensorCoordinatorReadBat()` - Battery Voltage
+11. `sensorCoordinatorReadBaro()` - Barometric Pressure
+12. `sensorCoordinatorInitialiseMAPBaro()` - MAP/Baro calibration
+13. `sensorCoordinatorResetMAPcycleAndEvent()` - Reset MAP tracking
+
+**DIGITAL SENSORS (6):**
+14. `sensorCoordinatorGetSpeed()` - Vehicle Speed
+15. `sensorCoordinatorGetGear()` - Gear calculation
+16. `sensorCoordinatorVssGetPulseGap(byte)` - VSS timing
+17. `sensorCoordinatorFlexPulse()` - ISR: Flex fuel (NO guard clause)
+18. `sensorCoordinatorKnockPulse()` - ISR: Knock (NO guard clause)
+19. `sensorCoordinatorVssPulse()` - ISR: VSS (NO guard clause)
+
+**DERIVED/AUXILIARY (5):**
+20. `sensorCoordinatorGetFuelPressure()` - Fuel pressure
+21. `sensorCoordinatorGetOilPressure()` - Oil pressure
+22. `sensorCoordinatorGetAnalogKnock()` - Knock sensor
+23. `sensorCoordinatorReadAuxanalog(uint8_t)` - Aux analog input
+24. `sensorCoordinatorReadAuxdigital(uint8_t)` - Aux digital input
+
+**UTILITIES (2):**
+25. `sensorCoordinatorIsInitialized()` - Status check
+26. `sensorCoordinatorGetName()` - Debug name
+
+#### ISR Performance
+
+**ISR Functions (3): NO Guard Clauses**
+```cpp
+void sensorCoordinatorFlexPulse(void) {
+  flexPulse();  // Direct call - must be <10µs
+}
+```
+
+**Razão:** Guard clauses adicionam 2-3 ciclos CPU, inaceitável em ISR.
+
+#### Interface para Futura Expansão
 
 ```cpp
 // sensor_interface.h
 typedef struct {
-  void (*init)(void);
-  uint16_t (*read)(void);           // Raw ADC value
-  int16_t (*getValue)(void);        // Calibrated value
-  bool (*isValid)(void);            // Failure detection
-  void (*calibrate)(uint16_t raw, int16_t actual);
+  void (*init)(void);              // Initialize sensor
+  uint16_t (*readRaw)(void);       // Raw ADC (0-4095)
+  int16_t (*getValue)(void);       // Calibrated value
+  bool (*isValid)(void);           // Failure detection
+  uint16_t (*applyFilter)(uint16_t); // EMA filtering
   const char* name;
   uint8_t sensorID;
 } SensorInterface;
+
+// Sensor IDs for O(1) lookup
+#define SENSOR_TPS        0
+#define SENSOR_MAP        1
+#define SENSOR_CLT        2
+// ... (13 sensores definidos)
 ```
+
+#### Validação 100%
+
+```bash
+# sensors.cpp INTACTO
+diff sensors.cpp sensors.cpp.backup_original
+# Result: ZERO diferenças ✅
+
+# sensors.h apenas documentação
+diff sensors.h.backup_original sensors.h
+# Result: +20 linhas comentadas ✅
+
+# Build
+Build: SUCCESS 11.98s
+Flash: 202,508 bytes (38.6%) - ESTÁVEL (0KB crescimento)
+RAM: 21,412 bytes (16.3%) - ESTÁVEL
+Warnings: 0 ✅
+
+# Função mapping
+24 funções originais → 24 coordinator wrappers
++ 2 utility functions
+= 26 funções totais ✅
+```
+
+#### Lições Aprendidas
+
+1. **Pattern Selection:** Direct wrapper mais simples quando não há necessidade de dispatch dinâmico
+2. **ISR Handling:** Guard clauses são críticas, exceto em ISRs
+3. **Interface Design:** Definir interface mesmo sem implementação facilita futuras extrações
+4. **Validation:** Diff com backup é validação mais confiável
 
 ---
 
