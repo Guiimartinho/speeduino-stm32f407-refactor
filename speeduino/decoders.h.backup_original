@@ -349,21 +349,4 @@ extern int16_t toothAngles[24]; //An array for storing fixed tooth angles. Curre
 #define SKIP_TOOTH3 3
 #define SKIP_TOOTH4 4
 
-// ============================================================================
-// MODULARIZED DECODER SYSTEM
-// ============================================================================
-// New modular architecture with table-driven decoder selection
-// All decoder implementations preserved 100% in decoders.cpp
-// Coordinator provides unified API with ultra-fast ISR dispatch
-// ============================================================================
-
-// Include modular decoder coordinator (optional - for future migration)
-// For now, all decoder code remains in decoders.cpp
-// Modular headers available in decoders/ directory for future extraction
-//
-// #include "decoders/decoder_coordinator.h"
-//
-// When ready to use modular system, uncomment above and replace direct
-// decoder function calls with decoderCoordinator* functions
-
 #endif

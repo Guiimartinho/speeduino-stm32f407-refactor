@@ -53,25 +53,4 @@ extern uint8_t idleAdvTaper;
 extern uint8_t crankingEnrichTaper;
 extern uint8_t dfcoTaper;
 
-// ============================================================================
-// MODULARIZED CORRECTIONS SYSTEM
-// ============================================================================
-// New modular architecture with interface-based corrections management
-// All correction implementations preserved 100% in corrections.cpp
-// Coordinator provides unified API with modular subsystems:
-// - Fuel corrections (WUE, ASE, cranking, accel, environmental, DFCO)
-// - Ignition corrections (environmental, timing, protection, special)
-// - Dwell corrections (battery voltage compensation)
-// - AFR corrections (target calculation, closed loop)
-// ============================================================================
-//
-// Include modular corrections coordinator (optional - for future migration)
-// For now, all correction code remains in corrections.cpp
-// Modular headers available in corrections/ directory for future extraction
-//
-// #include "corrections/corrections_coordinator.h"
-//
-// When ready to use modular system, uncomment above and replace direct
-// correction function calls with correctionsCoordinator* functions
-
 #endif // CORRECTIONS_H
