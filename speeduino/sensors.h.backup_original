@@ -76,26 +76,6 @@ uint32_t getMAPDeltaTime(void);
 
 extern table2D_u16_u16_32 cltCalibrationTable;
 extern table2D_u16_u16_32 iatCalibrationTable;
-extern table2D_u16_u8_32 o2CalibrationTable;
-
-// ============================================================================
-// MODULARIZED SENSORS SYSTEM
-// ============================================================================
-// New modular architecture with coordinator-based sensor management
-// All sensor implementations preserved 100% in sensors.cpp
-// Coordinator provides unified API with direct wrapper pattern:
-// - Analog sensors (TPS, MAP, CLT, IAT, O2, Battery, Baro)
-// - Digital sensors (VSS, Flex Fuel, Knock)
-// - Derived sensors (Speed, Gear, Fuel/Oil Pressure)
-// ============================================================================
-//
-// Include modular sensor coordinator (optional - for future migration)
-// For now, all sensor code remains in sensors.cpp
-// Modular headers available in sensors/ directory for future extraction
-//
-// #include "sensors/sensor_coordinator.h"
-//
-// When ready to use modular system, uncomment above and replace direct
-// sensor function calls with sensorCoordinator* functions
+extern table2D_u16_u8_32 o2CalibrationTable; 
 
 #endif // SENSORS_H
