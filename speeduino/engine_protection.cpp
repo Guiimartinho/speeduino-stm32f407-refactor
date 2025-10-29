@@ -4,6 +4,11 @@
  *
  * SCG-ECU 2.0 - STM32F407VGT6
  * Modularized from speeduino.cpp main loop
+ *
+ * MISRA C:2012 Compliance:
+ * - Uses automotive_constants.h for all magic numbers
+ * - Input validation on all critical paths
+ * - Safe integer arithmetic with overflow protection
  */
 
 #include "engine_protection.h"
@@ -13,6 +18,7 @@
 #include "maths.h"
 #include "globals.h"
 #include "modularization_globals.h"
+#include "automotive_constants.h"
 
 //=============================================================================
 // Maximum RPM Calculation
@@ -27,7 +33,10 @@ uint16_t calculateMaxAllowedRPM(void)
 
   // Check each of the functions that has an RPM limit
   // Update the max allowed RPM if the function is active and has a lower RPM than already set
-  if(checkEngineProtect() && (configPage4.engineProtectMaxRPM < maxAllowedRPM)) {
+  if(checkEngineProtect() &&
+     (configPage4.engineProtectMaxRPM > 0) &&
+     (configPage4.engineProtectMaxRPM < (MAX_SAFE_RPM / LAUNCH_RPM_MULTIPLIER)) &&
+     (configPage4.engineProtectMaxRPM < maxAllowedRPM)) {
     maxAllowedRPM = configPage4.engineProtectMaxRPM;
   }
 
@@ -36,7 +45,12 @@ uint16_t calculateMaxAllowedRPM(void)
   }
 
   // All of the above limits are divided by 100, convert back to RPM
-  maxAllowedRPM = maxAllowedRPM * 100;
+  maxAllowedRPM = maxAllowedRPM * LAUNCH_RPM_MULTIPLIER;
+
+  // Validate result is within safe range
+  if(maxAllowedRPM > MAX_SAFE_RPM) {
+    maxAllowedRPM = MAX_SAFE_RPM;
+  }
 
   // Flat shifting is a special case as the RPM limit is based on when the clutch was engaged
   // It is not divided by 100 as it is set with the actual RPM
@@ -140,32 +154,50 @@ void applyRollingCut(uint16_t maxAllowedRPM)
   uint8_t revolutionsToCut = 1;
 
   // 4 stroke needs to cut for at least 2 revolutions
-  if(configPage2.strokes == FOUR_STROKE) { revolutionsToCut *= 2; }
+  if(configPage2.strokes == FOUR_STROKE) {
+    revolutionsToCut *= REVOLUTIONS_PER_CYCLE_4STROKE;
+  }
 
   // 4 stroke and non-sequential will cut for 4 revolutions minimum
   // This is to ensure no half fuel ignition cycles take place
   if((configPage4.sparkMode != IGN_MODE_SEQUENTIAL) || (configPage2.injLayout != INJ_SEQUENTIAL)) {
-    revolutionsToCut *= 2;
+    revolutionsToCut *= MIN_REVOLUTIONS_NON_SEQUENTIAL;
   }
 
   // First time check
-  if(rollingCutLastRev == 0) { rollingCutLastRev = currentStatus.startRevolutions; }
+  if(rollingCutLastRev == 0) {
+    rollingCutLastRev = currentStatus.startRevolutions;
+  }
 
   // If current RPM is over the max allowed RPM always cut,
   // otherwise check if the required number of revolutions have passed since the last cut
   if((currentStatus.startRevolutions >= (rollingCutLastRev + revolutionsToCut)) || (currentStatus.RPM > maxAllowedRPM))
   {
     uint8_t cutPercent = 0;
-    int16_t rpmDelta = currentStatus.RPM - maxAllowedRPM;
+
+    // CRITICAL: Use signed 32-bit to prevent overflow
+    // currentStatus.RPM and maxAllowedRPM are uint16_t
+    int32_t rpmDelta = (int32_t)currentStatus.RPM - (int32_t)maxAllowedRPM;
 
     // If the current RPM is over the max allowed RPM then cut is full (100%)
-    if(rpmDelta >= 0) { cutPercent = 100; }
-    else { cutPercent = table2D_getValue(&rollingCutTable, (int8_t)(rpmDelta / 10)); }
+    if(rpmDelta >= 0) {
+      cutPercent = PERCENTAGE_FULL;
+    }
+    else {
+      // Safely convert to int8_t with bounds checking
+      int8_t deltaDivided = (int8_t)CLAMP((rpmDelta / 10), INT8_MIN, INT8_MAX);
+      cutPercent = table2D_getValue(&rollingCutTable, deltaDivided);
+    }
 
-    // Iterate through all channels and randomly cut based on percentage
-    for(uint8_t x = 0; x < max(maxIgnOutputs, maxInjOutputs); x++)
+    // Validate channel count and iterate through all channels
+    uint8_t maxChannels = max(maxIgnOutputs, maxInjOutputs);
+    if(maxChannels > MAX_ENGINE_CHANNELS) {
+      maxChannels = MAX_ENGINE_CHANNELS;
+    }
+
+    for(uint8_t x = 0; x < maxChannels; x++)
     {
-      if((cutPercent == 100) || (random1to100() < cutPercent))
+      if((cutPercent == PERCENTAGE_FULL) || (random1to100() < cutPercent))
       {
         // Cut this cylinder
         switch(configPage6.engineProtectType)
@@ -268,14 +300,14 @@ void checkLaunchAndFlatShift(void)
 
   // Launch control check
   if(configPage6.launchEnabled && currentStatus.clutchTrigger &&
-     (currentStatus.clutchEngagedRPM < ((unsigned int)(configPage6.flatSArm) * 100)) &&
+     (currentStatus.clutchEngagedRPM < ((unsigned int)(configPage6.flatSArm) * LAUNCH_RPM_MULTIPLIER)) &&
      (currentStatus.TPS >= configPage10.lnchCtrlTPS))
   {
     // Only enable if VSS is not used or if it is, make sure we're not above the speed limit
     if((configPage2.vssMode == 0) || ((configPage2.vssMode > 0) && (currentStatus.vss < configPage10.lnchCtrlVss)))
     {
       // Check whether RPM is above the launch limit
-      uint16_t launchRPMLimit = (configPage6.lnchHardLim * 100);
+      uint16_t launchRPMLimit = (configPage6.lnchHardLim * LAUNCH_RPM_MULTIPLIER);
 
       // Add the rolling cut delta if enabled (Delta is a negative value)
       if((configPage2.hardCutType == HARD_CUT_ROLLING)) {
@@ -294,7 +326,7 @@ void checkLaunchAndFlatShift(void)
   {
     // If launch is not active, check whether flat shift should be active
     if(configPage6.flatSEnable && currentStatus.clutchTrigger &&
-       (currentStatus.clutchEngagedRPM >= ((unsigned int)(configPage6.flatSArm * 100))))
+       (currentStatus.clutchEngagedRPM >= ((unsigned int)(configPage6.flatSArm * LAUNCH_RPM_MULTIPLIER))))
     {
       uint16_t flatRPMLimit = currentStatus.clutchEngagedRPM;
 

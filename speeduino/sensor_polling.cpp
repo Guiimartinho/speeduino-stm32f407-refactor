@@ -17,6 +17,8 @@
 #include "engineProtection.h"
 #include "storage.h"
 #include "comms.h"
+#include "comms_legacy.h"
+#include "corrections.h"
 #include "comms_CAN.h"
 #include "comms_secondary.h"
 #include "SD_logger.h"

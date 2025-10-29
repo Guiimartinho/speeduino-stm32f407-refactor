@@ -15,7 +15,7 @@
 
 // External references to table objects
 extern table3d16RpmLoad ignitionTable;
-extern table2D_u8_u8_10 rotarySplitTable;
+extern table2D_u8_u8_8 rotarySplitTable;
 
 //=============================================================================
 // Advance Lookup

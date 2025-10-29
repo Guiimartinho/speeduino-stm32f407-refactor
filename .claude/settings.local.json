@@ -3,7 +3,8 @@
     "allow": [
       "Bash(rm:*)",
       "Bash(platformio run:*)",
-      "Bash(ls:*)"
+      "Bash(ls:*)",
+      "Bash(/c/Users/AORUS-Desktop/.platformio/penv/Scripts/platformio.exe run:*)"
     ],
     "deny": [],
     "ask": []

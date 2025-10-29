@@ -26,6 +26,7 @@
 #include "globals.h"
 #include "speeduino.h"
 #include "modularization_globals.h"
+#include "automotive_constants.h"
 #include "sensor_polling.h"
 #include "communication_handler.h"
 #include "engine_protection.h"
@@ -35,7 +36,9 @@
 #include "ignition_scheduling.h"
 #include "auxiliaries.h"
 #include "corrections.h"
+#include "storage.h"
 #include "idle.h"
+#include "init.h"
 #include "timers.h"
 #include "decoders.h"
 #include "scheduledIO.h"
@@ -46,13 +49,21 @@
 // Global variable definitions (instantiation)
 //=============================================================================
 
-// Tables
-table2D_i8_u8_4 rollingCutTable(&configPage15.rollingProtRPMDelta, &configPage15.rollingProtCutPercent);
+// Fuel system variables
+uint16_t req_fuel_uS = 0; /**< Required fuel value (calculated by TunerStudio) in microseconds */
+uint16_t inj_opentime_uS = 0; /**< Injector opening time in microseconds */
+uint16_t staged_req_fuel_mult_pri = 0; /**< Primary injector staging multiplier */
+uint16_t staged_req_fuel_mult_sec = 0; /**< Secondary injector staging multiplier */
 
-// Channel enable/disable bitmasks
-uint8_t ignitionChannelsOn = 0;
-uint8_t fuelChannelsOn = 0;
-uint8_t ignitionChannelsPending = 0;
+// Tables (non-static so they can be accessed by modularized files)
+table2D_i8_u8_4 rollingCutTable(&configPage15.rollingProtRPMDelta, &configPage15.rollingProtCutPercent);
+table2D_u8_u8_8 rotarySplitTable(&configPage10.rotarySplitBins, &configPage10.rotarySplitValues);
+table2D_u8_u8_10 idleTargetTable(&configPage6.iacBins, &configPage6.iacCLValues);
+
+// Channel enable/disable bitmasks (volatile - modified in ISR context)
+volatile uint8_t ignitionChannelsOn = 0;
+volatile uint8_t fuelChannelsOn = 0;
+volatile uint8_t ignitionChannelsPending = 0;
 
 // Injector timing angles
 int injector1StartAngle = 0;
@@ -72,16 +83,16 @@ int injector7StartAngle = 0;
 int injector8StartAngle = 0;
 #endif
 
-// Engine protection variables
-uint32_t revLimitAllowedEndTime = 0;
-uint16_t rollingCutLastRev = 0;
+// Engine protection variables (volatile - modified in ISR context)
+volatile uint32_t revLimitAllowedEndTime = 0;
+volatile uint16_t rollingCutLastRev = 0;
 
 // Timing and synchronization
-uint32_t deferEEPROMWritesUntil = 0;
-uint16_t AFRnextCycle = 0;
+// Note: deferEEPROMWritesUntil and AFRnextCycle are defined in storage.cpp and corrections.cpp
+// They SHOULD be volatile but are declared non-volatile in their respective headers
 
 // Serial communication status
-uint8_t serialStatusFlag = SERIAL_INACTIVE;
+// Note: serialStatusFlag is defined in comms_legacy.cpp
 
 //=============================================================================
 // External table references
@@ -89,6 +100,21 @@ uint8_t serialStatusFlag = SERIAL_INACTIVE;
 
 extern table3d16RpmLoad fuelTable2;
 extern table3d16RpmLoad ignitionTable2;
+
+//=============================================================================
+// Setup Function
+//=============================================================================
+
+/**
+ * @brief Arduino setup function - called once at startup
+ *
+ * Initializes all ECU systems by calling initialiseAll()
+ */
+void setup(void)
+{
+  currentStatus.initialisationComplete = false;
+  initialiseAll();
+}
 
 //=============================================================================
 // Main Loop
@@ -120,12 +146,12 @@ extern table3d16RpmLoad ignitionTable2;
  */
 #pragma GCC diagnostic push
 #pragma GCC diagnostic ignored "-Wattributes"
-void __attribute__((always_inline)) loop(void)
+void loop(void)
 {
   //=============================================================================
   // Loop housekeeping
   //=============================================================================
-  if(mainLoopCount < UINT16_MAX) { mainLoopCount++; }
+  SAFE_INCREMENT(mainLoopCount, MAIN_LOOP_COUNT_MAX);
   LOOP_TIMER = TIMER_mask;
 
   //=============================================================================
@@ -138,20 +164,27 @@ void __attribute__((always_inline)) loop(void)
   //=============================================================================
   // Timing and RPM calculations
   //=============================================================================
-  // Handle micros() overflow
-  if(currentLoopTime > micros())
+  // Handle micros() overflow - use local variable for atomic read
+  uint32_t currentMicros = micros();
+  if(currentLoopTime > currentMicros)
   {
     deferEEPROMWritesUntil = 0;
   }
 
-  currentLoopTime = micros();
+  currentLoopTime = currentMicros;
 
   if(engineIsRunning(currentLoopTime))
   {
-    // Engine is running - update RPM
+    // Engine is running - update RPM with validation
     currentStatus.longRPM = getRPM();
     currentStatus.RPM = currentStatus.longRPM;
     currentStatus.RPMdiv100 = div100(currentStatus.RPM);
+
+    // Validate RPM is in safe range
+    if(currentStatus.RPM > MAX_SAFE_RPM)
+    {
+      currentStatus.RPM = MAX_SAFE_RPM;
+    }
 
     if(currentStatus.RPM > 0)
     {
@@ -188,10 +221,10 @@ void __attribute__((always_inline)) loop(void)
   }
 
   //=============================================================================
-  // Main calculations (only if synced and RPM > 0)
+  // Main calculations (only if synced and RPM in valid range)
   //=============================================================================
   if(((currentStatus.hasSync == true) || BIT_CHECK(currentStatus.status3, BIT_STATUS3_HALFSYNC)) &&
-     (currentStatus.RPM > 0))
+     IS_IN_RANGE(currentStatus.RPM, MIN_RUNNING_RPM, MAX_SAFE_RPM))
   {
     //---------------------------------------------------------------------------
     // VE and Advance lookups

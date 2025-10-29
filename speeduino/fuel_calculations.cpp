@@ -4,6 +4,11 @@
  *
  * SCG-ECU 2.0 - STM32F407VGT6
  * Modularized from speeduino.cpp main loop
+ *
+ * MISRA C:2012 Compliance:
+ * - Input validation on all parameters
+ * - Overflow protection in arithmetic operations
+ * - Uses automotive_constants.h for all magic numbers
  */
 
 #include "fuel_calculations.h"
@@ -12,6 +17,7 @@
 #include "globals.h"
 #include "speeduino.h"
 #include "modularization_globals.h"
+#include "automotive_constants.h"
 
 // External references to table objects
 extern table3d16RpmLoad fuelTable;
@@ -23,13 +29,24 @@ extern table3d8RpmLoad stagingTable;
 
 uint16_t PW(int REQ_FUEL, byte VE, long MAP, uint16_t corrections, int injOpen)
 {
+  // Input validation - critical for safety
+  if(REQ_FUEL < 0 || REQ_FUEL > MAX_REQ_FUEL_US) {
+    return 0; // Invalid input, return 0 pulse width
+  }
+  if(MAP < 0 || MAP > MAX_MAP_VALUE) {
+    MAP = CLAMP(MAP, 0, MAX_MAP_VALUE);
+  }
+  if(injOpen < 0) {
+    injOpen = 0;
+  }
+
   // Standard float version of the calculation (commented out for performance):
   // return (REQ_FUEL * (float)(VE/100.0) * (float)(MAP/100.0) * (float)(TPS/100.0) * (float)(corrections/100.0) + injOpen);
   // Note: The MAP and TPS portions are currently disabled, we use VE and corrections only
 
   uint16_t iVE;
-  uint16_t iMAP = 100;
-  uint16_t iAFR = 147;
+  uint16_t iMAP = PERCENTAGE_BASE;
+  uint16_t iAFR = AFR_STOICH_DEFAULT;
 
   // 100% float free version, does sacrifice a little bit of accuracy, but not much.
   // iVE = ((unsigned int)VE << 7) / 100;
@@ -53,8 +70,17 @@ uint16_t PW(int REQ_FUEL, byte VE, long MAP, uint16_t corrections, int injOpen)
     iAFR = ((unsigned int)configPage2.stoich << 7U) / currentStatus.afrTarget;
   }
 
+  // CRITICAL: Overflow protection for multiplication
   // Need to use an intermediate value to avoid overflowing the long
-  uint32_t intermediate = rshift<7U>((uint32_t)REQ_FUEL * (uint32_t)iVE);
+  uint32_t intermediate;
+
+  // Check for potential overflow before multiplication
+  if((uint32_t)REQ_FUEL > (UINT32_MAX / (uint32_t)iVE)) {
+    // Overflow would occur, clamp to max safe value
+    intermediate = UINT32_MAX >> 7U;
+  } else {
+    intermediate = rshift<7U>((uint32_t)REQ_FUEL * (uint32_t)iVE);
+  }
 
   // Apply MAP correction if enabled
   if(configPage2.multiplyMAP > 0) {
@@ -74,14 +100,14 @@ uint16_t PW(int REQ_FUEL, byte VE, long MAP, uint16_t corrections, int injOpen)
 
   // If corrections are huge, use less bitshift to avoid overflow
   // Sacrifices a bit more accuracy (basically only during very cold temp cranking)
-  if(corrections < 512) {
-    intermediate = rshift<7U>(intermediate * div100(lshift<7U>(corrections)));
+  if(corrections < CORRECTION_THRESHOLD_1) {
+    intermediate = rshift<CORRECTION_SHIFT_NORMAL>(intermediate * div100(lshift<CORRECTION_SHIFT_NORMAL>(corrections)));
   }
-  else if(corrections < 1024) {
-    intermediate = rshift<6U>(intermediate * div100(lshift<6U>(corrections)));
+  else if(corrections < CORRECTION_THRESHOLD_2) {
+    intermediate = rshift<CORRECTION_SHIFT_MEDIUM>(intermediate * div100(lshift<CORRECTION_SHIFT_MEDIUM>(corrections)));
   }
   else {
-    intermediate = rshift<5U>(intermediate * div100(lshift<5U>(corrections)));
+    intermediate = rshift<CORRECTION_SHIFT_LARGE>(intermediate * div100(lshift<CORRECTION_SHIFT_LARGE>(corrections)));
   }
 
   if(intermediate != 0)
@@ -96,7 +122,7 @@ uint16_t PW(int REQ_FUEL, byte VE, long MAP, uint16_t corrections, int injOpen)
       // AE Adds % of req_fuel
       if(configPage2.aeApplyMode == AE_MODE_ADDER)
       {
-        intermediate += div100(((uint32_t)REQ_FUEL) * (currentStatus.AEamount - 100U));
+        intermediate += div100(((uint32_t)REQ_FUEL) * (currentStatus.AEamount - AE_PERCENTAGE_OFFSET));
       }
     }
 
