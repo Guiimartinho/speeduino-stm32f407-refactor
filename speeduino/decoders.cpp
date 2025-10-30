@@ -2566,6 +2566,66 @@ void triggerSetup_Miata9905(void)
   BIT_SET(decoderState, BIT_DECODER_HAS_SECONDARY);
 }
 
+// Miata9905 filter configuration - data-driven approach for trigger filtering
+struct Miata9905FilterConfig {
+  uint8_t filterLevel;    // Filter level constant (0=OFF, 1=LITE, 2=MEDIUM, 3=AGGRESSIVE)
+  uint8_t oddToothMult;   // Multiplier for odd teeth (1,3,5,7) - 70° spacing
+  uint8_t oddToothShift;  // Right shift amount for odd teeth filter calculation
+  uint8_t evenToothMult;  // Multiplier for even teeth (2,4,6,8) - 110° spacing
+  uint8_t evenToothShift; // Right shift amount for even teeth filter calculation
+};
+
+static const Miata9905FilterConfig miata9905FilterConfigs[4] = {
+  {0, 1,  0,  1, 0},  // OFF: No filtering (special case - sets filterTime to 0)
+  {1, 1,  0,  3, 3},  // LITE: odd=curGap, even=(curGap*3)>>3 (41.25°)
+  {2, 5,  2,  1, 1},  // MEDIUM: odd=(curGap*5)>>2 (87.5°), even=curGap>>1 (55°)
+  {3, 11, 3,  9, 5}   // AGGRESSIVE: odd=(curGap*11)>>3 (96.26°), even=(curGap*9)>>5 (61.87°)
+};
+
+static inline void applyMiata9905Filter(uint8_t filterLevel, uint8_t toothCount, uint32_t curGap,
+                                        volatile uint16_t* pTriggerToothAngle,
+                                        volatile uint32_t* pTriggerFilterTime,
+                                        volatile uint32_t* pTriggerSecFilterTime)
+{
+  // Determine if odd tooth (1,3,5,7 have 70° spacing, even teeth 2,4,6,8 have 110° spacing)
+  bool isOddTooth = (toothCount == 1) || (toothCount == 3) || (toothCount == 5) || (toothCount == 7);
+
+  // Find and apply matching filter configuration
+  for(uint8_t i = 0; i < 4; i++)
+  {
+    const Miata9905FilterConfig* config = &miata9905FilterConfigs[i];
+    if(config->filterLevel == filterLevel)
+    {
+      // Set tooth angle based on odd/even position
+      *pTriggerToothAngle = isOddTooth ? 70 : 110;
+
+      // Special case: filter OFF sets both filter times to 0
+      if(filterLevel == 0)
+      {
+        *pTriggerFilterTime = 0;
+        *pTriggerSecFilterTime = 0;
+      }
+      else
+      {
+        // Apply filter calculation based on tooth position
+        uint8_t mult = isOddTooth ? config->oddToothMult : config->evenToothMult;
+        uint8_t shift = isOddTooth ? config->oddToothShift : config->evenToothShift;
+
+        // Calculate filter time: (curGap * multiplier) >> shift
+        if(shift == 0)
+        {
+          *pTriggerFilterTime = curGap * (uint32_t)mult;
+        }
+        else
+        {
+          *pTriggerFilterTime = (curGap * (uint32_t)mult) >> shift;
+        }
+      }
+      return;
+    }
+  }
+}
+
 void triggerPri_Miata9905(void)
 {
   curTime = micros();
@@ -2598,32 +2658,9 @@ void triggerPri_Miata9905(void)
     {
 
       //Whilst this is an uneven tooth pattern, if the specific angle between the last 2 teeth is specified, 1st deriv prediction can be used
-      if( (configPage4.triggerFilter == 1) || (currentStatus.RPM < 1400) )
-      {
-        //Lite filter
-        if( (toothCurrentCount == 1) || (toothCurrentCount == 3) || (toothCurrentCount == 5) || (toothCurrentCount == 7) ) { triggerToothAngle = 70; triggerFilterTime = curGap; } //Trigger filter is set to whatever time it took to do 70 degrees (Next trigger is 110 degrees away)
-        else { triggerToothAngle = 110; triggerFilterTime = rshift<3>(curGap * 3UL); } //Trigger filter is set to (110*3)/8=41.25=41 degrees (Next trigger is 70 degrees away).
-      }
-      else if(configPage4.triggerFilter == 2)
-      {
-        //Medium filter level
-        if( (toothCurrentCount == 1) || (toothCurrentCount == 3) || (toothCurrentCount == 5) || (toothCurrentCount == 7) ) { triggerToothAngle = 70; triggerFilterTime = (curGap * 5) >> 2 ; } //87.5 degrees with a target of 110
-        else { triggerToothAngle = 110; triggerFilterTime = (curGap >> 1); } //55 degrees with a target of 70
-      }
-      else if (configPage4.triggerFilter == 3)
-      {
-        //Aggressive filter level
-        if( (toothCurrentCount == 1) || (toothCurrentCount == 3) || (toothCurrentCount == 5) || (toothCurrentCount == 7) ) { triggerToothAngle = 70; triggerFilterTime = rshift<3>(curGap * 11UL) ; } //96.26 degrees with a target of 110
-        else { triggerToothAngle = 110; triggerFilterTime = rshift<5>(curGap * 9UL); } //61.87 degrees with a target of 70
-      }
-      else if (configPage4.triggerFilter == 0)
-      {
-        //trigger filter is turned off.
-        triggerFilterTime = 0;
-        triggerSecFilterTime = 0;
-        if( (toothCurrentCount == 1) || (toothCurrentCount == 3) || (toothCurrentCount == 5) || (toothCurrentCount == 7) ) { triggerToothAngle = 70; } //96.26 degrees with a target of 110
-        else { triggerToothAngle = 110; }
-      }
+      // Determine effective filter level: use LITE filter when RPM < 1400 regardless of configured level
+      uint8_t effectiveFilterLevel = ((configPage4.triggerFilter == 1) || (currentStatus.RPM < 1400)) ? 1 : configPage4.triggerFilter;
+      applyMiata9905Filter(effectiveFilterLevel, toothCurrentCount, curGap, &triggerToothAngle, &triggerFilterTime, &triggerSecFilterTime);
 
       //EXPERIMENTAL!
       //New ignition mode is ONLY available on 9905 when the trigger angle is set to the stock value of 0.
