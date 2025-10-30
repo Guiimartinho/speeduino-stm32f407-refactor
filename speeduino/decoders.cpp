@@ -5851,6 +5851,96 @@ void triggerSetup_SuzukiK6A(void)
   BIT_SET(decoderState, BIT_DECODER_IS_SEQUENTIAL);
 }
 
+// SuzukiK6A filter calculation type enumeration
+enum SuzukiK6AFilterCalc : uint8_t {
+  K6A_CALC_OFF = 0,          // Filter off: triggerFilterTime = 0
+  K6A_CALC_RS3,              // rshift<3>(curGap)
+  K6A_CALC_RS3_RS4,          // rshift<3>(curGap) + rshift<4>(curGap)
+  K6A_CALC_RS2_RS4,          // rshift<2>(curGap) + rshift<4>(curGap)
+  K6A_CALC_RS2,              // rshift<2>(curGap)
+  K6A_CALC_RS2_RS3,          // rshift<2>(curGap) + rshift<3>(curGap)
+  K6A_CALC_DIRECT,           // curGap
+  K6A_CALC_MULT2,            // curGap * 2U
+  K6A_CALC_MULT3,            // curGap * 3U
+  K6A_CALC_RS1_RS3,          // rshift<1>(curGap) + rshift<3>(curGap)
+  K6A_CALC_ADD_RS2,          // curGap + rshift<2>(curGap)
+  K6A_CALC_ADD_RS1_RS2       // curGap + rshift<1>(curGap) + rshift<2>(curGap)
+};
+
+// SuzukiK6A filter configuration - maps tooth position + filter level to calculation type
+struct SuzukiK6AFilterConfig {
+  uint8_t toothMask;         // Bitmask for matching tooth positions (bit 0-7 = tooth 1-8)
+  uint8_t filterLevel;       // Filter level (0=OFF, 1=25%, 2=50%, 3=75%)
+  SuzukiK6AFilterCalc calc;  // Calculation type to use
+};
+
+// Configuration table: 20 entries for 5 tooth groups × 4 filter levels
+// Ordered by toothMask then filterLevel for efficient lookup
+static const SuzukiK6AFilterConfig suzukiK6AFilterConfigs[20] = {
+  // Tooth 1,3 (70° → 170°)
+  {0x05, 0, K6A_CALC_OFF},        // Teeth 1,3 filter OFF
+  {0x05, 1, K6A_CALC_RS1_RS3},    // Teeth 1,3 filter 25%: (curGap>>1) + (curGap>>3)
+  {0x05, 2, K6A_CALC_ADD_RS2},    // Teeth 1,3 filter 50%: curGap + (curGap>>2)
+  {0x05, 3, K6A_CALC_ADD_RS1_RS2},// Teeth 1,3 filter 75%: curGap + (curGap>>1) + (curGap>>2)
+
+  // Tooth 2,4 (170° → 70°)
+  {0x0A, 0, K6A_CALC_OFF},        // Teeth 2,4 filter OFF
+  {0x0A, 1, K6A_CALC_RS3},        // Teeth 2,4 filter 25%: curGap>>3
+  {0x0A, 2, K6A_CALC_RS3_RS4},    // Teeth 2,4 filter 50%: (curGap>>3) + (curGap>>4)
+  {0x0A, 3, K6A_CALC_RS2_RS4},    // Teeth 2,4 filter 75%: (curGap>>2) + (curGap>>4)
+
+  // Tooth 5 (70° → 35°)
+  {0x10, 0, K6A_CALC_OFF},        // Tooth 5 filter OFF
+  {0x10, 1, K6A_CALC_RS3},        // Tooth 5 filter 25%: curGap>>3
+  {0x10, 2, K6A_CALC_RS2},        // Tooth 5 filter 50%: curGap>>2
+  {0x10, 3, K6A_CALC_RS2_RS3},    // Tooth 5 filter 75%: (curGap>>2) + (curGap>>3)
+
+  // Tooth 6 (sync → 135°)
+  {0x20, 0, K6A_CALC_OFF},        // Tooth 6 filter OFF
+  {0x20, 1, K6A_CALC_DIRECT},     // Tooth 6 filter 25%: curGap
+  {0x20, 2, K6A_CALC_MULT2},      // Tooth 6 filter 50%: curGap * 2U
+  {0x20, 3, K6A_CALC_MULT3},      // Tooth 6 filter 75%: curGap * 3U
+
+  // Tooth 7 (135° → 70°)
+  {0x40, 0, K6A_CALC_OFF},        // Tooth 7 filter OFF
+  {0x40, 1, K6A_CALC_RS3},        // Tooth 7 filter 25%: curGap>>3
+  {0x40, 2, K6A_CALC_RS2},        // Tooth 7 filter 50%: curGap>>2
+  {0x40, 3, K6A_CALC_RS2_RS3}     // Tooth 7 filter 75%: (curGap>>2) + (curGap>>3)
+};
+
+static inline uint32_t applySuzukiK6AFilter(uint8_t toothCount, uint8_t filterLevel, uint32_t curGap)
+{
+  // Create tooth bitmask (toothCount 1-7 maps to bit 0-6)
+  uint8_t toothBit = (uint8_t)(1U << (toothCount - 1U));
+
+  // Find matching configuration
+  for(uint8_t i = 0; i < 20; i++)
+  {
+    const SuzukiK6AFilterConfig* config = &suzukiK6AFilterConfigs[i];
+    if((config->toothMask & toothBit) != 0U && config->filterLevel == filterLevel)
+    {
+      // Apply calculation based on type
+      switch(config->calc)
+      {
+        case K6A_CALC_OFF:        return 0;
+        case K6A_CALC_RS3:        return rshift<3>(curGap);
+        case K6A_CALC_RS3_RS4:    return rshift<3>(curGap) + rshift<4>(curGap);
+        case K6A_CALC_RS2_RS4:    return rshift<2>(curGap) + rshift<4>(curGap);
+        case K6A_CALC_RS2:        return rshift<2>(curGap);
+        case K6A_CALC_RS2_RS3:    return rshift<2>(curGap) + rshift<3>(curGap);
+        case K6A_CALC_DIRECT:     return curGap;
+        case K6A_CALC_MULT2:      return curGap * 2U;
+        case K6A_CALC_MULT3:      return curGap * 3U;
+        case K6A_CALC_RS1_RS3:    return rshift<1>(curGap) + rshift<3>(curGap);
+        case K6A_CALC_ADD_RS2:    return curGap + rshift<2>(curGap);
+        case K6A_CALC_ADD_RS1_RS2:return curGap + rshift<1>(curGap) + rshift<2>(curGap);
+        default:                  return 0;
+      }
+    }
+  }
+  return 0; // Default if no match found
+}
+
 void triggerPri_SuzukiK6A(void)
 {
   curTime = micros();  
@@ -5936,116 +6026,13 @@ void triggerPri_SuzukiK6A(void)
         break;
     }
 
-    // Setup data to allow other areas of the system to work due to odd sized teeth - this could be merged with sync checking above, left separate to keep code clearer as its doing only one function at once
-    // % of filter are not based on previous tooth size but expected next tooth size
-    // triggerToothAngle is the size of the previous tooth not the future tooth
+    // Setup data to allow other areas of the system to work due to odd sized teeth
+    // Filter calculations use data-driven configuration based on tooth position and filter level
     if (currentStatus.hasSync == true )
     {
-      switch (toothCurrentCount) // Set tooth angle based on previous gap and triggerFilterTime based on previous gap and next gap
-      {
-        case 2:
-        case 4:
-          // equivalent of tooth 1 except we've not done rotation code yet so its 8
-          // 170 degree tooth, next tooth is 70
-          switch (configPage4.triggerFilter)
-          {
-            case 1: // 25 % 17 degrees
-              triggerFilterTime = rshift<3>(curGap);
-              break;
-            case 2: // 50 % 35 degrees
-              triggerFilterTime = rshift<3>(curGap) + rshift<4>(curGap);
-              break;
-            case 3: // 75 % 52 degrees
-              triggerFilterTime = rshift<2>(curGap) + rshift<4>(curGap);
-              break;
-            default:
-              triggerFilterTime = 0;
-              break;
-          }          
-          break;
+      // Apply filter using configuration table - replaces nested switch statements
+      triggerFilterTime = applySuzukiK6AFilter(toothCurrentCount, configPage4.triggerFilter, curGap);
 
-        case 5:
-          // 70 degrees, next tooth is 35
-          switch (configPage4.triggerFilter)
-          {
-            case 1: // 25 % 8 degrees
-              triggerFilterTime = rshift<3>(curGap);
-              break;
-            case 2: // 50 % 17 degrees
-              triggerFilterTime = rshift<2>(curGap);
-              break;
-            case 3: // 75 % 25 degrees
-              triggerFilterTime = rshift<2>(curGap) + rshift<3>(curGap);
-              break;
-            default:
-              triggerFilterTime = 0;
-              break;
-          }
-          break;
-
-        case 6:
-          // sync tooth, next tooth is 135
-          switch (configPage4.triggerFilter)
-          {
-            case 1: // 25 % 33 degrees
-              triggerFilterTime = curGap;
-              break;
-            case 2: // 50 % 67 degrees
-              triggerFilterTime = curGap * 2U;
-              break;
-            case 3: // 75 % 100 degrees
-              triggerFilterTime = curGap * 3U;
-              break;
-            default:
-              triggerFilterTime = 0;
-              break;
-          }
-          break;
-
-        case 7:
-          // 135 degre tooth, next tooth is 70
-          switch (configPage4.triggerFilter)
-          {
-            case 1: // 25 % 17 degrees
-              triggerFilterTime = rshift<3>(curGap);
-              break;
-            case 2: // 50 % 35 degrees
-              triggerFilterTime = rshift<2>(curGap);
-              break;
-            case 3: // 75 % 52 degrees
-              triggerFilterTime = rshift<2>(curGap) + rshift<3>(curGap);
-              break;
-            default:
-              triggerFilterTime = 0;
-              break;
-          }          
-          break;
-
-        case 1:
-        case 3:
-          // 70 degree tooth, next tooth is 170
-          switch (configPage4.triggerFilter)
-          {
-            case 1: // 25 % 42 degrees
-              triggerFilterTime = rshift<1>(curGap) + rshift<3>(curGap);
-              break;
-            case 2: // 50 % 85 degrees
-              triggerFilterTime = curGap + rshift<2>(curGap);
-              break;
-            case 3: // 75 % 127 degrees
-              triggerFilterTime = curGap + rshift<1>(curGap) + rshift<2>(curGap);
-              break;
-            default:
-              triggerFilterTime = 0;
-              break;
-          }
-          break;
-
-        default:
-          triggerFilterTime = 0;
-          break;
-      }
-      
       //NEW IGNITION MODE
       if( (configPage2.perToothIgn == true) ) 
       {  
