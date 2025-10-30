@@ -682,6 +682,70 @@ void triggerPri_missingTooth(void)
    }
 }
 
+// Secondary trigger pattern configuration - data-driven approach for simple trigger types
+// Captures common behaviors of POLL, SINGLE, and TOYOTA_3 patterns
+struct SecTriggerSimpleConfig {
+  uint8_t triggerType;          // SEC_TRIGGER constant
+  uint8_t filterShift;          // Right shift amount for filter calculation (1=>>1, 2=>>2)
+  bool shouldResetRevolution;   // Whether to reset revolutionOne flag
+  bool shouldIncrementCounter;  // Whether to increment secondaryToothCount
+  bool isToyotaSpecial;         // Toyota 3-tooth special logic flag
+};
+
+// Configuration for simple secondary trigger patterns
+// SEC_TRIGGER_4_1 is handled separately due to complex missing tooth detection
+static const SecTriggerSimpleConfig secTriggerSimpleConfigs[3] = {
+  {SEC_TRIGGER_POLL,     1, false, false, false},  // Poll: >>1 filter, no revolution reset, no counter
+  {SEC_TRIGGER_SINGLE,   1, true,  true,  false},  // Single: >>1 filter, reset revolution, increment counter
+  {SEC_TRIGGER_TOYOTA_3, 2, false, true,  true}    // Toyota: >>2 filter, conditional revolution, increment counter
+};
+
+// Helper function to process simple secondary trigger patterns
+static inline bool processSimpleSecTrigger(uint8_t triggerType, uint32_t curGap, volatile unsigned int* pSecondaryCount, volatile bool* pRevolutionOne, volatile uint32_t* pTriggerSecFilterTime)
+{
+  // Find matching configuration
+  for(uint8_t i = 0; i < 3; i++)
+  {
+    const SecTriggerSimpleConfig* config = &secTriggerSimpleConfigs[i];
+
+    if(config->triggerType == triggerType)
+    {
+      // Calculate filter time
+      *pTriggerSecFilterTime = curGap >> config->filterShift;
+
+      // Handle Toyota special case
+      if(config->isToyotaSpecial)
+      {
+        (*pSecondaryCount)++;
+        if(*pSecondaryCount == 2)
+        {
+          *pRevolutionOne = 1;
+          triggerRecordVVT1Angle();
+        }
+      }
+      else
+      {
+        // Standard processing
+        if(config->shouldResetRevolution)
+        {
+          *pRevolutionOne = 1;
+        }
+
+        if(config->shouldIncrementCounter)
+        {
+          (*pSecondaryCount)++;
+        }
+
+        triggerRecordVVT1Angle();
+      }
+
+      return true;
+    }
+  }
+
+  return false;  // Not a simple trigger type
+}
+
 void triggerSec_missingTooth(void)
 {
   curTime2 = micros();
@@ -696,52 +760,28 @@ void triggerSec_missingTooth(void)
 
   if ( curGap2 >= triggerSecFilterTime )
   {
-    switch (configPage4.trigPatternSec)
+    // Handle SEC_TRIGGER_4_1 separately due to complex missing tooth detection logic
+    if(configPage4.trigPatternSec == SEC_TRIGGER_4_1)
     {
-      case SEC_TRIGGER_4_1:
-        targetGap2 = (3 * (toothLastSecToothTime - toothLastMinusOneSecToothTime)) >> 1; //If the time between the current tooth and the last is greater than 1.5x the time between the last tooth and the tooth before that, we make the assertion that we must be at the first tooth after the gap
-        toothLastMinusOneSecToothTime = toothLastSecToothTime;
-        if ( (curGap2 >= targetGap2) || (secondaryToothCount > 3) )
-        {
-          secondaryToothCount = 1;
-          revolutionOne = 1; //Sequential revolution reset
-          triggerSecFilterTime = 0; //This is used to prevent a condition where serious intermittent signals (Eg someone furiously plugging the sensor wire in and out) can leave the filter in an unrecoverable state
-          triggerRecordVVT1Angle();
-        }
-        else
-        {
-          triggerSecFilterTime = curGap2 >> 2; //Set filter at 25% of the current speed. Filter can only be recalc'd for the regular teeth, not the missing one.
-          secondaryToothCount++;
-        }
-        break;
-
-      case SEC_TRIGGER_POLL:
-        //Poll is effectively the same as SEC_TRIGGER_SINGLE, however we do not reset revolutionOne
-        //We do still need to record the angle for VVT though
-        triggerSecFilterTime = curGap2 >> 1; //Next secondary filter is half the current gap
-        triggerRecordVVT1Angle();
-        break;
-
-      case SEC_TRIGGER_SINGLE:
-        //Standard single tooth cam trigger
+      targetGap2 = (3 * (toothLastSecToothTime - toothLastMinusOneSecToothTime)) >> 1; //If the time between the current tooth and the last is greater than 1.5x the time between the last tooth and the tooth before that, we make the assertion that we must be at the first tooth after the gap
+      toothLastMinusOneSecToothTime = toothLastSecToothTime;
+      if ( (curGap2 >= targetGap2) || (secondaryToothCount > 3) )
+      {
+        secondaryToothCount = 1;
         revolutionOne = 1; //Sequential revolution reset
-        triggerSecFilterTime = curGap2 >> 1; //Next secondary filter is half the current gap
-        secondaryToothCount++;
+        triggerSecFilterTime = 0; //This is used to prevent a condition where serious intermittent signals (Eg someone furiously plugging the sensor wire in and out) can leave the filter in an unrecoverable state
         triggerRecordVVT1Angle();
-        break;
-
-      case SEC_TRIGGER_TOYOTA_3:
-        // designed for Toyota VVTI (2JZ) engine - 3 triggers on the cam. 
-        // the 2 teeth for this are within 1 rotation (1 tooth first 360, 2 teeth second 360)
+      }
+      else
+      {
+        triggerSecFilterTime = curGap2 >> 2; //Set filter at 25% of the current speed. Filter can only be recalc'd for the regular teeth, not the missing one.
         secondaryToothCount++;
-        if(secondaryToothCount == 2)
-        { 
-          revolutionOne = 1; // sequential revolution reset
-          triggerRecordVVT1Angle();         
-        }        
-        //Next secondary filter is 25% the current gap, done here so we don't get a great big gap for the 1st tooth
-        triggerSecFilterTime = curGap2 >> 2; 
-        break;
+      }
+    }
+    else
+    {
+      // Use data-driven approach for simple trigger patterns (POLL, SINGLE, TOYOTA_3)
+      processSimpleSecTrigger(configPage4.trigPatternSec, curGap2, &secondaryToothCount, &revolutionOne, &triggerSecFilterTime);
     }
     toothLastSecToothTime = curTime2;
   } //Trigger filter
