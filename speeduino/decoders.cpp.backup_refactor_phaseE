@@ -5280,54 +5280,6 @@ void triggerSetup_RoverMEMS()
 
 }
 
-// RoverMEMS pattern configuration data structure
-struct RoverMEMSPattern {
-  uint32_t binaryPattern;
-  uint8_t patternId;
-  uint8_t skipTooth1, skipTooth2, skipTooth3, skipTooth4;
-  uint8_t missingTeeth;
-};
-
-// Array of all 5 RoverMEMS trigger patterns
-// Pattern IDs: 5=9-7-10-6, 4=3-14-2-13, 3=2-14-3-13, 2=11-5-12-4, 1=17-17
-static const RoverMEMSPattern roverMEMSPatterns[5] = {
-  {0b11111101111111011111111110111111, 5,  1, 11, 19, 30, 4}, // 9-7-10-6 pattern (#5)
-  {0b11011101111111111111101101111111, 4,  8, 11, 25, 27, 4}, // 3-14-2-13 pattern (#4)
-  {0b11011011111111111111011101111111, 3,  8, 10, 24, 27, 4}, // 2-14-3-13 pattern (#3)
-  {0b11111101111101111111111110111101, 2,  1, 12, 17, 29, 4}, // 11-5-12-4 pattern (#2)
-  {0b11111111111101111111111111111101, 1,  1, 18,  0,  0, 2}  // 17-17 pattern (#1, only 2 missing teeth)
-};
-
-// Helper function to check and configure RoverMEMS pattern
-static inline bool checkAndConfigureRoverMEMSPattern(void)
-{
-  for(uint8_t i = 0; i < 5; i++)
-  {
-    if(roverMEMSTeethSeen == roverMEMSPatterns[i].binaryPattern)
-    {
-      const RoverMEMSPattern* pattern = &roverMEMSPatterns[i];
-
-      if(toothAngles[ID_TOOTH_PATTERN] != pattern->patternId)
-      {
-        toothAngles[SKIP_TOOTH1] = pattern->skipTooth1;
-        toothAngles[SKIP_TOOTH2] = pattern->skipTooth2;
-        if(pattern->patternId != 1) // Pattern #1 only has 2 missing teeth
-        {
-          toothAngles[SKIP_TOOTH3] = pattern->skipTooth3;
-          toothAngles[SKIP_TOOTH4] = pattern->skipTooth4;
-        }
-        toothAngles[ID_TOOTH_PATTERN] = pattern->patternId;
-        configPage4.triggerMissingTeeth = pattern->missingTeeth;
-        triggerActualTeeth = 36;
-      }
-
-      triggerRoverMEMSCommon();
-      return true;
-    }
-  }
-  return false;
-}
-
 void triggerPri_RoverMEMS()
 {
   curTime = micros();
@@ -5359,9 +5311,81 @@ void triggerPri_RoverMEMS()
 
       // reduce checks to minimise cpu load when looking for key point to identify where we are on the wheel
       if( toothCurrentCount >= triggerActualTeeth )
-      {
-        // Check all RoverMEMS patterns using data-driven approach
-        if(!checkAndConfigureRoverMEMSPattern() && (toothCurrentCount > triggerActualTeeth+1)) // no patterns match after a rotation when we only need 32 teeth to match, we've lost sync
+      {                           //12345678901234567890123456789012 
+        if( roverMEMSTeethSeen == 0b11111101111111011111111110111111) // Binary pattern for trigger pattern 9-7-10-6- (#5)
+        {
+          if(toothAngles[ID_TOOTH_PATTERN] != 5)
+          {
+            //teeth to skip when calculating RPM as they've just had a gap
+            toothAngles[SKIP_TOOTH1] = 1;
+            toothAngles[SKIP_TOOTH2] = 11;
+            toothAngles[SKIP_TOOTH3] = 19;
+            toothAngles[SKIP_TOOTH4] = 30;
+            toothAngles[ID_TOOTH_PATTERN] = 5;
+            configPage4.triggerMissingTeeth = 4; // this could be read in from the config file, but people could adjust it.
+            triggerActualTeeth = 36; // should be 32 if not hacking toothcounter 
+          }  
+          triggerRoverMEMSCommon();                         
+        }                             //123456789012345678901234567890123456
+        else if( roverMEMSTeethSeen == 0b11011101111111111111101101111111) // Binary pattern for trigger pattern 3-14-2-13- (#4)
+        {
+          if(toothAngles[ID_TOOTH_PATTERN] != 4)
+          {
+            //teeth to skip when calculating RPM as they've just had a gap
+            toothAngles[SKIP_TOOTH1] = 8;
+            toothAngles[SKIP_TOOTH2] = 11;
+            toothAngles[SKIP_TOOTH3] = 25;
+            toothAngles[SKIP_TOOTH4] = 27;
+            toothAngles[ID_TOOTH_PATTERN] = 4;
+            configPage4.triggerMissingTeeth = 4; // this could be read in from the config file, but people could adjust it.
+            triggerActualTeeth = 36; // should be 32 if not hacking toothcounter 
+          }  
+          triggerRoverMEMSCommon();                         
+        }                             //123456789012345678901234567890123456
+        else if(roverMEMSTeethSeen == 0b11011011111111111111011101111111) // Binary pattern for trigger pattern 2-14-3-13- (#3)
+        {
+          if(toothAngles[ID_TOOTH_PATTERN] != 3)
+          {
+            //teeth to skip when calculating RPM as they've just had a gap
+            toothAngles[SKIP_TOOTH1] = 8;
+            toothAngles[SKIP_TOOTH2] = 10;
+            toothAngles[SKIP_TOOTH3] = 24;
+            toothAngles[SKIP_TOOTH4] = 27;
+            toothAngles[ID_TOOTH_PATTERN] = 3;
+            configPage4.triggerMissingTeeth = 4; // this could be read in from the config file, but people could adjust it.
+            triggerActualTeeth = 36; // should be 32 if not hacking toothcounter 
+          } 
+          triggerRoverMEMSCommon();                           
+        }                             //12345678901234567890123456789012
+        else if(roverMEMSTeethSeen == 0b11111101111101111111111110111101) // Binary pattern for trigger pattern 11-5-12-4- (#2)
+        {
+          if(toothAngles[ID_TOOTH_PATTERN] != 2)
+          {
+            //teeth to skip when calculating RPM as they've just had a gap
+            toothAngles[SKIP_TOOTH1] = 1;
+            toothAngles[SKIP_TOOTH2] = 12;
+            toothAngles[SKIP_TOOTH3] = 17;
+            toothAngles[SKIP_TOOTH4] = 29;
+            toothAngles[ID_TOOTH_PATTERN] = 2;
+            configPage4.triggerMissingTeeth = 4; // this could be read in from the config file, but people could adjust it.
+            triggerActualTeeth = 36; // should be 32 if not hacking toothcounter 
+          }  
+          triggerRoverMEMSCommon();  
+        }                             //12345678901234567890123456789012
+        else if(roverMEMSTeethSeen == 0b11111111111101111111111111111101) // Binary pattern for trigger pattern 17-17- (#1)
+        {
+          if(toothAngles[ID_TOOTH_PATTERN] != 1)
+          {
+            //teeth to skip when calculating RPM as they've just had a gap
+            toothAngles[SKIP_TOOTH1] = 1;
+            toothAngles[SKIP_TOOTH2] = 18;
+            toothAngles[ID_TOOTH_PATTERN] = 1;
+            configPage4.triggerMissingTeeth = 2; // this should be read in from the config file, but people could adjust it.            
+            triggerActualTeeth = 36; // should be 34 if not hacking toothcounter 
+          }
+          triggerRoverMEMSCommon(); 
+        }
+        else if(toothCurrentCount > triggerActualTeeth+1) // no patterns match after a rotation when we only need 32 teeth to match, we've lost sync
         {
           currentStatus.hasSync = false;
           BIT_CLEAR(currentStatus.status3, BIT_STATUS3_HALFSYNC);
