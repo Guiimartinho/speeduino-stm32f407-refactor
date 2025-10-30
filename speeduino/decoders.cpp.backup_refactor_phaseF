@@ -1488,120 +1488,6 @@ void triggerSetup_4G63(void)
   secondaryLastToothTime = 0;
 }
 
-// 4G63 trigger filter configuration - data-driven approach to eliminate 99 lines of duplication
-// Filter calculations: 0=direct, 1=rshift1, 2=rshift2, 3=rshift3, 4=mult5_rshift2, 5=mult3_rshift3, 6=mult11_rshift3, 7=mult9_rshift5
-enum FilterCalcType : uint8_t {
-  CALC_DIRECT = 0,      // triggerFilterTime = curGap
-  CALC_RSHIFT1 = 1,     // triggerFilterTime = curGap >> 1
-  CALC_RSHIFT2 = 2,     // triggerFilterTime = curGap >> 2
-  CALC_MULT5_RSHIFT2 = 3,   // triggerFilterTime = (curGap * 5) >> 2
-  CALC_MULT3_RSHIFT2 = 4,   // triggerFilterTime = (curGap * 3) >> 2
-  CALC_MULT3_RSHIFT3 = 5,   // triggerFilterTime = rshift<3>(curGap * 3UL)
-  CALC_MULT11_RSHIFT3 = 6,  // triggerFilterTime = rshift<3>(curGap * 11UL)
-  CALC_MULT9_RSHIFT5 = 7    // triggerFilterTime = rshift<5>(curGap * 9UL)
-};
-
-struct Trigger4G63FilterConfig {
-  uint8_t toothAngle_odd;   // Angle for odd teeth (1,3,5,7,9,11)
-  uint8_t toothAngle_even;  // Angle for even teeth (2,4,6,8,10,12)
-  FilterCalcType calcType_odd_4cyl;
-  FilterCalcType calcType_even_4cyl;
-  FilterCalcType calcType_odd_6cyl;
-  FilterCalcType calcType_even_6cyl;
-};
-
-// Configuration array: [filter_level] where 0=none, 1=lite, 2=medium, 3=aggressive
-static const Trigger4G63FilterConfig filter4G63Configs[4] = {
-  // Filter OFF (index 0) - toothAngle_odd, toothAngle_even, 4x FilterCalcType
-  {
-    70, 110,
-    CALC_DIRECT, CALC_DIRECT,
-    CALC_DIRECT, CALC_DIRECT
-  },
-  // Filter LITE (index 1)
-  {
-    70, 110,
-    CALC_DIRECT, CALC_MULT3_RSHIFT3,  // 4cyl: odd=curGap, even=(curGap*3)>>3
-    CALC_RSHIFT2, CALC_RSHIFT1        // 6cyl: odd=curGap>>2, even=curGap>>1
-  },
-  // Filter MEDIUM (index 2)
-  {
-    70, 110,
-    CALC_MULT5_RSHIFT2, CALC_RSHIFT1, // 4cyl: odd=(curGap*5)>>2, even=curGap>>1
-    CALC_RSHIFT1, CALC_MULT3_RSHIFT2  // 6cyl: odd=curGap>>1, even=(curGap*3)>>2
-  },
-  // Filter AGGRESSIVE (index 3)
-  {
-    70, 110,
-    CALC_MULT11_RSHIFT3, CALC_MULT9_RSHIFT5,  // 4cyl: odd=(curGap*11)>>3, even=(curGap*9)>>5
-    CALC_RSHIFT1, CALC_DIRECT                  // 6cyl: odd=curGap>>1, even=curGap
-  }
-};
-
-// Helper function to calculate trigger filter time based on configuration
-static inline uint32_t calculate4G63FilterTime(FilterCalcType calcType, uint32_t curGap)
-{
-  switch(calcType)
-  {
-    case CALC_DIRECT:
-      return curGap;
-    case CALC_RSHIFT1:
-      return curGap >> 1;
-    case CALC_RSHIFT2:
-      return curGap >> 2;
-    case CALC_MULT5_RSHIFT2:
-      return (curGap * 5U) >> 2;
-    case CALC_MULT3_RSHIFT2:
-      return (curGap * 3U) >> 2;
-    case CALC_MULT3_RSHIFT3:
-      return rshift<3>(curGap * 3UL);
-    case CALC_MULT11_RSHIFT3:
-      return rshift<3>(curGap * 11UL);
-    case CALC_MULT9_RSHIFT5:
-      return rshift<5>(curGap * 9UL);
-    default:
-      return 0;
-  }
-}
-
-// Helper function to apply 4G63 trigger filter configuration
-static inline void apply4G63FilterConfig(uint8_t filterLevel, bool isOddTooth, uint8_t nCylinders, uint32_t curGap)
-{
-  // Guard clause: invalid filter level
-  if(filterLevel > 3) { filterLevel = 0; }
-
-  const Trigger4G63FilterConfig* config = &filter4G63Configs[filterLevel];
-
-  if(isOddTooth)
-  {
-    // Odd teeth (1,3,5,7,9,11) - always 70 degrees
-    triggerToothAngle = config->toothAngle_odd;
-    if(filterLevel == 0)
-    {
-      triggerFilterTime = 0;  // Filter disabled
-    }
-    else
-    {
-      FilterCalcType calcType = (nCylinders == 4) ? config->calcType_odd_4cyl : config->calcType_odd_6cyl;
-      triggerFilterTime = calculate4G63FilterTime(calcType, curGap);
-    }
-  }
-  else
-  {
-    // Even teeth (2,4,6,8,10,12)
-    triggerToothAngle = (nCylinders == 4) ? 110 : 50;
-    if(filterLevel == 0)
-    {
-      triggerFilterTime = 0;  // Filter disabled
-    }
-    else
-    {
-      FilterCalcType calcType = (nCylinders == 4) ? config->calcType_even_4cyl : config->calcType_even_6cyl;
-      triggerFilterTime = calculate4G63FilterTime(calcType, curGap);
-    }
-  }
-}
-
 void triggerPri_4G63(void)
 {
   curTime = micros();
@@ -1642,27 +1528,110 @@ void triggerPri_4G63(void)
         }
       }
 
-      // Apply trigger filter configuration using data-driven approach
-      // Determine filter level: 0=none, 1=lite, 2=medium, 3=aggressive
-      uint8_t filterLevel;
-      if( (configPage4.triggerFilter == 1) || (currentStatus.RPM < 1400) ) {
-        filterLevel = 1;  // Lite filter
+      //Whilst this is an uneven tooth pattern, if the specific angle between the last 2 teeth is specified, 1st deriv prediction can be used
+      if( (configPage4.triggerFilter == 1) || (currentStatus.RPM < 1400) )
+      {
+        //Lite filter
+        if( (toothCurrentCount == 1) || (toothCurrentCount == 3) || (toothCurrentCount == 5) || (toothCurrentCount == 7) || (toothCurrentCount == 9) || (toothCurrentCount == 11) )
+        {
+          if(configPage2.nCylinders == 4)
+          {
+            triggerToothAngle = 70;
+            triggerFilterTime = curGap; //Trigger filter is set to whatever time it took to do 70 degrees (Next trigger is 110 degrees away)
+          }
+          else if(configPage2.nCylinders == 6)
+          {
+            triggerToothAngle = 70;
+            triggerFilterTime = (curGap >> 2); //Trigger filter is set to (70/4)=17.5=17 degrees (Next trigger is 50 degrees away).
+          }
+        }
+        else
+        {
+          if(configPage2.nCylinders == 4)
+          {
+            triggerToothAngle = 110;
+            triggerFilterTime = rshift<3>(curGap * 3UL); //Trigger filter is set to (110*3)/8=41.25=41 degrees (Next trigger is 70 degrees away).
+          }
+          else if(configPage2.nCylinders == 6)
+          {
+            triggerToothAngle = 50;
+            triggerFilterTime = curGap >> 1; //Trigger filter is set to 25 degrees (Next trigger is 70 degrees away).
+          }
+        }
       }
-      else if(configPage4.triggerFilter == 2) {
-        filterLevel = 2;  // Medium filter
+      else if(configPage4.triggerFilter == 2)
+      {
+        //Medium filter level
+        if( (toothCurrentCount == 1) || (toothCurrentCount == 3) || (toothCurrentCount == 5) || (toothCurrentCount == 7) || (toothCurrentCount == 9) || (toothCurrentCount == 11) )
+        { 
+          triggerToothAngle = 70; 
+          if(configPage2.nCylinders == 4)
+          { 
+            triggerFilterTime = (curGap * 5) >> 2 ; //87.5 degrees with a target of 110
+          }
+          else
+          {
+            triggerFilterTime = curGap >> 1 ; //35 degrees with a target of 50
+          }
+        } 
+        else 
+        { 
+          if(configPage2.nCylinders == 4)
+          { 
+            triggerToothAngle = 110; 
+            triggerFilterTime = (curGap >> 1); //55 degrees with a target of 70
+          }
+          else
+          {
+            triggerToothAngle = 50; 
+            triggerFilterTime = (curGap * 3) >> 2; //Trigger filter is set to (50*3)/4=37.5=37 degrees (Next trigger is 70 degrees away).
+          }
+        } 
       }
-      else if(configPage4.triggerFilter == 3) {
-        filterLevel = 3;  // Aggressive filter
+      else if (configPage4.triggerFilter == 3)
+      {
+        //Aggressive filter level
+        if( (toothCurrentCount == 1) || (toothCurrentCount == 3) || (toothCurrentCount == 5) || (toothCurrentCount == 7) || (toothCurrentCount == 9) || (toothCurrentCount == 11) )
+        { 
+          triggerToothAngle = 70; 
+          if(configPage2.nCylinders == 4)
+          { 
+            triggerFilterTime = rshift<3>(curGap * 11UL);//96.26 degrees with a target of 110
+          }
+          else
+          {
+            triggerFilterTime = curGap >> 1 ; //35 degrees with a target of 50
+          }
+        } 
+        else 
+        { 
+          if(configPage2.nCylinders == 4)
+          { 
+            triggerToothAngle = 110; 
+            triggerFilterTime = rshift<5>(curGap * 9UL); //61.87 degrees with a target of 70
+          }
+          else
+          {
+            triggerToothAngle = 50; 
+            triggerFilterTime = curGap; //50 degrees with a target of 70
+          }
+        } 
       }
-      else {
-        filterLevel = 0;  // Filter off
+      else
+      {
+        //trigger filter is turned off.
+        triggerFilterTime = 0;
+        if( (toothCurrentCount == 1) || (toothCurrentCount == 3) || (toothCurrentCount == 5) || (toothCurrentCount == 7) || (toothCurrentCount == 9) || (toothCurrentCount == 11) )
+        { 
+          if(configPage2.nCylinders == 4) { triggerToothAngle = 70; }
+          else  { triggerToothAngle = 70; }
+        } 
+        else 
+        { 
+          if(configPage2.nCylinders == 4) { triggerToothAngle = 110; }
+          else  { triggerToothAngle = 50; }
+        }
       }
-
-      // Determine if odd tooth (1,3,5,7,9,11) or even tooth (2,4,6,8,10,12)
-      bool isOddTooth = (toothCurrentCount & 1) != 0;
-
-      // Apply configuration (replaces 104 lines of duplicated code)
-      apply4G63FilterConfig(filterLevel, isOddTooth, configPage2.nCylinders, curGap);
 
       //EXPERIMENTAL!
       //New ignition mode is ONLY available on 4g63 when the trigger angle is set to the stock value of 0.
