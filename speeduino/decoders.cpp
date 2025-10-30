@@ -3233,6 +3233,52 @@ void triggerSetup_Subaru67(void)
   toothAngles[11] = toothAngles[2] + 540;
 }
 
+// Subaru 6/7 trigger sync validation - data-driven approach to eliminate switch duplication
+// Stores expected tooth count combinations for each secondary tooth count
+struct Subaru67SyncConfig {
+  uint8_t secondaryCount;      // Number of secondary teeth seen (1, 2, or 3)
+  uint8_t expectedTooth1;      // Primary expected tooth count
+  uint8_t expectedTooth2;      // Alternative tooth count (0 if not applicable)
+  uint8_t defaultToothCount;   // Tooth count to set on validation failure
+};
+
+// Configuration array for Subaru 6/7 sync validation
+// Format: {secondaryCount, expectedTooth1, expectedTooth2, defaultToothCount}
+static const Subaru67SyncConfig subaru67SyncConfigs[3] = {
+  {1, 5, 11, 5},  // Case 1: Expected tooth 5 OR 11, default to 5 on failure
+  {2, 8,  0, 8},  // Case 2: Expected tooth 8, default to 8 on failure
+  {3, 2,  0, 2}   // Case 3: Expected tooth 2, default to 2 on failure
+};
+
+// Helper function to validate Subaru 6/7 sync using data-driven approach
+static inline bool validateSubaru67Sync(uint8_t secondaryCount, uint8_t toothCount, uint8_t* outToothCount)
+{
+  // Find matching configuration
+  for(uint8_t i = 0; i < 3; i++)
+  {
+    const Subaru67SyncConfig* config = &subaru67SyncConfigs[i];
+
+    if(config->secondaryCount == secondaryCount)
+    {
+      // Check if tooth count matches expected values
+      bool isValid = (toothCount == config->expectedTooth1);
+      if(config->expectedTooth2 != 0)
+      {
+        isValid = isValid || (toothCount == config->expectedTooth2);
+      }
+
+      if(!isValid)
+      {
+        // Validation failed - return default tooth count
+        *outToothCount = config->defaultToothCount;
+      }
+
+      return isValid;
+    }
+  }
+
+  return false;  // No matching configuration found
+}
 
 void triggerPri_Subaru67(void)
 {
@@ -3257,56 +3303,36 @@ void triggerPri_Subaru67(void)
   } 
 
   //Sync is determined by counting the number of cam teeth that have passed between the crank teeth
-  switch(secondaryToothCount)
+  if(secondaryToothCount == 0)
   {
-    case 0:
-      //If no teeth have passed, we can't do anything
-      break;
+    //If no teeth have passed, we can't do anything
+    //No action needed
+  }
+  else if(secondaryToothCount >= 1 && secondaryToothCount <= 3)
+  {
+    // Use data-driven validation for cases 1, 2, and 3
+    uint8_t newToothCount = toothCurrentCount;
+    bool isValid = validateSubaru67Sync(secondaryToothCount, toothCurrentCount, &newToothCount);
 
-    case 1:
-      //Can't do anything with a single pulse from the cam either (We need either 2 or 3 pulses)
-      if(toothCurrentCount == 5 || toothCurrentCount == 11)
-      { currentStatus.hasSync = true; }
-      else
-      { 
-        currentStatus.hasSync = false; 
-        currentStatus.syncLossCounter++;     
-        toothCurrentCount = 5; // we don't know if its 5 or 11, but we'll be right 50% of the time and speed up getting sync 50%
-      }
-      secondaryToothCount = 0;
-      break;
-
-    case 2:
-      if (toothCurrentCount == 8)  
-      {  currentStatus.hasSync = true; }
-      else
-      { 
-        currentStatus.hasSync = false;
-        currentStatus.syncLossCounter++;
-        toothCurrentCount = 8;
-      }          
-      secondaryToothCount = 0;
-      break;
-
-    case 3:      
-      if( toothCurrentCount == 2)
-      {  currentStatus.hasSync = true; }
-      else
-      {  
-        currentStatus.hasSync = false; 
-        currentStatus.syncLossCounter++;
-        toothCurrentCount = 2;
-      }
-      secondaryToothCount = 0;
-      break;
-
-    default:
-      //Almost certainly due to noise or cranking stop/start
+    if(isValid)
+    {
+      currentStatus.hasSync = true;
+    }
+    else
+    {
       currentStatus.hasSync = false;
-      BIT_CLEAR(decoderState, BIT_DECODER_TOOTH_ANG_CORRECT);
       currentStatus.syncLossCounter++;
-      secondaryToothCount = 0;
-      break;
+      toothCurrentCount = newToothCount;
+    }
+    secondaryToothCount = 0;
+  }
+  else
+  {
+    //Almost certainly due to noise or cranking stop/start (secondaryToothCount > 3)
+    currentStatus.hasSync = false;
+    BIT_CLEAR(decoderState, BIT_DECODER_TOOTH_ANG_CORRECT);
+    currentStatus.syncLossCounter++;
+    secondaryToothCount = 0;
   }
 
   //Check sync again
