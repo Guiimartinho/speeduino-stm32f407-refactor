@@ -28,3 +28,5 @@ test/output_export.cpp
 misra/.results
 ~$*
 local.ini
+*.pyc
+__pycache__/

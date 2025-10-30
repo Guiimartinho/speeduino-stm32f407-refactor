@@ -57,6 +57,7 @@ cppcheck_parameters=( --inline-suppr
                       --enable=performance
                       --enable=portability
                       --enable=style
+                      --addon-python="C:/Users/AORUS-Desktop/.platformio/penv/Scripts/python.exe"
                       --addon="$script_folder/misra.json"
                       --suppressions-list="$script_folder/suppressions.txt"
                       --suppress=unusedFunction:*
