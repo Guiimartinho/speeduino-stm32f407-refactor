@@ -2,7 +2,9 @@
 #include <Arduino.h>
 #include <globals.h>
 #include <unity.h>
+#if defined(SIMULATOR)
 #include <avr/sleep.h>
+#endif
 
 #include "missing_tooth/missing_tooth.h"
 #include "dual_wheel/dual_wheel.h"
