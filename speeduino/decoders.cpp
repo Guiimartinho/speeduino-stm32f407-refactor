@@ -4635,7 +4635,68 @@ void triggerSetup_NGC(void)
   }
 #ifdef USE_LIBDIVIDE
   divTriggerToothAngle = libdivide::libdivide_s16_gen(triggerToothAngle);
-#endif  
+#endif
+}
+
+// NGC trigger sync validation - data-driven approach to eliminate duplication
+// Stores valid tooth count combinations for sync validation
+struct NGCSyncCondition {
+  uint8_t nCylinders;
+  bool revolutionOne;
+  // For toothCurrentCount == 1
+  uint8_t tooth1_secondary_min;  // Min secondary/system count at tooth 1
+  uint8_t tooth1_secondary_max;  // Max secondary/system count at tooth 1
+  // For toothCurrentCount == 19
+  uint8_t tooth19_secondary_min; // Min secondary/system count at tooth 19
+  uint8_t tooth19_secondary_max; // Max secondary/system count at tooth 19
+};
+
+// Configuration array for all NGC sync conditions
+// Format: {cylinders, revolutionOne, tooth1_min, tooth1_max, tooth19_min, tooth19_max}
+static const NGCSyncCondition ngcSyncConditions[6] = {
+  // Revolution One = false conditions
+  {4, false, 1, 2, 4, 4},  // 4cyl rev0: tooth1 with sec 1-2, tooth19 with sec 4
+  {6, false, 1, 2, 2, 3},  // 6cyl rev0: tooth1 with sys 1-2, tooth19 with sys 2-3
+  {8, false, 1, 2, 3, 4},  // 8cyl rev0: tooth1 with sys 1-2, tooth19 with sys 3-4
+  // Revolution One = true conditions
+  {4, true,  5, 5, 7, 7},  // 4cyl rev1: tooth1 with sec 5, tooth19 with sec 7
+  {6, true,  4, 5, 5, 6},  // 6cyl rev1: tooth1 with sys 4-5, tooth19 with sys 5-6
+  {8, true,  5, 6, 7, 8}   // 8cyl rev1: tooth1 with sys 5-6, tooth19 with sys 7-8
+};
+
+// Helper function to check NGC sync conditions using data-driven approach
+static inline bool checkNGCSyncCondition(uint8_t toothCount, uint8_t secondaryCount, uint8_t nCylinders, volatile bool* outRevolutionOne)
+{
+  for(uint8_t i = 0; i < 6; i++)
+  {
+    const NGCSyncCondition* cond = &ngcSyncConditions[i];
+
+    // Skip if not matching cylinder count
+    if(cond->nCylinders != nCylinders) { continue; }
+
+    bool isValid = false;
+
+    // Check tooth 1 conditions
+    if(toothCount == 1)
+    {
+      isValid = (secondaryCount >= cond->tooth1_secondary_min &&
+                 secondaryCount <= cond->tooth1_secondary_max);
+    }
+    // Check tooth 19 conditions
+    else if(toothCount == 19)
+    {
+      isValid = (secondaryCount >= cond->tooth19_secondary_min &&
+                 secondaryCount <= cond->tooth19_secondary_max);
+    }
+
+    if(isValid)
+    {
+      *outRevolutionOne = cond->revolutionOne;
+      return true;
+    }
+  }
+
+  return false;  // No valid condition found
 }
 
 void triggerPri_NGC(void) 
@@ -4684,27 +4745,18 @@ void triggerPri_NGC(void)
           //If Sequential fuel or ignition is in use, further checks are needed before determining sync
           if( (configPage4.sparkMode == IGN_MODE_SEQUENTIAL) || (configPage2.injLayout == INJ_SEQUENTIAL) )
           {
+            // Determine which secondary count to use based on cylinder configuration
+            uint8_t secondaryCount = (configPage2.nCylinders == 4) ? secondaryToothCount : toothSystemCount;
+
             // Verify the tooth counters are valid and use this to determine current revolution
-            if (
-              ( configPage2.nCylinders == 4 && ( (toothCurrentCount == 1 && (secondaryToothCount == 1 || secondaryToothCount == 2) ) || (toothCurrentCount == 19 && secondaryToothCount == 4) ) ) ||
-              ( configPage2.nCylinders == 6 && ( (toothCurrentCount == 1 && (toothSystemCount == 1    || toothSystemCount == 2) )    || (toothCurrentCount == 19 && (toothSystemCount == 2 || toothSystemCount == 3) ) ) ) ||
-              ( configPage2.nCylinders == 8 && ( (toothCurrentCount == 1 && (toothSystemCount == 1    || toothSystemCount == 2) )    || (toothCurrentCount == 19 && (toothSystemCount == 3 || toothSystemCount == 4) ) ) ) )
+            if(checkNGCSyncCondition(toothCurrentCount, secondaryCount, configPage2.nCylinders, &revolutionOne))
             {
-              revolutionOne = false;
               currentStatus.hasSync = true;
               BIT_CLEAR(currentStatus.status3, BIT_STATUS3_HALFSYNC); //the engine is fully synced so clear the Half Sync bit
             }
-            else if (
-              ( configPage2.nCylinders == 4 && ( (toothCurrentCount == 1 && secondaryToothCount == 5)                          || (toothCurrentCount == 19 && secondaryToothCount == 7) ) ) ||
-              ( configPage2.nCylinders == 6 && ( (toothCurrentCount == 1 && (toothSystemCount == 4 || toothSystemCount == 5) ) || (toothCurrentCount == 19 && (toothSystemCount == 5 || toothSystemCount == 6) ) ) ) ||
-              ( configPage2.nCylinders == 8 && ( (toothCurrentCount == 1 && (toothSystemCount == 5 || toothSystemCount == 6) ) || (toothCurrentCount == 19 && (toothSystemCount == 7 || toothSystemCount == 8) ) ) ) )
+            else
             {
-              revolutionOne = true;
-              currentStatus.hasSync = true;
-              BIT_CLEAR(currentStatus.status3, BIT_STATUS3_HALFSYNC); //the engine is fully synced so clear the Half Sync bit
-            }
-            // If tooth counters are not valid, set half sync bit
-            else {
+              // If tooth counters are not valid, set half sync bit
               if (currentStatus.hasSync == true) { currentStatus.syncLossCounter++; }
               currentStatus.hasSync = false;
               BIT_SET(currentStatus.status3, BIT_STATUS3_HALFSYNC); //If there is primary trigger but no secondary we only have half sync.
