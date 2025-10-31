@@ -3112,55 +3112,6 @@ void triggerPri_Nissan360(void)
    }
 }
 
-// FASE L: Nissan360 window configuration (data-driven approach)
-// Nissan 360 optical distributor uses secondary cam windows of varying widths
-// to identify engine position. Different cylinder counts use different patterns.
-struct Nissan360WindowConfig {
-  uint8_t nCylinders;        // Number of engine cylinders (4, 6, or 8)
-  uint8_t durationMin;       // Minimum window width in primary teeth
-  uint8_t durationMax;       // Maximum window width in primary teeth
-  uint16_t targetToothCount; // Primary tooth count at end of this window
-};
-
-// Static configuration table for all Nissan360 window patterns
-// 4-cyl: 4 windows (16,12,8,4 teeth wide) at 90-degree intervals
-// 6-cyl: Single smallest window (4 teeth) for sync
-// 8-cyl: Single shortest window (7 teeth) for sync (V8 Optispark)
-static const Nissan360WindowConfig nissan360WindowConfigs[] PROGMEM = {
-  // 4 cylinder windows
-  {4, 15, 17, 16},   // Window 1: 16 teeth duration, ends at tooth 16
-  {4, 11, 13, 102},  // Window 2: 12 teeth duration, ends at tooth 102 (90+12)
-  {4,  7,  9, 188},  // Window 3: 8 teeth duration, ends at tooth 188 (90+90+8)
-  {4,  3,  5, 274},  // Window 4: 4 teeth duration, ends at tooth 274 (90+90+90+4)
-  // 6 cylinder window
-  {6,  3,  5, 124},  // Smallest window: 4 teeth, ends at tooth 124 (60+60+4)
-  // 8 cylinder window (V8 Optispark)
-  {8,  6,  8, 56}    // Shortest window: 7 teeth, ends at tooth 56 (102 crank degrees)
-};
-
-// Helper function: Process Nissan360 cam window using data-driven lookup
-// Returns true if window matches a known pattern and sets outToothCount
-static inline bool processNissan360Window(uint8_t secondaryDuration, uint8_t nCylinders, uint16_t* outToothCount)
-{
-  const uint8_t configCount = sizeof(nissan360WindowConfigs) / sizeof(Nissan360WindowConfig);
-
-  for (uint8_t i = 0; i < configCount; i++)
-  {
-    const Nissan360WindowConfig* cfg = &nissan360WindowConfigs[i];
-
-    // Match: same cylinder count AND duration in valid range
-    if (cfg->nCylinders == nCylinders &&
-        secondaryDuration >= cfg->durationMin &&
-        secondaryDuration <= cfg->durationMax)
-    {
-      *outToothCount = cfg->targetToothCount;
-      return true;
-    }
-  }
-
-  return false; // No matching window pattern found
-}
-
 void triggerSec_Nissan360(void)
 {
   curTime2 = micros();
@@ -3170,45 +3121,89 @@ void triggerSec_Nissan360(void)
   //OPTIONAL: Set filter at 25% of the current speed
   //triggerSecFilterTime = curGap2 >> 2;
 
-  // Determine secondary trigger edge polarity
-  byte trigEdge = (configPage4.TrigEdgeSec == 0) ? LOW : HIGH;
 
-  // Guard: Start of secondary window (first rotation OR window start edge)
-  if ((secondaryToothCount == 0) || (READ_SEC_TRIGGER() == trigEdge))
+  //Calculate number of primary teeth that this window has been active for
+  byte trigEdge;
+  if(configPage4.TrigEdgeSec == 0) { trigEdge = LOW; }
+  else { trigEdge = HIGH; }
+
+  if( (secondaryToothCount == 0) || (READ_SEC_TRIGGER() == trigEdge) ) { secondaryToothCount = toothCurrentCount; } //This occurs on the first rotation upon powerup OR the start of a secondary window
+  else
   {
-    secondaryToothCount = toothCurrentCount;
-    return;
-  }
+    //If we reach here, we are at the end of a secondary window
+    byte secondaryDuration = toothCurrentCount - secondaryToothCount; //How many primary teeth have passed during the duration of this secondary window
 
-  // End of secondary window detected - calculate window width
-  byte secondaryDuration = toothCurrentCount - secondaryToothCount;
-  uint16_t matchedToothCount = 0;
-
-  // Path 1: No sync yet - try to acquire sync
-  if (currentStatus.hasSync == false)
-  {
-    // Use data-driven lookup to find matching window pattern
-    if (processNissan360Window(secondaryDuration, configPage2.nCylinders, &matchedToothCount))
+    if(currentStatus.hasSync == false)
     {
-      toothCurrentCount = matchedToothCount;
-      currentStatus.hasSync = true;
+      if(configPage2.nCylinders == 4)
+      {
+        //Supported pattern is where all the inner windows as a different size (Most SR engines)
+        //These equate to 4,8,12,16 teeth spacings
+        if( (secondaryDuration >= 15) && (secondaryDuration <= 17) ) //Duration of window = 16 primary teeth
+        {
+          toothCurrentCount = 16; //End of first window (The longest) occurs 16 teeth after TDC
+          currentStatus.hasSync = true;
+        }
+        else if( (secondaryDuration >= 11) && (secondaryDuration <= 13) ) //Duration of window = 12 primary teeth
+        {
+          toothCurrentCount = 102; //End of second window is after 90+12 primary teeth
+          currentStatus.hasSync = true;
+        }
+        else if( (secondaryDuration >= 7) && (secondaryDuration <= 9) ) //Duration of window = 8 primary teeth
+        {
+          toothCurrentCount = 188; //End of third window is after 90+90+8 primary teeth
+          currentStatus.hasSync = true;
+        }
+        else if( (secondaryDuration >= 3) && (secondaryDuration <= 5) ) //Duration of window = 4 primary teeth
+        {
+          toothCurrentCount = 274; //End of fourth window is after 90+90+90+4 primary teeth
+          currentStatus.hasSync = true;
+        }
+        else { currentStatus.hasSync = false; currentStatus.syncLossCounter++; } //This should really never happen
+      }
+      else if(configPage2.nCylinders == 6)
+      {
+        //Pattern on the 6 cylinders is 4-8-12-16-20-24
+        if( (secondaryDuration >= 3) && (secondaryDuration <= 5) ) //Duration of window = 4 primary teeth
+        {
+          toothCurrentCount = 124; //End of smallest window is after 60+60+4 primary teeth
+          currentStatus.hasSync = true;
+        }
+      }
+      else if(configPage2.nCylinders == 8)
+      {
+        //V8 Optispark
+        //Pattern on the 8 cylinders is the same as the 6 cylinder 4-8-12-16-20-24
+        if( (secondaryDuration >= 6) && (secondaryDuration <= 8) ) //Duration of window = 16 primary teeth
+        {
+          toothCurrentCount = 56; //End of the shortest of the individual windows. Occurs at 102 crank degrees. 
+          currentStatus.hasSync = true;
+        }
+      }
+      else { currentStatus.hasSync = false; } //This should really never happen (Only 4, 6 and 8 cylinder engines for this pattern)
     }
     else
     {
-      // No matching window pattern found
-      currentStatus.hasSync = false;
-      currentStatus.syncLossCounter++;
-    }
-  }
-  // Path 2: Already have sync - optionally resync every 720 degrees
-  else if (configPage4.useResync == true)
-  {
-    // Use same data-driven lookup for resync verification
-    if (processNissan360Window(secondaryDuration, configPage2.nCylinders, &matchedToothCount))
-    {
-      toothCurrentCount = matchedToothCount;
-    }
-  }
+      if (configPage4.useResync == true)
+      {
+        //Already have sync, but do a verify every 720 degrees.
+        if(configPage2.nCylinders == 4)
+        {
+          if( (secondaryDuration >= 15) && (secondaryDuration <= 17) ) //Duration of window = 16 primary teeth
+          {
+            toothCurrentCount = 16; //End of first window (The longest) occurs 16 teeth after TDC
+          }
+        }
+        else if(configPage2.nCylinders == 6)
+        {
+          if( (secondaryDuration >= 3) && (secondaryDuration <= 5) ) //Duration of window = 4 primary teeth
+          {
+            toothCurrentCount = 124; //End of smallest window is after 60+60+4 primary teeth
+          }
+        } //Cylinder count
+      } //use resync
+    } //Has sync
+  } //First getting sync or not
 }
 
 uint16_t getRPM_Nissan360(void)
