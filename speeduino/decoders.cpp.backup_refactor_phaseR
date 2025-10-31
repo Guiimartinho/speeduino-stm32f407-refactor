@@ -4380,55 +4380,49 @@ void triggerPri_420a(void)
   }
 }
 
-// FASE R: DSM 420a sync configuration
-// Sync determined by primary signal state when secondary falls
-struct DSM420aSyncConfig {
-  bool priTriggerState;       // Expected primary trigger state (HIGH or LOW)
-  uint8_t expectedToothCount; // Tooth count for this sync point
-};
-
-static const DSM420aSyncConfig dsm420aSyncConfigs[2] PROGMEM = {
-  {true,  13},  // Primary HIGH when secondary falls -> tooth 13
-  {false,  5}   // Primary LOW when secondary falls -> tooth 5
-};
-
-// Helper: Validate and set DSM 420a sync based on primary state
-static inline void processDSM420aSync(bool priState, bool hasSync, uint8_t currentToothCount)
-{
-  // Find matching configuration
-  uint8_t expectedTooth = 0;
-  for (uint8_t i = 0; i < 2; i++)
-  {
-    if (dsm420aSyncConfigs[i].priTriggerState == priState)
-    {
-      expectedTooth = dsm420aSyncConfigs[i].expectedToothCount;
-      break;
-    }
-  }
-
-  if (hasSync == false)
-  {
-    // No sync yet - accept this tooth position
-    toothCurrentCount = expectedTooth;
-    currentStatus.hasSync = true;
-  }
-  else
-  {
-    // Have sync - validate tooth position matches expectation
-    if (currentToothCount != expectedTooth)
-    {
-      currentStatus.syncLossCounter++;
-      toothCurrentCount = expectedTooth;
-    }
-  }
-}
-
 void triggerSec_420a(void)
 {
   //Secondary trigger is only on falling edge
-  //Use data-driven helper to process sync based on primary trigger state
-  bool priState = READ_PRI_TRIGGER();
-  processDSM420aSync(priState, currentStatus.hasSync, toothCurrentCount);
+
+  if(READ_PRI_TRIGGER() == true)
+  {
+    //Secondary signal is falling and primary signal is HIGH
+    if( currentStatus.hasSync == false )
+    {
+      //If we don't have sync, then assume the signal is good
+      toothCurrentCount = 13;
+      currentStatus.hasSync = true;
+    }
+    else
+    {
+      //If we DO have sync, then check that the tooth count matches what we expect
+      if(toothCurrentCount != 13)
+      {
+        currentStatus.syncLossCounter++;
+        toothCurrentCount = 13;
+      }
+    }
+
+  }
+  else
+  {
+    //Secondary signal is falling and primary signal is LOW
+    if( currentStatus.hasSync == false )
+    {
+      //If we don't have sync, then assume the signal is good
+      toothCurrentCount = 5;
+      currentStatus.hasSync = true;
+    }
+    else
+    {
+      //If we DO have sync, then check that the tooth count matches what we expect
+      if(toothCurrentCount != 5)
+      {
+        currentStatus.syncLossCounter++;
+        toothCurrentCount = 5;
+      }
+    }
+  }
 }
 
 uint16_t getRPM_420a(void)
