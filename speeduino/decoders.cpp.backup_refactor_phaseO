@@ -5102,67 +5102,6 @@ void triggerSetup_Vmax(void)
 //secondaryToothCount = the current number of the beginning of a lobe
 //We measure the width of a lobe so on the end of a lobe, but want to trigger on the beginning. Variable toothCurrentCount tracks the downward events, and secondaryToothCount updates on the upward events. Ideally, it should be the other way round but the engine stall routine resets secondaryToothCount, so it would not sync again after an engine stall.
 
-// FASE O: Vmax tooth configuration (data-driven approach)
-// Vmax pattern: 6 teeth with alternating 70-degree and 40-degree spacing
-// Teeth 1,3,4,6 = 70 degrees, Teeth 2,5 = 40 degrees
-// Filter compensation needed: 70deg->40deg requires *4/7, 40deg->70deg requires *7/4
-struct VmaxToothConfig {
-  uint8_t toothCount;        // Tooth number (1-6)
-  uint8_t toothAngle;        // Angle of this tooth (70 or 40 degrees)
-  uint8_t filterNumerator;   // Filter calculation numerator
-  uint8_t filterDenominator; // Filter calculation denominator
-  uint8_t secondaryCount;    // Secondary tooth counter value
-};
-
-// Static configuration table for all 6 Vmax teeth
-// Filter logic: curGap * numerator / denominator
-// - 70deg tooth (next is 40deg): multiply by 4/7 to compensate
-// - 40deg tooth (next is 70deg): multiply by 7/4 to compensate
-// - 70deg tooth (next is 70deg): multiply by 1/1 (no compensation)
-static const VmaxToothConfig vmaxToothConfigs[6] PROGMEM = {
-  {1, 70, 4, 7, 1},  // Tooth 1: 70deg, next is 40deg (tooth 2), compensate *4/7
-  {2, 40, 7, 4, 2},  // Tooth 2: 40deg, next is 70deg (tooth 3), compensate *7/4
-  {3, 70, 1, 1, 3},  // Tooth 3: 70deg, next is 70deg (tooth 4), no compensation
-  {4, 70, 4, 7, 4},  // Tooth 4: 70deg, next is 40deg (tooth 5), compensate *4/7
-  {5, 40, 7, 4, 5},  // Tooth 5: 40deg, next is 70deg (tooth 6), compensate *7/4
-  {6, 70, 1, 1, 6}   // Tooth 6: 70deg, next is 70deg (tooth 1), no compensation
-};
-
-// Helper function: Process Vmax tooth using data-driven configuration
-static inline void processVmaxTooth(uint8_t toothCount, unsigned long curGap)
-{
-  // Guard: toothCount must be 1-6
-  if (toothCount < 1 || toothCount > 6) { return; }
-
-  // Array is 0-indexed, toothCount is 1-indexed
-  const VmaxToothConfig* cfg = &vmaxToothConfigs[toothCount - 1];
-
-  // Set tooth angle for this tooth
-  triggerToothAngle = cfg->toothAngle;
-
-  // Set secondary counter
-  secondaryToothCount = cfg->secondaryCount;
-
-  // Apply filter with compensation for next tooth spacing
-  if (cfg->filterDenominator == 1)
-  {
-    setFilter(curGap); // No compensation needed
-  }
-  else
-  {
-    setFilter((curGap * cfg->filterNumerator) / cfg->filterDenominator);
-  }
-
-  // Special handling for tooth 1 (revolution marker)
-  if (toothCount == 1)
-  {
-    toothOneMinusOneTime = toothOneTime;
-    toothOneTime = curTime;
-    currentStatus.hasSync = true;
-    currentStatus.startRevolutions++;
-  }
-}
-
 void triggerPri_Vmax(void)
 {
   curTime = micros();
@@ -5174,14 +5113,53 @@ void triggerPri_Vmax(void)
       if (toothCurrentCount > 0) // We have sync based on the tooth width.
       {
           BIT_SET(decoderState, BIT_DECODER_VALID_TRIGGER); //Flag this pulse as being a valid trigger (ie that it passed filters)
-
-          // Use data-driven configuration to process tooth
-          // Handles all 6 teeth (angles, filters, counters) with single function call
-          processVmaxTooth(toothCurrentCount, curGap);
-
+          if (toothCurrentCount==1)
+          {
+            secondaryToothCount = 1;
+            triggerToothAngle = 70;// Has to be equal to Angle Routine, and describe the delta between two teeth.
+            toothOneMinusOneTime = toothOneTime;
+            toothOneTime = curTime;
+            currentStatus.hasSync = true;
+            //setFilter((curGap/1.75));//Angle to this tooth is 70, next is in 40, compensating.
+            setFilter( ((curGap*4)/7) );//Angle to this tooth is 70, next is in 40, compensating.
+            currentStatus.startRevolutions++; //Counter
+          }
+          else if (toothCurrentCount==2)
+          {
+            secondaryToothCount = 2;
+            triggerToothAngle = 40;
+            //setFilter((curGap*1.75));//Angle to this tooth is 40, next is in 70, compensating.
+            setFilter( ((curGap*7)/4) );//Angle to this tooth is 40, next is in 70, compensating.
+          }
+          else if (toothCurrentCount==3)
+          {
+            secondaryToothCount = 3;
+            triggerToothAngle = 70;
+            setFilter(curGap);//Angle to this tooth is 70, next is in 70. No need to compensate.
+          }
+          else if (toothCurrentCount==4)
+          {
+            secondaryToothCount = 4;
+            triggerToothAngle = 70;
+            //setFilter((curGap/1.75));//Angle to this tooth is 70, next is in 40, compensating.
+            setFilter( ((curGap*4)/7) );//Angle to this tooth is 70, next is in 40, compensating.
+          }
+          else if (toothCurrentCount==5)
+          {
+            secondaryToothCount = 5;
+            triggerToothAngle = 40;
+            //setFilter((curGap*1.75));//Angle to this tooth is 40, next is in 70, compensating.
+            setFilter( ((curGap*7)/4) );//Angle to this tooth is 40, next is in 70, compensating.
+          }
+          else if (toothCurrentCount==6)
+          {
+            secondaryToothCount = 6;
+            triggerToothAngle = 70;
+            setFilter(curGap);//Angle to this tooth is 70, next is in 70. No need to compensate.
+          }
           toothLastMinusOneToothTime = toothLastToothTime;
           toothLastToothTime = curTime;
-          if (triggerFilterTime > 50000){//The first pulse seen
+          if (triggerFilterTime > 50000){//The first pulse seen 
             triggerFilterTime = 0;
           }
       }
