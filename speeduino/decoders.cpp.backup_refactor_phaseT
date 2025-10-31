@@ -4662,32 +4662,6 @@ void triggerSetup_FordST170(void)
 #endif  
 }
 
-// FASE T: Ford ST170 VVT recording extraction
-// Separates VVT angle recording concern from missing tooth sync logic
-// Reduces nesting from 4 levels to 2 (guard clauses)
-static inline void recordVVTAngle_FordST170(uint8_t revOne, uint8_t secToothCount)
-{
-  // Guard: VVT disabled
-  if (configPage6.vvtEnabled == 0) { return; }
-
-  // Guard: Not on first revolution
-  if (revOne != 1) { return; }
-
-  // Guard: Not on first tooth after gap
-  if (secToothCount != 1) { return; }
-
-  // Record VVT angle using first tooth after long gap as reference
-  // This tooth remains in the same engine cycle even when VVT is at full swing
-  int16_t curAngle = getCrankAngle();
-  while (curAngle > 360) { curAngle -= 360; }
-
-  if (configPage6.vvtMode == VVT_MODE_CLOSED_LOOP)
-  {
-    curAngle = LOW_PASS_FILTER((curAngle << 1), configPage4.ANGLEFILTER_VVT, curAngle);
-    currentStatus.vvt1Angle = 360 - curAngle - configPage10.vvtCL0DutyAng;
-  }
-}
-
 void triggerSec_FordST170(void)
 {
   curTime2 = micros();
@@ -4695,8 +4669,8 @@ void triggerSec_FordST170(void)
 
   //Safety check for initial startup
   if( (toothLastSecToothTime == 0) )
-  {
-    curGap2 = 0;
+  { 
+    curGap2 = 0; 
     toothLastSecToothTime = curTime2;
   }
 
@@ -4718,8 +4692,20 @@ void triggerSec_FordST170(void)
 
     toothLastSecToothTime = curTime2;
 
-    // Record VVT angle (separated concern)
-    recordVVTAngle_FordST170(revolutionOne, secondaryToothCount);
+    //Record the VVT Angle
+    //We use the first tooth after the long gap as our reference, this remains in the same engine
+    //cycle even when the VVT is at either end of its full swing.
+    if( (configPage6.vvtEnabled > 0) && (revolutionOne == 1) && (secondaryToothCount == 1) )
+    {
+      int16_t curAngle;
+      curAngle = getCrankAngle();
+      while(curAngle > 360) { curAngle -= 360; }
+      if( configPage6.vvtMode == VVT_MODE_CLOSED_LOOP )
+      {
+        curAngle = LOW_PASS_FILTER( (curAngle << 1), configPage4.ANGLEFILTER_VVT, curAngle);
+        currentStatus.vvt1Angle = 360 - curAngle - configPage10.vvtCL0DutyAng;
+      }
+    }
   } //Trigger filter
 }
 
