@@ -4032,86 +4032,36 @@ int getCrankAngle_ThirtySixMinus222(void)
     return 0;
 }
 
-// FASE N: ThirtySixMinus222 end teeth configuration (data-driven approach)
-// Subaru H4 and H6 engines use 36-2-2-2 crank pattern
-// End tooth varies by advance timing to prevent coil overlap
-struct ThirtySixMinus222EndTeethConfig {
-  uint8_t nCylinders;      // Engine cylinder count (4 or 6)
-  uint8_t ignitionChannel; // Ignition channel number (1, 2, or 3)
-  uint8_t advanceMax;      // Maximum advance for this tooth (degrees)
-  uint16_t endTooth;       // End tooth for this advance range
-};
-
-// Static configuration table for 36-2-2-2 end teeth
-// H4 (4-cylinder): 2 ignition channels with advance-based tooth selection
-// H6 (6-cylinder): 3 ignition channels with advance-based tooth selection
-static const ThirtySixMinus222EndTeethConfig thirtySixMinus222Configs[] PROGMEM = {
-  // 4-cylinder ignition 1 ranges
-  {4, 1, 10, 36},  // advance < 10  -> tooth 36
-  {4, 1, 20, 35},  // advance < 20  -> tooth 35
-  {4, 1, 30, 34},  // advance < 30  -> tooth 34
-  {4, 1, 255, 31}, // advance >= 30 -> tooth 31 (255 = catch-all)
-
-  // 4-cylinder ignition 2 ranges
-  {4, 2, 30, 16},  // advance < 30  -> tooth 16
-  {4, 2, 255, 13}, // advance >= 30 -> tooth 13
-
-  // 6-cylinder ignition 1 ranges
-  {6, 1, 10, 36},  // advance < 10  -> tooth 36
-  {6, 1, 20, 35},  // advance < 20  -> tooth 35
-  {6, 1, 30, 34},  // advance < 30  -> tooth 34
-  {6, 1, 40, 33},  // advance < 40  -> tooth 33
-  {6, 1, 255, 31}, // advance >= 40 -> tooth 31
-
-  // 6-cylinder ignition 2 ranges
-  {6, 2, 20, 9},   // advance < 20  -> tooth 9
-  {6, 2, 255, 6},  // advance >= 20 -> tooth 6
-
-  // 6-cylinder ignition 3 ranges
-  {6, 3, 10, 23},  // advance < 10  -> tooth 23
-  {6, 3, 20, 22},  // advance < 20  -> tooth 22
-  {6, 3, 30, 21},  // advance < 30  -> tooth 21
-  {6, 3, 40, 20},  // advance < 40  -> tooth 20
-  {6, 3, 255, 19}  // advance >= 40 -> tooth 19
-};
-
-// Helper function: Set end tooth using data-driven lookup
-// Returns the tooth number for given cylinder count, channel, and advance
-static inline uint16_t getThirtySixMinus222EndTooth(uint8_t nCylinders, uint8_t channel, uint8_t advance)
-{
-  const uint8_t configCount = sizeof(thirtySixMinus222Configs) / sizeof(ThirtySixMinus222EndTeethConfig);
-
-  for (uint8_t i = 0; i < configCount; i++)
-  {
-    const ThirtySixMinus222EndTeethConfig* cfg = &thirtySixMinus222Configs[i];
-
-    // Match: same cylinder count AND same channel AND advance < advanceMax
-    if (cfg->nCylinders == nCylinders &&
-        cfg->ignitionChannel == channel &&
-        advance < cfg->advanceMax)
-    {
-      return cfg->endTooth;
-    }
-  }
-
-  return 0; // Should never reach here if config table is complete
-}
-
 void triggerSetEndTeeth_ThirtySixMinus222(void)
 {
-  // Use data-driven configuration lookup
-  // Handles both 4-cylinder (H4) and 6-cylinder (H6) with advance-based selection
-  uint8_t nCyl = configPage2.nCylinders;
-  uint8_t advance = currentStatus.advance;
+  if(configPage2.nCylinders == 4 )
+  { 
+    if(currentStatus.advance < 10) { ignition1EndTooth = 36; }
+    else if(currentStatus.advance < 20) { ignition1EndTooth = 35; }
+    else if(currentStatus.advance < 30) { ignition1EndTooth = 34; }
+    else { ignition1EndTooth = 31; }
 
-  ignition1EndTooth = getThirtySixMinus222EndTooth(nCyl, 1, advance);
-  ignition2EndTooth = getThirtySixMinus222EndTooth(nCyl, 2, advance);
-
-  // Ignition 3 only used for 6-cylinder
-  if (nCyl == 6)
-  {
-    ignition3EndTooth = getThirtySixMinus222EndTooth(nCyl, 3, advance);
+    if(currentStatus.advance < 30) { ignition2EndTooth = 16; }
+    else { ignition2EndTooth = 13; }
   }
+  else if(configPage2.nCylinders == 6) 
+  { 
+    //H6
+    if(currentStatus.advance < 10) { ignition1EndTooth = 36; }
+    else if(currentStatus.advance < 20) { ignition1EndTooth = 35; }
+    else if(currentStatus.advance < 30) { ignition1EndTooth = 34; }
+    else if(currentStatus.advance < 40) { ignition1EndTooth = 33; }
+    else { ignition1EndTooth = 31; }
+
+    if(currentStatus.advance < 20) { ignition2EndTooth = 9; }
+    else { ignition2EndTooth = 6; }
+
+    if(currentStatus.advance < 10) { ignition3EndTooth = 23; }
+    else if(currentStatus.advance < 20) { ignition3EndTooth = 22; }
+    else if(currentStatus.advance < 30) { ignition3EndTooth = 21; }
+    else if(currentStatus.advance < 40) { ignition3EndTooth = 20; }
+    else { ignition3EndTooth = 19; }
+  } 
 }
 /** @} */
 
