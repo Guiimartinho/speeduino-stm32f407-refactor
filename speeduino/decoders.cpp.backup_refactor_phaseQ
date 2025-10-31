@@ -4034,47 +4034,21 @@ void triggerSec_ThirtySixMinus222(void)
   //NOT USED - This pattern uses the missing tooth version of this function
 }
 
-// FASE Q: ThirtySixMinus222 RPM excluded teeth configuration
-// Certain teeth near missing tooth gaps cannot be used for RPM calculation
-struct ThirtySixMinus222RPMExclusion {
-  uint8_t nCylinders;
-  uint8_t excludedTooth;
-};
-
-static const ThirtySixMinus222RPMExclusion thirtySixMinus222RPMExclusions[] PROGMEM = {
-  {4, 19}, {4, 16}, {4, 34},  // H4 excluded teeth
-  {6,  9}, {6, 12}, {6, 33}   // H6 excluded teeth
-};
-
-// Helper: Check if current tooth is excluded from RPM calculation
-static inline bool isToothExcludedFromRPM_ThirtySixMinus222(uint8_t nCyl, uint8_t toothCount)
-{
-  const uint8_t exclusionCount = sizeof(thirtySixMinus222RPMExclusions) / sizeof(ThirtySixMinus222RPMExclusion);
-
-  for (uint8_t i = 0; i < exclusionCount; i++)
-  {
-    const ThirtySixMinus222RPMExclusion* excl = &thirtySixMinus222RPMExclusions[i];
-    if (excl->nCylinders == nCyl && excl->excludedTooth == toothCount)
-    {
-      return true;
-    }
-  }
-  return false;
-}
-
 uint16_t getRPM_ThirtySixMinus222(void)
 {
   uint16_t tempRPM = 0;
   if( currentStatus.RPM < currentStatus.crankRPM)
   {
-    // Use data-driven helper to check if current tooth is excluded from RPM calc
-    bool isExcluded = isToothExcludedFromRPM_ThirtySixMinus222(configPage2.nCylinders, toothCurrentCount);
-
-    if( !isExcluded && BIT_CHECK(decoderState, BIT_DECODER_TOOTH_ANG_CORRECT) )
+    
+    if( (configPage2.nCylinders == 4) && (toothCurrentCount != 19) && (toothCurrentCount != 16) && (toothCurrentCount != 34) && (BIT_CHECK(decoderState, BIT_DECODER_TOOTH_ANG_CORRECT)) )
     {
       tempRPM = crankingGetRPM(36, CRANK_SPEED);
     }
-    else { tempRPM = currentStatus.RPM; } //Can't do per tooth RPM if we're at end of the missing teeth as it messes the calculation
+    else if( (configPage2.nCylinders == 6) && (toothCurrentCount != 9) && (toothCurrentCount != 12) && (toothCurrentCount != 33) && (BIT_CHECK(decoderState, BIT_DECODER_TOOTH_ANG_CORRECT)) )
+    {
+      tempRPM = crankingGetRPM(36, CRANK_SPEED);
+    }
+    else { tempRPM = currentStatus.RPM; } //Can't do per tooth RPM if we're at and of the missing teeth as it messes the calculation
   }
   else
   {
