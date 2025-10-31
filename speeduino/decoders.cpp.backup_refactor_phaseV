@@ -2509,52 +2509,11 @@ uint16_t getRPM_HondaJ32(void)
   return RpmFromRevolutionTimeUs(revolutionTime); // revolutionTime set by SetRevolutionTime()
 }
 
-// FASE V: Honda J32 tooth angle lookup table
-// Replaces if/else chain with direct array lookup for unusual tooth spacing
-// Teeth 14 and 22 have 18deg spacing instead of normal 15deg
-
-// Base angle for each tooth position (1-24)
-// Index 0 unused, teeth 1-24 have pre-calculated angles
-static const uint16_t hondaJ32ToothAngles[25] PROGMEM = {
-  0,    // tooth 0 (unused)
-  15,   // tooth 1: 1 * 15 = 15
-  30,   // tooth 2: 2 * 15 = 30
-  45,   // tooth 3: 3 * 15 = 45
-  60,   // tooth 4: 4 * 15 = 60
-  75,   // tooth 5: 5 * 15 = 75
-  90,   // tooth 6: 6 * 15 = 90
-  105,  // tooth 7: 7 * 15 = 105
-  120,  // tooth 8: 8 * 15 = 120
-  135,  // tooth 9: 9 * 15 = 135
-  150,  // tooth 10: 10 * 15 = 150
-  165,  // tooth 11: 11 * 15 = 165
-  180,  // tooth 12: 12 * 15 = 180
-  195,  // tooth 13: 13 * 15 = 195
-  213,  // tooth 14: 13*15 + 18 = 213 (UNUSUAL 18deg spacing)
-  228,  // tooth 15: 213 + 15 = 228
-  243,  // tooth 16: 228 + 15 = 243
-  258,  // tooth 17: 243 + 15 = 258
-  273,  // tooth 18: 258 + 15 = 273
-  288,  // tooth 19: 273 + 15 = 288
-  303,  // tooth 20: 288 + 15 = 303
-  318,  // tooth 21: 303 + 15 = 318
-  333,  // tooth 22: 21*15 + 18 = 333 (UNUSUAL 18deg spacing)
-  348,  // tooth 23: 333 + 15 = 348
-  363   // tooth 24: 348 + 15 = 363
-};
-
-// Helper: Get base angle for tooth count using lookup table
-static inline int getBaseAngle_HondaJ32(uint16_t toothCount)
-{
-  if (toothCount >= 25) { return 0; }  // Safety: invalid tooth count
-  return pgm_read_word(&hondaJ32ToothAngles[toothCount]);
-}
-
 int getCrankAngle_HondaJ32(void)
 {
   // Returns values from 0 to 360.
   // Tooth 1 time occurs 360/24 degrees after TDC.
-  // Teeth 14 and 22 are unusually sized (18 degrees), handled by lookup table
+  // Teeth 14 and 22 are unusually sized (18 degrees), but the missing tooth is smaller (12 degrees), so this oddity only applies when toothCurrentCount = 14 || 22
   int crankAngle;
   uint16_t tempToothCurrentCount;
   noInterrupts();
@@ -2563,8 +2522,18 @@ int getCrankAngle_HondaJ32(void)
     elapsedTime = lastCrankAngleCalc - toothLastToothTime;
   interrupts();
 
-  // Use lookup table for base angle (handles unusual teeth 14 and 22)
-  crankAngle = getBaseAngle_HondaJ32(tempToothCurrentCount);
+  if (tempToothCurrentCount == 14)
+  {
+    crankAngle = 213; // 13 teeth * 15 degrees/tooth + 18 degrees
+  }
+  else if (tempToothCurrentCount == 22)
+  {
+    crankAngle = 333; // 21 teeth * 15 degrees/tooth + 18 degrees
+  }
+  else
+  {
+    crankAngle = triggerToothAngle * tempToothCurrentCount;
+  }
   crankAngle += timeToAngleDegPerMicroSec(elapsedTime) + configPage4.triggerAngle;
 
   if (crankAngle >= 720) { crankAngle -= 720; }
