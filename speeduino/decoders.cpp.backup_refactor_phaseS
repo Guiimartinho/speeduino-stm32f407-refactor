@@ -4546,31 +4546,6 @@ void triggerPri_Webber(void)
   } //Trigger filter
 }
 
-// FASE S: Webber sync state machine (explicit enum-based)
-// State determined by combination of secondaryToothCount, checkSyncToothCount, hasSync, toothCurrentCount
-enum WebberSyncState {
-  WEBBER_SYNC_SECOND_CAM_RESTART,  // secondaryToothCount==2 && checkSyncToothCount==3
-  WEBBER_SYNC_FIRST_START,         // !hasSync && toothCurrentCount>=3 && secondaryToothCount==0
-  WEBBER_SYNC_OTHER                // All other cases (noise/normal)
-};
-
-// Helper: Determine Webber sync state
-static inline WebberSyncState getWebberSyncState(uint8_t secCount, uint8_t checkCount, bool hasSync, uint8_t toothCount)
-{
-  if ((secCount == 2) && (checkCount == 3))
-  {
-    return WEBBER_SYNC_SECOND_CAM_RESTART;
-  }
-  else if ((hasSync == false) && (toothCount >= 3) && (secCount == 0))
-  {
-    return WEBBER_SYNC_FIRST_START;
-  }
-  else
-  {
-    return WEBBER_SYNC_OTHER;
-  }
-}
-
 void triggerSec_Webber(void)
 {
   curTime2 = micros();
@@ -4580,46 +4555,40 @@ void triggerSec_Webber(void)
   {
     toothLastSecToothTime = curTime2;
 
-    // Use explicit state machine
-    WebberSyncState state = getWebberSyncState(secondaryToothCount, checkSyncToothCount, currentStatus.hasSync, toothCurrentCount);
-
-    switch(state)
+    if ( (secondaryToothCount == 2) && (checkSyncToothCount == 3) )
     {
-      case WEBBER_SYNC_SECOND_CAM_RESTART:
-        // Running, on first CAM pulse restart crank teeth count, on second the counter should be 3
-        if(currentStatus.hasSync == false)
-        {
-          toothLastToothTime = micros();
-          toothLastMinusOneToothTime = micros() - 1500000; //Fixes RPM at 10rpm until a full revolution has taken place
-          toothCurrentCount = configPage4.triggerTeeth-1;
-          currentStatus.hasSync = true;
-        }
-        else
-        {
-          if ( (toothCurrentCount != (configPage4.triggerTeeth-1U)) && (currentStatus.startRevolutions > 2U)) { currentStatus.syncLossCounter++; } //Indicates likely sync loss.
-          if (configPage4.useResync == 1) { toothCurrentCount = configPage4.triggerTeeth-1; }
-        }
-        revolutionOne = 1; //Sequential revolution reset
-        triggerSecFilterTime = curGap << 2; //4 crank teeth
-        secondaryToothCount = 1; //Next tooth should be first
-        break;
-
-      case WEBBER_SYNC_FIRST_START:
-        // First start, between gaps on CAM pulses have 2 teeth, sync on first CAM pulse if seen 3 teeth or more
+      if(currentStatus.hasSync == false)
+      {
         toothLastToothTime = micros();
         toothLastMinusOneToothTime = micros() - 1500000; //Fixes RPM at 10rpm until a full revolution has taken place
-        toothCurrentCount = 1;
-        revolutionOne = 1; //Sequential revolution reset
-        currentStatus.hasSync = true;
-        break;
+        toothCurrentCount = configPage4.triggerTeeth-1;
 
-      case WEBBER_SYNC_OTHER:
-        // First time might fall here, second CAM tooth will
-        triggerSecFilterTime = curGap + (curGap>>1); //150% crank tooth
-        secondaryToothCount++;
-        checkSyncToothCount = 1; //Tooth 1 considered as already been seen
-        break;
-    }
+        currentStatus.hasSync = true;
+      }
+      else
+      {
+        if ( (toothCurrentCount != (configPage4.triggerTeeth-1U)) && (currentStatus.startRevolutions > 2U)) { currentStatus.syncLossCounter++; } //Indicates likely sync loss.
+        if (configPage4.useResync == 1) { toothCurrentCount = configPage4.triggerTeeth-1; }
+      }
+      revolutionOne = 1; //Sequential revolution reset
+      triggerSecFilterTime = curGap << 2; //4 crank teeth
+      secondaryToothCount = 1; //Next tooth should be first
+    } //Running, on first CAM pulse restart crank teeth count, on second the counter should be 3
+    else if ( (currentStatus.hasSync == false) && (toothCurrentCount >= 3) && (secondaryToothCount == 0) )
+    {
+      toothLastToothTime = micros();
+      toothLastMinusOneToothTime = micros() - 1500000; //Fixes RPM at 10rpm until a full revolution has taken place
+      toothCurrentCount = 1;
+      revolutionOne = 1; //Sequential revolution reset
+
+      currentStatus.hasSync = true;
+    } //First start, between gaps on CAM pulses have 2 teeth, sync on first CAM pulse if seen 3 teeth or more
+    else
+    {
+      triggerSecFilterTime = curGap + (curGap>>1); //150% crank tooth
+      secondaryToothCount++;
+      checkSyncToothCount = 1; //Tooth 1 considered as already been seen
+    } //First time might fall here, second CAM tooth will
   }
   else
   {
