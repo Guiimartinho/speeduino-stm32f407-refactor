@@ -3907,47 +3907,6 @@ void triggerSetup_ThirtySixMinus222(void)
   MAX_STALL_TIME = ((MICROS_PER_DEG_1_RPM/50U) * triggerToothAngle * 2U ); //Minimum 50rpm. (3333uS is the time per degree at 50rpm)
 }
 
-// FASE P: ThirtySixMinus222 missing tooth sync configuration
-// Subaru 36-2-2-2 pattern uses two double-gaps for sync
-// toothSystemCount tracks state: 0=normal, 1=saw first double-gap
-struct ThirtySixMinus222SyncConfig {
-  uint8_t nCylinders;        // Engine cylinder count (4 or 6)
-  uint8_t systemCountState;  // toothSystemCount value (0 or 1)
-  uint16_t targetToothCount; // Tooth count to set for this sync point
-};
-
-// Static configuration table for 36-2-2-2 sync points
-// After second double-gap (systemCount=1, double-gap detected): first tooth after 2x2 missing
-// After single tooth following first gap (systemCount=1, no double-gap): single missing tooth
-static const ThirtySixMinus222SyncConfig thirtySixMinus222SyncConfigs[] PROGMEM = {
-  // After second double-gap (toothSystemCount was 1, now detected another gap)
-  {4, 1, 19},  // H4: tooth 19 is first after 2x2 missing
-  {6, 1, 12},  // H6: tooth 12 is first after 2x2 missing
-
-  // After single tooth (toothSystemCount was 1, but next tooth is normal - means single missing)
-  {4, 0, 35},  // H4: tooth 35 is after single missing
-  {6, 0, 34}   // H6: tooth 34 is after single missing
-};
-
-// Helper function: Get sync tooth count for ThirtySixMinus222 pattern
-// Uses toothSystemCount state and nCylinders to determine correct tooth position
-static inline uint16_t getThirtySixMinus222SyncTooth(uint8_t nCylinders, uint8_t systemCountState)
-{
-  const uint8_t configCount = sizeof(thirtySixMinus222SyncConfigs) / sizeof(ThirtySixMinus222SyncConfig);
-
-  for (uint8_t i = 0; i < configCount; i++)
-  {
-    const ThirtySixMinus222SyncConfig* cfg = &thirtySixMinus222SyncConfigs[i];
-
-    if (cfg->nCylinders == nCylinders && cfg->systemCountState == systemCountState)
-    {
-      return cfg->targetToothCount;
-    }
-  }
-
-  return 0; // Should never reach here
-}
-
 void triggerPri_ThirtySixMinus222(void)
 {
    curTime = micros();
@@ -3971,9 +3930,9 @@ void triggerPri_ThirtySixMinus222(void)
          if(toothSystemCount == 1)
          {
            //This occurs when we're at the first tooth after the 2 lots of 2x missing tooth.
-           // Use data-driven configuration to get correct tooth count
-           toothCurrentCount = getThirtySixMinus222SyncTooth(configPage2.nCylinders, 1);
-
+           if(configPage2.nCylinders == 4 ) { toothCurrentCount = 19; } //H4
+           else if(configPage2.nCylinders == 6) { toothCurrentCount = 12; } //H6 - NOT TESTED!
+           
            toothSystemCount = 0;
            currentStatus.hasSync = true;
          }
@@ -4003,9 +3962,19 @@ void triggerPri_ThirtySixMinus222(void)
        else if(toothSystemCount == 1)
        {
           //This occurs when a set of missing teeth had been seen, but the next one was NOT missing.
-          // Use data-driven configuration to get correct tooth count
-          toothCurrentCount = getThirtySixMinus222SyncTooth(configPage2.nCylinders, 0);
-          currentStatus.hasSync = true;
+          if(configPage2.nCylinders == 4 )
+          { 
+            //H4
+            toothCurrentCount = 35; 
+            currentStatus.hasSync = true;
+          } 
+          else if(configPage2.nCylinders == 6) 
+          { 
+            //H6 - THIS NEEDS TESTING
+            toothCurrentCount = 34; 
+            currentStatus.hasSync = true;
+          } 
+          
        }
 
        //Filter can only be recalculated for the regular teeth, not the missing one.
