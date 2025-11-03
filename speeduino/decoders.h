@@ -2,6 +2,7 @@
 #define DECODERS_H
 
 #include "globals.h"
+#include "crankMaths.h"
 
 #if defined(CORE_AVR)
   #define READ_PRI_TRIGGER() ((*triggerPri_pin_port & triggerPri_pin_mask) ? true : false)
@@ -301,6 +302,7 @@ extern volatile unsigned long lastGap;
 extern volatile unsigned long targetGap;
 
 extern volatile uint16_t toothCurrentCount; //The current number of teeth (Once sync has been achieved, this can never actually be 0
+extern volatile byte toothSystemCount; //Used for decoders such as Audi 135 where not every tooth is used for calculating crank angle
 extern volatile unsigned long toothLastToothTime; //The time (micros()) that the last primary tooth was registered
 extern volatile unsigned long toothSystemLastToothTime; //As below, but used for decoders where not every tooth count is used for calculation
 extern volatile unsigned long toothLastThirdToothTime; //The time (micros()) that the last tooth was registered on the second cam input
@@ -366,6 +368,28 @@ uint16_t timeToAngleIntervalTooth(uint32_t time);
 void triggerRecordVVT1Angle(void);
 
 // Inline helper functions to avoid linkage issues
+
+/**
+ * @brief Clamp RPM to valid range
+ * @param rpm RPM value to clamp
+ * @return RPM clamped to MAX_RPM or current RPM if exceeds max
+ */
+static inline uint16_t clampRpm(uint16_t rpm) {
+    return rpm >= MAX_RPM ? currentStatus.RPM : rpm;
+}
+
+/**
+ * @brief Calculate RPM from revolution time in microseconds
+ * @param revTime Revolution time in microseconds
+ * @return RPM value (clamped to valid range)
+ */
+static inline uint16_t RpmFromRevolutionTimeUs(uint32_t revTime) {
+  if (revTime < UINT16_MAX) {
+    return clampRpm(udiv_32_16_closest(MICROS_PER_MIN, revTime));
+  } else {
+    return clampRpm((uint16_t)UDIV_ROUND_CLOSEST(MICROS_PER_MIN, revTime, uint32_t));
+  }
+}
 static inline uint16_t clampToToothCount(int16_t toothNum, uint8_t toothAdder) {
   int16_t toothRange = (int16_t)configPage4.triggerTeeth + (int16_t)toothAdder;
   return (uint16_t)nudge(1, toothRange, toothNum, toothRange);

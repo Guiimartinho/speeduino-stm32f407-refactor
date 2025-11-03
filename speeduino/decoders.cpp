@@ -68,7 +68,7 @@ volatile unsigned long targetGap;
 
 unsigned long MAX_STALL_TIME = MICROS_PER_SEC/2U; //The maximum time (in uS) that the system will continue to function before the engine is considered stalled/stopped. This is unique to each decoder, depending on the number of teeth etc. 500000 (half a second) is used as the default value, most decoders will be much less.
 volatile uint16_t toothCurrentCount = 0; //The current number of teeth (Once sync has been achieved, this can never actually be 0
-static volatile byte toothSystemCount = 0; //Used for decoders such as Audi 135 where not every tooth is used for calculating crank angle. This variable stores the actual number of teeth, not the number being used to calculate crank angle
+volatile byte toothSystemCount = 0; //Used for decoders such as Audi 135 where not every tooth is used for calculating crank angle. This variable stores the actual number of teeth, not the number being used to calculate crank angle
 volatile unsigned long toothSystemLastToothTime = 0; //As below, but used for decoders where not every tooth count is used for calculation
 volatile unsigned long toothLastToothTime = 0; //The time (micros()) that the last tooth was registered
 volatile unsigned long toothLastSecToothTime = 0; //The time (micros()) that the last tooth was registered on the secondary input
@@ -374,18 +374,6 @@ static bool UpdateRevolutionTimeFromTeeth(bool isCamTeeth) {
 
   interrupts();
  return updatedRevTime;  
-}
-
-static inline uint16_t clampRpm(uint16_t rpm) {
-    return rpm>=MAX_RPM ? currentStatus.RPM : rpm;
-}
-
-static inline uint16_t RpmFromRevolutionTimeUs(uint32_t revTime) {
-  if (revTime<UINT16_MAX) {
-    return clampRpm(udiv_32_16_closest(MICROS_PER_MIN, revTime));
-  } else {
-    return clampRpm((uint16_t)UDIV_ROUND_CLOSEST(MICROS_PER_MIN, revTime, uint32_t)); //Calc RPM based on last full revolution time (Faster as /)
-  }
 }
 
 /** Compute RPM.
@@ -1951,6 +1939,8 @@ Provided that the cam signal is used, this decoder simply counts the teeth and t
 * @{
 */
 #endif // four_g63
+
+#if 0  // 24X, Jeep2000, Audi135, HondaD17, HondaJ32 - REFACTORED to implementations/
 void triggerSetup_24X(void)
 {
   triggerToothAngle = 15; //The number of degrees that passes from tooth to tooth (primary)
@@ -2593,7 +2583,9 @@ void triggerSetEndTeeth_HondaJ32(void)
 }
 
 /** @} */
+#endif // 24X, Jeep2000, Audi135, HondaD17, HondaJ32
 
+#if 0  // Miata9905, MazdaAU, Non360, Nissan360, Subaru67 - REFACTORED to implementations/
 /** Miata '99 to '05 with 4x 70 degree duration teeth running at cam speed.
 Teeth believed to be at the same angles as the 4g63 decoder.
 Tooth #1 is defined as the next crank tooth after the crank signal is HIGH when the cam signal is falling.
@@ -3653,6 +3645,7 @@ void triggerSetEndTeeth_Subaru67(void)
   }
 }
 /** @} */
+#endif // Miata9905, MazdaAU, Non360, Nissan360, Subaru67
 
 /** Daihatsu +1 trigger for 3 and 4 cylinder engines.
 * Tooth equal to the number of cylinders are evenly spaced on the cam. No position sensing (Distributor is retained),
