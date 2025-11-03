@@ -1,12 +1,12 @@
 # STATUS DE IMPLEMENTAÇÃO - MODULARIZAÇÃO SPEEDUINO
 ## SCG-ECU 2.0 - STM32F407VGT6 8x8
 
-**Última Atualização:** 02/11/2025
-**Versão:** 7.1 (Validação Real)
-**Status Real:** ORGANIZADO (100%) mas NÃO REFATORADO (~35% compliance)
+**Última Atualização:** 03/11/2025
+**Versão:** 7.2 (Decoders Refactored)
+**Status Real:** DECODERS COMPLETO (5/30) - PRÓXIMA FASE: CORRECTIONS
 
-⚠️ **IMPORTANTE:** Validação de código real em 02/11/2025 revelou discrepância entre status documentado e implementação real.
-📄 **Ver:** VALIDACAO_CODIGO_REAL.md para análise completa
+✅ **MARCO ALCANÇADO:** Primeiro conjunto de decoders refatorado com 100% MISRA-C compliance
+📄 **Ver:** VALIDATION_DECODER_REFACTOR.md para relatório completo
 
 ---
 
@@ -15,18 +15,18 @@
 ### Status Geral
 
 ```
-ORGANIZAÇÃO:    ████████████████████████████  100% COMPLETO
-REFATORAÇÃO:    ██████████░░░░░░░░░░░░░░░░░░   35% PARCIAL
+DECODERS MODULE: █████░░░░░░░░░░░░░░░░░░░░░░░   16.7% (5/30 decoders)
+REFATORAÇÃO:     ██████████░░░░░░░░░░░░░░░░░░   40% PARCIAL
 
-Estrutura Modular:           7/7 diretórios criados ✅
-Código Migrado:              0/7 módulos (arquivos vazios ou wrappers)
-Compliance REQUISITOS:       ~35% (múltiplas violações)
+Decoders Refatorados:        5/30 (basic_distributor, dual_wheel, four_g63, gm_7x, missing_tooth)
+Compliance MISRA-C:          100% nos 5 decoders refatorados ✅
+Helper Functions:            5 movidas para fora de #if 0 blocks
 
-Build Status:                ✅ SUCCESS
-Flash Usage:                 202KB / 524KB (38.6%)
+Build Status:                ✅ SUCCESS (0 errors, 0 warnings)
+Flash Usage:                 201KB / 524KB (38.5%)
 RAM Usage:                   21KB / 131KB (16.3%)
-Build Time:                  18.23s
-Warnings:                    0
+Build Time:                  2.16s
+Linkage Errors Fixed:        11 → 0 ✅
 ```
 
 ### Descoberta Crítica (02/11/2025)
@@ -59,15 +59,29 @@ Warnings:                    0
 - **Compliance:** ⚠️ Parcial (requer análise)
 - **Próximo Passo:** Verificar se arquivos são wrappers ou implementações
 
-### ❌ MÓDULO 3: Decoders (10% compliance - APENAS ESTRUTURA)
+### ✅ MÓDULO 3: Decoders (16.7% completo - 5/30 REFATORADOS)
 - **Estrutura:** ✅ Criada (`speeduino/decoders/implementations/`)
-- **Código Migrado:** ❌ Todos `.cpp` com 0 linhas (VAZIOS)
-- **Código Original:** `decoders.cpp` - 6,575 linhas (MONOLÍTICO)
-- **Violações Críticas:**
-  - 30+ funções > 50 linhas
-  - ISRs com 100-138 linhas (risco performance)
-  - Complexidade alta (não medida)
-- **Próximo Passo:** FASE C1 - Migrar e refatorar (6-8 semanas)
+- **Código Migrado:** ✅ 5 decoders refatorados (2,366 linhas)
+  - `basic_distributor.cpp` (346 linhas) ✅
+  - `dual_wheel.cpp` (418 linhas) ✅
+  - `four_g63.cpp` (668 linhas) ✅
+  - `gm_7x.cpp` (331 linhas) ✅
+  - `missing_tooth.cpp` (603 linhas) ✅
+- **MISRA-C Compliance:** ✅ 100% nos 5 decoders refatorados
+  - Funções < 50 linhas ✅
+  - Complexidade < 10 ✅
+  - Guard clauses implementadas ✅
+  - Anonymous namespace para helpers ✅
+  - Documentação Doxygen completa ✅
+- **Helper Functions Corrigidas:** 5 movidas para fora de `#if 0` blocks
+  - `calcEndTeeth_missingTooth` (decoders.cpp:519)
+  - `setEndTeethFromDistributorConfig` (decoders.cpp:1131)
+  - `apply4G63FilterConfig` (decoders.cpp:1475)
+  - `processSimpleSecTrigger` (decoders.cpp:929)
+  - `triggerRecordVVT1Angle` (decoders.cpp:993)
+- **Build Status:** ✅ SUCCESS (11 linkage errors → 0)
+- **Restante:** 25 decoders para refatorar (~4,200 linhas)
+- **Próximo Passo:** Refatorar próximos 5 decoders (total 10/30)
 
 ### ⚠️ MÓDULO 4: Corrections (30% compliance - ESTRUTURA + WRAPPERS)
 - **Estrutura:** ✅ Criada (`speeduino/corrections/` - 4 subdiretórios)
@@ -218,3 +232,100 @@ Arquivos monolíticos que permanecem com código completo:
 - Métricas de compliance a cada commit
 - Code review obrigatório
 - HIL testing quando aplicável
+
+---
+
+## 🎯 PRÓXIMAS ETAPAS IMEDIATAS
+
+### Fase Atual: Continuação Decoders (Semana 1-4)
+
+**Próximos 5 Decoders para Refatorar:**
+1. **audi_135.cpp** - Audi 135-tooth pattern
+2. **honda_d17.cpp** - Honda D17 VTEC pattern
+3. **nissan_360.cpp** - Nissan 360-degree optical
+4. **subaru_67.cpp** - Subaru 6/7 pattern
+5. **renix.cpp** - Renix/Jeep pattern
+
+**Padrão a Seguir** (igual aos 5 primeiros):
+```cpp
+// 1. Anonymous namespace para helpers
+namespace {
+  static inline void helperFunction() { ... }
+}
+
+// 2. Funções públicas < 50 linhas
+void triggerSetup_X(void) { ... }
+void triggerPri_X(void) { ... }
+uint16_t getRPM_X(void) { ... }
+
+// 3. Guard clauses obrigatórias
+if (invalid_condition) { return; }
+
+// 4. Complexidade < 10 anotada
+// @complexity 3
+```
+
+**Meta:** 10/30 decoders refatorados (33%) em 2 semanas
+
+### Alternativa: Iniciar Corrections (se decoders ficarem repetitivos)
+
+**Arquivo:** `speeduino/corrections.cpp` (1,242 linhas)
+
+**Funções Prioritárias (maiores primeiro):**
+1. `correctionAFRClosedLoop()` - 484 linhas → dividir em 10+ funções
+2. `correctionASE()` - 183 linhas → dividir em 4-5 funções
+3. `correctionFuelTemp()` - 110 linhas → dividir em 3 funções
+4. `correctionAccel()` - 69 linhas → dividir em 2 funções
+5. `correctionsFuel()` - 58 linhas → dividir em 2 funções
+6. `correctionDFCOfuel()` - 51 linhas → manter ou dividir em 2
+
+**Estrutura de Módulos:**
+```
+speeduino/corrections/implementations/
+├── afr_closed_loop.cpp/h      (AFR closed loop logic)
+├── after_start_enrichment.cpp/h  (ASE)
+├── temperature_corrections.cpp/h  (fuel temp, CLT, IAT)
+├── acceleration_enrichment.cpp/h  (AE)
+└── fuel_corrections.cpp/h     (main fuel corrections)
+```
+
+---
+
+## ⚡ COMANDO PARA COMEÇAR
+
+### Opção 1: Continuar Decoders
+```bash
+# Próximos 5 decoders
+cd speeduino/decoders/implementations
+# Copiar template de basic_distributor.cpp
+cp basic_distributor.cpp audi_135.cpp
+# Editar e refatorar seguindo padrão MISRA-C
+```
+
+### Opção 2: Iniciar Corrections
+```bash
+# Analisar funções grandes
+grep -n "^void correction" speeduino/corrections.cpp
+# Criar estrutura de módulos
+mkdir -p speeduino/corrections/implementations
+# Começar pela maior: correctionAFRClosedLoop (484 linhas)
+```
+
+---
+
+## 📊 MÉTRICAS DE PROGRESSO
+
+**Decoders:**
+- Completos: 5/30 (16.7%)
+- Linhas refatoradas: 2,366 / ~6,575 (36%)
+- MISRA compliance: 100% nos completos
+
+**Projeto Total:**
+- Módulos iniciados: 7/7 (100%)
+- Módulos completos: 0/7 (0%)
+- Compliance geral: ~40%
+
+**Estimativa de Conclusão:**
+- Decoders completos (30/30): 10-12 semanas
+- Corrections completo: 4-6 semanas
+- Projeto total: 23-31 semanas (~6 meses)

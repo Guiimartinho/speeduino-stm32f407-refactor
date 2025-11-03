@@ -4,9 +4,13 @@
       "Bash(rm:*)",
       "Bash(platformio run:*)",
       "Bash(ls:*)",
-      "Bash(/c/Users/AORUS-Desktop/.platformio/penv/Scripts/platformio.exe run:*)"
+      "Bash(/c/Users/AORUS-Desktop/.platformio/penv/Scripts/platformio.exe run:*)",
+      "Bash(~/.platformio/penv/bin/platformio run:*)",
+      "Bash(awk:*)",
+      "Bash(nm:*)"
     ],
     "deny": [],
     "ask": []
-  }
+  },
+  "includeCoAuthoredBy": false
 }
