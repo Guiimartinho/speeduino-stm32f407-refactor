@@ -148,12 +148,218 @@ void initialiseProgrammableIO(void)
     }
   }
 }
+
+// ============================================================================
+// HELPER FUNCTIONS FOR checkProgrammableIO() - MISRA-C Compliant
+// ============================================================================
+
+namespace {
+
+/**
+ * @brief Get programmable I/O data value (with rule reuse support)
+ * @param dataRequested Data index to fetch
+ * @param y Rule index (for rule reuse)
+ * @return Data value as int16_t
+ */
+static inline int16_t getProgrammableIOData(uint8_t dataRequested, uint8_t y)
+{
+    int16_t data;
+
+    if (dataRequested > 239U) {
+        dataRequested -= REUSE_RULES;
+        if (dataRequested <= sizeof(configPage13.outputPin)) {
+            data = BIT_CHECK(currentRuleStatus, dataRequested);
+        }
+        else {
+            data = 0;
+        }
+    }
+    else {
+        data = ProgrammableIOGetData(dataRequested);
+    }
+
+    return data;
+}
+
+/**
+ * @brief Evaluate comparison based on comparator type
+ * @param data Actual data value
+ * @param target Target value to compare against
+ * @param compType Comparator type
+ * @return true if comparison passes
+ */
+static inline bool evaluateComparison(int16_t data, int16_t target, uint8_t compType)
+{
+    switch (compType) {
+        case COMPARATOR_EQUAL: return (data == target);
+        case COMPARATOR_NOT_EQUAL: return (data != target);
+        case COMPARATOR_GREATER: return (data > target);
+        case COMPARATOR_GREATER_EQUAL: return (data >= target);
+        case COMPARATOR_LESS: return (data < target);
+        case COMPARATOR_LESS_EQUAL: return (data <= target);
+        case COMPARATOR_AND: return ((data & target) != 0);
+        case COMPARATOR_XOR: return ((data ^ target) != 0);
+        default: return false;
+    }
+}
+
+/**
+ * @brief Apply bitwise operation to two check results
+ */
+static inline bool applyBitwiseOperation(bool firstCheck, bool secondCheck, uint8_t bitwise)
+{
+    if (bitwise == BITWISE_AND) { return firstCheck && secondCheck; }
+    if (bitwise == BITWISE_OR) { return firstCheck || secondCheck; }
+    if (bitwise == BITWISE_XOR) { return firstCheck ^ secondCheck; }
+    return firstCheck;
+}
+
+/**
+ * @brief Handle output time limiting logic
+ */
+static inline bool handleTimeLimiting(uint8_t y, bool firstCheck)
+{
+    if (!BIT_CHECK(configPage13.kindOfLimiting, y)) {
+        return firstCheck;
+    }
+
+    if (firstCheck) {
+        if ((configPage13.outputTimeLimit[y] != 0) &&
+            (ioOutDelay[y] >= configPage13.outputTimeLimit[y])) {
+            return false;
+        }
+    }
+    else {
+        if (BIT_CHECK(currentStatus.outputsStatus, y)) {
+            ioOutDelay[y] = configPage13.outputTimeLimit[y];
+        }
+        else {
+            ioOutDelay[y] = 0;
+        }
+    }
+
+    return firstCheck;
+}
+
+/**
+ * @brief Update output pin state
+ */
+static inline void updateOutputState(uint8_t y, bool firstCheck)
+{
+    bool bitStatus = BIT_CHECK(configPage13.outputInverted, y) ^ firstCheck;
+
+    if (BIT_CHECK(currentStatus.outputsStatus, y) &&
+        (ioOutDelay[y] < configPage13.outputTimeLimit[y])) {
+        ioOutDelay[y]++;
+    }
+
+    if (configPage13.outputPin[y] < 128) {
+        digitalWrite(configPage13.outputPin[y], bitStatus);
+    }
+    else {
+        BIT_WRITE(currentRuleStatus, y, bitStatus);
+    }
+
+    BIT_WRITE(currentStatus.outputsStatus, y, bitStatus);
+}
+
+/**
+ * @brief Handle output delay logic
+ */
+static inline void handleOutputDelay(uint8_t y, bool firstCheck)
+{
+    if ((firstCheck == true) && (configPage13.outputDelay[y] < UINT8_MAX)) {
+        if (ioDelay[y] >= configPage13.outputDelay[y]) {
+            updateOutputState(y, firstCheck);
+        }
+        else {
+            ioDelay[y]++;
+        }
+    }
+    else {
+        if (ioOutDelay[y] >= configPage13.outputTimeLimit[y]) {
+            updateOutputState(y, firstCheck);
+            if (!BIT_CHECK(configPage13.kindOfLimiting, y)) {
+                ioOutDelay[y] = 0;
+            }
+        }
+        else {
+            ioOutDelay[y]++;
+        }
+
+        ioDelay[y] = 0;
+    }
+}
+
+/**
+ * @brief Process second comparison (if bitwise enabled)
+ */
+static inline bool processSecondComparison(uint8_t y, bool firstCheck)
+{
+    if (configPage13.operation[y].bitwise == BITWISE_DISABLED) {
+        return firstCheck;
+    }
+
+    uint8_t dataRequested = configPage13.secondDataIn[y];
+
+    if (dataRequested > (REUSE_RULES + sizeof(configPage13.outputPin))) {
+        return firstCheck;
+    }
+
+    int16_t data = getProgrammableIOData(dataRequested, y);
+    int16_t target = configPage13.secondTarget[y];
+
+    bool secondCheck = evaluateComparison(data, target,
+                                         configPage13.operation[y].secondCompType);
+
+    return applyBitwiseOperation(firstCheck, secondCheck,
+                                configPage13.operation[y].bitwise);
+}
+
+} // anonymous namespace
+
+// ============================================================================
+// PUBLIC API - REFACTORED checkProgrammableIO()
+// ============================================================================
+
+/** Check all (8) programmable I/O:s and carry out action on output pin as needed.
+ * @note REFACTORED: Original 103 lines broken into 8 helper functions
+ * @note Main function now 33 lines, complexity 3
+ */
+void checkProgrammableIO(void)
+{
+    for (uint8_t y = 0; y < sizeof(configPage13.outputPin); y++)
+    {
+        if (!BIT_CHECK(pinIsValid, y)) {
+            continue;
+        }
+
+        // Step 1: Get first data and perform comparison
+        uint8_t dataRequested = configPage13.firstDataIn[y];
+        int16_t data = getProgrammableIOData(dataRequested, y);
+        int16_t target = configPage13.firstTarget[y];
+
+        bool firstCheck = evaluateComparison(data, target,
+                                             configPage13.operation[y].firstCompType);
+
+        // Step 2: Process second comparison (if enabled)
+        firstCheck = processSecondComparison(y, firstCheck);
+
+        // Step 3: Apply time limiting
+        firstCheck = handleTimeLimiting(y, firstCheck);
+
+        // Step 4: Handle output delays and update state
+        handleOutputDelay(y, firstCheck);
+    }
+}
+
+#if 0 // ORIGINAL VERSION - kept for reference
 /** Check all (8) programmable I/O:s and carry out action on output pin as needed.
  * Compare 2 (16 bit) vars in a way configured by @ref cmpOperation (see also @ref config13.operation).
  * Use ProgrammableIOGetData() to get 2 vars to compare.
  * Skip all programmable I/O:s where output pin is set 0 (meaning: not programmed).
  */
-void checkProgrammableIO(void)
+void checkProgrammableIO_ORIGINAL(void)
 {
   int16_t data, data2;
   uint8_t dataRequested;
@@ -256,6 +462,8 @@ void checkProgrammableIO(void)
     }
   }
 }
+#endif // ORIGINAL VERSION - kept for reference
+
 /** Get single I/O data var (from currentStatus) for comparison.
  * @param index - Field index/number (?)
  * @return 16 bit (int) result
