@@ -2,58 +2,116 @@
 ## STM32F407VGT6 8x8 - Speeduino Modularizado
 
 **Versão Projeto:** 2.0
-**Última Atualização:** 29/10/2025
-**Status:** 86% COMPLETO (6/7 módulos)
+**Última Atualização:** 02/11/2025
+**Status:** 100% COMPLETO (7/7 módulos principais)
 
 ---
 
-## 📚 ÍNDICE DE DOCUMENTAÇÃO
+## 📚 ESTRUTURA DA DOCUMENTAÇÃO
 
-### 🎯 DOCUMENTOS PRINCIPAIS (START HERE)
-
-| Documento | Descrição | Quando Ler |
-|-----------|-----------|------------|
-| **[PROJETO_SCG_ECU_MASTER_REFERENCE.md](PROJETO_SCG_ECU_MASTER_REFERENCE.md)** | **Documento central de referência** - Histórico completo, status atual, próximos passos | **SEMPRE** - Antes de qualquer modificação |
-| **[REQUISITOS_TECNICOS_Structured Refactoring.md](REQUISITOS_TECNICOS_Structured Refactoring.md)** | **Padrões de código obrigatórios** - Guard clauses, complexidade, ISR, MISRA C++ | **SEMPRE** - Antes de escrever código |
-| **[IMPLEMENTACAO_MODULARIZACAO_STATUS.md](IMPLEMENTACAO_MODULARIZACAO_STATUS.md)** | **Status de implementação** - Progresso dos 7 módulos | Diariamente - Acompanhar progresso |
+Documentação consolidada e simplificada. Apenas 11 arquivos essenciais (7 projeto + 4 aplicação VW Gol).
 
 ---
 
-### 📖 GUIAS TÉCNICOS
+## 🎯 DOCUMENTOS PRINCIPAIS DO PROJETO (7 arquivos)
 
-| Documento | Descrição | Quando Ler |
-|-----------|-----------|------------|
-| [MODULARIZATION_GUIDE.md](MODULARIZATION_GUIDE.md) | Guia completo de modularização (padrões, exemplos, checklists) | Antes de iniciar novo módulo |
-| [MISRA_CPP_VALIDATION.md](MISRA_CPP_VALIDATION.md) | Validação MISRA C++ (regras automotivas) | Ao validar compliance |
-| [AUTOMOTIVE_IMPROVEMENTS.md](AUTOMOTIVE_IMPROVEMENTS.md) | Melhorias automotivas específicas | Ao implementar features automotivas |
+### 1. PROJETO_SCG_ECU_MASTER_REFERENCE.md
+**Descrição:** Documento mestre de referência do projeto completo
+**Conteúdo:**
+- Histórico do projeto
+- Arquitetura geral
+- Status de todos os módulos
+- Próximos passos
 
----
-
-### 📊 DOCUMENTOS DE ANÁLISE
-
-| Documento | Descrição | Status |
-|-----------|-----------|--------|
-| [ANALISE_ARQUITETURA_SPEEDUINO.md](ANALISE_ARQUITETURA_SPEEDUINO.md) | Análise inicial da arquitetura Speeduino | ✅ Histórico |
-| [PROPOSTA_MODULARIZACAO_SPEEDUINO.md](PROPOSTA_MODULARIZACAO_SPEEDUINO.md) | Proposta original de modularização | ✅ Histórico |
-| [ARQUIVOS_CRITICOS_MODULARIZACAO.md](ARQUIVOS_CRITICOS_MODULARIZACAO.md) | Identificação de arquivos críticos | ✅ Histórico |
+**Quando ler:** Visão geral do projeto, antes de qualquer modificação
 
 ---
 
-### 📝 DOCUMENTOS DE MÓDULOS
+### 2. REQUISITOS_TECNICOS.md
+**Descrição:** Padrões de código obrigatórios
+**Conteúdo:**
+- Guard clauses obrigatórias
+- Complexidade ciclomática < 10
+- Aninhamento ≤ 3 níveis
+- ISR performance (< 10µs)
+- MISRA C:2012 compliance
 
-| Documento | Descrição | Status |
-|-----------|-----------|--------|
-| [PHASE1_CORRECTIONS.md](PHASE1_CORRECTIONS.md) | Detalhamento Módulo 4 (Corrections) | ✅ Completo |
-| [AUXILIARIES_MODULARIZATION_REVIEW.md](AUXILIARIES_MODULARIZATION_REVIEW.md) | Detalhamento Módulo 2 (Auxiliaries) | ✅ Completo |
+**Quando ler:** SEMPRE antes de escrever código
 
 ---
 
-### 📄 RELATÓRIOS
+### 3. IMPLEMENTACAO_MODULARIZACAO_STATUS.md
+**Descrição:** Status atual da implementação
+**Conteúdo:**
+- Progresso dos 7 módulos (100% completo)
+- Métricas de build
+- Flash/RAM usage
+- Build time
 
-| Documento | Descrição | Status |
-|-----------|-----------|--------|
-| [RELATORIO_MODULARIZACAO_COMPLETA.md](RELATORIO_MODULARIZACAO_COMPLETA.md) | Relatório completo de modularização | 🔄 Atualizar após cada módulo |
-| [MODULARIZACAO_RESUMO.md](MODULARIZACAO_RESUMO.md) | Resumo executivo | ✅ Atual |
+**Quando ler:** Acompanhamento diário do progresso
+
+---
+
+### 4. ARQUIVOS_PENDENTES_REFATORACAO.md
+**Descrição:** Roadmap de refatoração futura
+**Conteúdo:**
+- 37 arquivos auxiliares pendentes
+- Priorização (Alta/Média/Baixa)
+- Fases 8-13 planejadas
+- Estimativas de tempo
+
+**Quando ler:** Planejamento de próximas refatorações
+
+---
+
+### 5. REVISAO_COMPLETA_MODULOS_1_6.md
+**Descrição:** Validação completa dos módulos 1-6
+**Conteúdo:**
+- Compliance check completo
+- Métricas de qualidade
+- Guard clauses verificadas
+- ISR performance validada
+
+**Quando ler:** Validação de qualidade, referência de padrões aplicados
+
+---
+
+### 6. PHASE7_SCHEDULERS.md
+**Descrição:** Documentação detalhada do Módulo 7 (Schedulers)
+**Conteúdo:**
+- Implementação completa
+- Padrões aplicados
+- Métricas de performance
+- Exemplo de módulo completo
+
+**Quando ler:** Referência de como implementar módulos
+
+---
+
+### 7. README.md (este arquivo)
+**Descrição:** Índice da documentação
+**Conteúdo:** Guia de navegação dos documentos
+
+---
+
+## 🚗 DOCUMENTOS DA APLICAÇÃO VW GOL (4 arquivos)
+
+### VW_GOL_INDEX.md
+Índice completo da documentação VW Gol Quadrado AP 1.8
+
+### VW_GOL_AP18_COMPLETO.md
+Documentação técnica completa (144 KB, 5,380 linhas):
+- Configurações aspirado e turbo (0.5/0.8/1.0 bar)
+- Ar condicionado com controle ECU
+- Câmbio sequencial + paddle shift
+- Componentes críticos turbo
+- BOM completo com 8 configurações
+
+### VW_GOL_COMPARATIVO_VERSOES.md
+Comparativo aspirado vs turbo + features opcionais
+
+### VW_GOL_QUICK_REFERENCE.md
+Guia de referência rápida (cheat sheet)
 
 ---
 
@@ -61,202 +119,138 @@
 
 ### Para Novos Desenvolvedores
 
-1. **Leia primeiro:** [PROJETO_SCG_ECU_MASTER_REFERENCE.md](PROJETO_SCG_ECU_MASTER_REFERENCE.md)
-2. **Entenda os padrões:** [REQUISITOS_TECNICOS_Structured Refactoring.md](REQUISITOS_TECNICOS_Structured Refactoring.md)
-3. **Veja o progresso:** [IMPLEMENTACAO_MODULARIZACAO_STATUS.md](IMPLEMENTACAO_MODULARIZACAO_STATUS.md)
-4. **Siga o guia:** [MODULARIZATION_GUIDE.md](MODULARIZATION_GUIDE.md)
+```
+1. Leia: PROJETO_SCG_ECU_MASTER_REFERENCE.md
+   └─ Entenda o projeto completo
 
-### Para Implementar Novo Módulo
+2. Leia: REQUISITOS_TECNICOS.md
+   └─ Aprenda os padrões obrigatórios
 
-1. ✅ Ler [MODULARIZATION_GUIDE.md](MODULARIZATION_GUIDE.md) seção específica do módulo
-2. ✅ Consultar [REQUISITOS_TECNICOS_Structured Refactoring.md](REQUISITOS_TECNICOS_Structured Refactoring.md) - Checklist
-3. ✅ Seguir padrões estabelecidos em módulos anteriores
-4. ✅ Atualizar [IMPLEMENTACAO_MODULARIZACAO_STATUS.md](IMPLEMENTACAO_MODULARIZACAO_STATUS.md)
-5. ✅ Atualizar [PROJETO_SCG_ECU_MASTER_REFERENCE.md](PROJETO_SCG_ECU_MASTER_REFERENCE.md)
+3. Veja: IMPLEMENTACAO_MODULARIZACAO_STATUS.md
+   └─ Conheça o status atual
+
+4. Consulte: ARQUIVOS_PENDENTES_REFATORACAO.md
+   └─ Veja o que falta fazer
+```
+
+### Para Implementar Novos Módulos
+
+```
+1. ✅ Consultar REQUISITOS_TECNICOS.md (padrões)
+2. ✅ Ver PHASE7_SCHEDULERS.md (exemplo de módulo completo)
+3. ✅ Seguir estrutura dos módulos existentes
+4. ✅ Atualizar IMPLEMENTACAO_MODULARIZACAO_STATUS.md
+5. ✅ Atualizar PROJETO_SCG_ECU_MASTER_REFERENCE.md
+```
+
+### Para Aplicação VW Gol
+
+```
+1. Começar por: VW_GOL_INDEX.md
+2. Documentação completa: VW_GOL_AP18_COMPLETO.md
+3. Decisão config: VW_GOL_COMPARATIVO_VERSOES.md
+4. Referência rápida: VW_GOL_QUICK_REFERENCE.md
+```
 
 ---
 
-## 📂 ESTRUTURA DE DIRETÓRIOS
+## 📂 ESTRUTURA DE ARQUIVOS
 
 ```
-speeduino/
-├── docs/                           ← VOCÊ ESTÁ AQUI
-│   ├── README.md                   ← Este arquivo (índice)
-│   ├── PROJETO_SCG_ECU_MASTER_REFERENCE.md    ← Documento central
-│   ├── REQUISITOS_TECNICOS_Structured Refactoring.md      ← Padrões obrigatórios
+docs/
+├── README.md                              ← VOCÊ ESTÁ AQUI
+│
+├── PROJETO - DOCUMENTOS PRINCIPAIS (7)
+│   ├── PROJETO_SCG_ECU_MASTER_REFERENCE.md    ← Documento mestre
+│   ├── REQUISITOS_TECNICOS.md                 ← Padrões código
 │   ├── IMPLEMENTACAO_MODULARIZACAO_STATUS.md  ← Status atual
-│   └── ... (outros documentos)
+│   ├── ARQUIVOS_PENDENTES_REFATORACAO.md      ← Roadmap futuro
+│   ├── REVISAO_COMPLETA_MODULOS_1_6.md        ← Validação qualidade
+│   ├── PHASE7_SCHEDULERS.md                   ← Exemplo módulo
+│   └── README.md                              ← Este arquivo
 │
-├── board_config/                   ← Módulo 1 (COMPLETO)
-├── auxiliaries/                    ← Módulo 2 (COMPLETO)
-├── decoders/                       ← Módulo 3 (COMPLETO)
-├── corrections/                    ← Módulo 4 (COMPLETO)
-│
-└── (originais preservados)
-    ├── corrections.cpp             (100% intacto)
-    ├── decoders.cpp               (100% intacto)
-    ├── sensors.cpp                (próximo módulo)
-    └── ...
+└── VW GOL - APLICAÇÃO (4)
+    ├── VW_GOL_INDEX.md                        ← Índice VW Gol
+    ├── VW_GOL_AP18_COMPLETO.md               ← Doc completa
+    ├── VW_GOL_COMPARATIVO_VERSOES.md         ← Comparativo
+    └── VW_GOL_QUICK_REFERENCE.md             ← Cheat sheet
+```
+
+**Total:** 11 arquivos essenciais
+
+---
+
+## 📊 MÓDULOS COMPLETOS (7/7)
+
+```
+✅ Módulo 1: Board Configuration
+✅ Módulo 2: Auxiliaries (10 subsistemas)
+✅ Módulo 3: Decoders (32 decoders)
+✅ Módulo 4: Corrections (25 funções)
+✅ Módulo 5: Sensors (24 funções)
+✅ Módulo 6: Table Access (tabelas 2D/3D)
+✅ Módulo 7: Schedulers (fuel + ignition)
+
+Status Build: ✅ SUCCESS
+Flash Usage:  202KB / 524KB (38.6%)
+RAM Usage:    21KB / 131KB (16.3%)
+Warnings:     0
 ```
 
 ---
 
-## 🎯 OBJETIVOS DO PROJETO
+## 🔄 PRÓXIMAS FASES (Planejadas)
 
-### Completo (6/7 módulos)
-
-- ✅ **Módulo 1:** Board Configuration (8 arquivos)
-- ✅ **Módulo 2:** Auxiliaries (24 arquivos, 10 subsistemas)
-- ✅ **Módulo 3:** Decoders (6 arquivos, 28 decoders)
-- ✅ **Módulo 4:** Corrections (10 arquivos, 4 subsistemas)
-- ✅ **Módulo 5:** Sensors (3 arquivos modular, 26 funções, Direct Wrapper Pattern)
-- ✅ **Módulo 6:** Table Access (3 arquivos modular, Documentation Layer, Template Preservation)
-
-### Pendente (1/7 módulos)
-
-- ⏳ **Módulo 7:** Schedulers (timing-critical, HIL required)
-
----
-
-## 📊 MÉTRICAS ATUAIS
+Ver: `ARQUIVOS_PENDENTES_REFATORACAO.md`
 
 ```
-Build Status:     ✅ SUCCESS (4.20s)
-Flash Usage:      203KB / 524KB (38.7%)
-RAM Usage:        23KB / 131KB (17.5%)
-Warnings:         0
-Arquivos Criados: 54 (+ 3 módulo 6)
-LOC Modular:      ~9,670
+Fase 8:  Comunicação (comms_legacy, comms_CAN)
+Fase 9:  Data Logging (SD_logger, logger)
+Fase 10: Storage & Updates
+Fase 11: Loop Principal & Proteções
+Fase 12: Cálculos & Sensores
+Fase 13: Utilitários & Cleanup
 ```
 
 ---
 
-## 🔧 PADRÕES ESTABELECIDOS
+## 📖 REFERÊNCIAS EXTERNAS
 
-### 1. Arquitetura Modular
+### Projeto Base
+- Speeduino: https://speeduino.com
+- Forum: https://speeduino.com/forum
+- GitHub: https://github.com/noisymime/speeduino
 
-```
-Interface + Registry + Coordinator + Subsystems
-```
+### Plataforma
+- STM32F407VGT6: https://www.st.com/en/microcontrollers-microprocessors/stm32f407vg.html
+- PlatformIO: https://platformio.org
 
-### 2. Performance ISR
-
-```
-<10µs overhead (ideal: <5µs)
-O(1) lookup via function pointers
-Cached pointers em RAM
-```
-
-### 3. Code Quality
-
-```
-Complexidade < 10
-Aninhamento ≤ 3
-Guard clauses
-MISRA C++ compliance
-```
-
-### 4. Logic Preservation
-
-```
-100% preservação da lógica original
-Backups completos (.backup_original)
-Validação linha por linha (diff)
-```
+### Padrões
+- MISRA C:2012: https://www.misra.org.uk
+- Automotive Standards
 
 ---
 
-## 🚦 STATUS RÁPIDO
+## 📝 HISTÓRICO DE MUDANÇAS
 
-| Aspecto | Status | Detalhes |
-|---------|--------|----------|
-| **Build** | ✅ SUCCESS | 4.20s, zero warnings |
-| **Flash** | ✅ OK | 38.7% (ideal <45%) |
-| **RAM** | ✅ OK | 17.5% (ideal <20%) |
-| **Módulos** | 🔄 86% | 6/7 completos |
-| **Documentação** | ✅ ATUAL | Atualizada 29/10/2025 |
-| **Testes** | ⚠️ PENDENTE | Aguardando HIL |
+### 02/11/2025 - Consolidação Documentação
+- Deletados 12 arquivos obsoletos
+- Consolidados MISRA e WORKFLOWS em REQUISITOS
+- Estrutura simplificada: 11 arquivos essenciais
+- Atualizado este README
 
----
+### 01/11/2025 - Aplicação VW Gol
+- Adicionados 4 documentos VW Gol Quadrado AP 1.8
+- Documentação completa aspirado + turbo
+- Features opcionais (AC + Sequential)
 
-## 📞 SUPORTE
-
-**Dúvidas?** Consultar documentos na ordem:
-
-1. [PROJETO_SCG_ECU_MASTER_REFERENCE.md](PROJETO_SCG_ECU_MASTER_REFERENCE.md) - Tudo sobre o projeto
-2. [REQUISITOS_TECNICOS_Structured Refactoring.md](REQUISITOS_TECNICOS_Structured Refactoring.md) - Padrões de código
-3. [MODULARIZATION_GUIDE.md](MODULARIZATION_GUIDE.md) - Como implementar
-
-**Problemas de build?**
-```bash
-# Clean build
-pio run -t clean
-pio run -e black_F407VE-EEPROM-SPI
-
-# Verificar tamanho
-# Flash: <45% ideal
-# RAM: <20% ideal
-```
+### 29/10/2025 - Módulos 5-7 Completos
+- Finalizados: Sensors, Table Access, Schedulers
+- 7/7 módulos principais completos
+- Build SUCCESS
 
 ---
 
-## 🔄 CHANGELOG
-
-### Versão 6.0 (29/10/2025)
-- ✅ Módulo 6 (Table Access) completo
-- ✅ Documentation Layer implementada
-- ✅ Template inline functions preservadas (ZERO overhead)
-- ✅ 5 funções não-template wrapeadas
-- ✅ 100% preservação lógica (verificado com diff)
-- ✅ Build SUCCESS: 4.20s (+468 bytes Flash)
-
-### Versão 5.0 (29/10/2025)
-- ✅ Módulo 5 (Sensors) completo
-- ✅ Direct Wrapper Pattern implementado
-- ✅ 26 funções modularizadas (24 originais + 2 utils)
-- ✅ 100% preservação lógica (verificado com diff)
-- ✅ Build SUCCESS: 11.98s (0KB Flash growth)
-
-### Versão 4.0 (29/10/2025)
-- ✅ Módulo 4 (Corrections) completo
-- ✅ Documento MASTER_REFERENCE criado
-- ✅ Documento REQUISITOS_TECNICOS_Structured Refactoring criado
-- ✅ Documento STATUS atualizado
-- ✅ Build SUCCESS: 7.49s
-
-### Versão 3.0 (Outubro 2025)
-- ✅ Módulo 3 (Decoders) completo
-- ✅ ISR performance validada (<2µs)
-- ✅ 28 decoders modularizados
-
-### Versão 2.0 (Outubro 2025)
-- ✅ Módulo 2 (Auxiliaries) completo
-- ✅ 10 subsistemas modularizados
-- ✅ Coordinator pattern estabelecido
-
-### Versão 1.0 (Outubro 2025)
-- ✅ Módulo 1 (Board Config) completo
-- ✅ Arquitetura modular definida
-- ✅ Padrões estabelecidos
-
----
-
-## 📖 GLOSSÁRIO RÁPIDO
-
-- **ISR:** Interrupt Service Routine (rotina de interrupção)
-- **O(1):** Complexidade constante (acesso direto)
-- **Guard Clause:** Early return para reduzir aninhamento
-- **MISRA:** Motor Industry Software Reliability Association
-- **HIL:** Hardware-In-the-Loop (teste em bancada)
-- **RTOS:** Real-Time Operating System (FreeRTOS)
-
----
-
-**ESTE É O ÍNDICE CENTRAL DA DOCUMENTAÇÃO SCG-ECU 2.0**
-
-Para detalhes completos, sempre consultar: **[PROJETO_SCG_ECU_MASTER_REFERENCE.md](PROJETO_SCG_ECU_MASTER_REFERENCE.md)**
-
----
-
-**Última Atualização:** 29/10/2025
-**Próxima Revisão:** Após conclusão Módulo 5
+**Versão:** 2.0
+**Última Atualização:** 02/11/2025
+**Mantido por:** Guiimartinho + Claude Code
