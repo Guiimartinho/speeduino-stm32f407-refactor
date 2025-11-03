@@ -3,17 +3,23 @@
 
 **Versão Projeto:** 2.0
 **Última Atualização:** 02/11/2025
-**Status:** 100% COMPLETO (7/7 módulos principais)
+**Status:** ORGANIZADO (100%) mas NÃO REFATORADO (~35% compliance)
+
+⚠️ **ATUALIZAÇÃO 02/11/2025:** Validação de código real revelou discrepância. Ver VALIDACAO_CODIGO_REAL.md
 
 ---
 
 ## 📚 ESTRUTURA DA DOCUMENTAÇÃO
 
-Documentação consolidada e simplificada. Apenas 11 arquivos essenciais (7 projeto + 4 aplicação VW Gol).
+Documentação consolidada e simplificada. Total de 13 arquivos essenciais (9 projeto + 4 aplicação VW Gol).
+
+⚠️ **Novos documentos (02/11/2025):**
+- VALIDACAO_CODIGO_REAL.md - Análise real do código vs documentação
+- PLANO_ACAO_REFATORACAO_REAL.md - Roadmap de 30 semanas
 
 ---
 
-## 🎯 DOCUMENTOS PRINCIPAIS DO PROJETO (7 arquivos)
+## 🎯 DOCUMENTOS PRINCIPAIS DO PROJETO (9 arquivos)
 
 ### 1. PROJETO_SCG_ECU_MASTER_REFERENCE.md
 **Descrição:** Documento mestre de referência do projeto completo
@@ -88,7 +94,32 @@ Documentação consolidada e simplificada. Apenas 11 arquivos essenciais (7 proj
 
 ---
 
-### 7. README.md (este arquivo)
+### 7. VALIDACAO_CODIGO_REAL.md
+**Descrição:** Validação do código real vs documentação (02/11/2025)
+**Conteúdo:**
+- Análise detalhada de código fonte
+- Evidências de violações de padrões
+- Comparação status documentado vs real
+- Compliance real: ~35%
+
+**Quando ler:** ANTES de qualquer nova refatoração - mostra a realidade do código
+
+---
+
+### 8. PLANO_ACAO_REFATORACAO_REAL.md
+**Descrição:** Roadmap realista de refatoração (30 semanas)
+**Conteúdo:**
+- Fases detalhadas (A-D)
+- Estratégia específica por módulo
+- Templates de refatoração
+- Ferramentas e scripts
+- Métricas de sucesso
+
+**Quando ler:** Planejamento de refatoração, alocação de recursos
+
+---
+
+### 9. README.md (este arquivo)
 **Descrição:** Índice da documentação
 **Conteúdo:** Guia de navegação dos documentos
 
@@ -160,13 +191,15 @@ Guia de referência rápida (cheat sheet)
 docs/
 ├── README.md                              ← VOCÊ ESTÁ AQUI
 │
-├── PROJETO - DOCUMENTOS PRINCIPAIS (7)
+├── PROJETO - DOCUMENTOS PRINCIPAIS (9)
 │   ├── PROJETO_SCG_ECU_MASTER_REFERENCE.md    ← Documento mestre
 │   ├── REQUISITOS_TECNICOS.md                 ← Padrões código
-│   ├── IMPLEMENTACAO_MODULARIZACAO_STATUS.md  ← Status atual
+│   ├── IMPLEMENTACAO_MODULARIZACAO_STATUS.md  ← Status atual (atualizado 02/11)
 │   ├── ARQUIVOS_PENDENTES_REFATORACAO.md      ← Roadmap futuro
 │   ├── REVISAO_COMPLETA_MODULOS_1_6.md        ← Validação qualidade
 │   ├── PHASE7_SCHEDULERS.md                   ← Exemplo módulo
+│   ├── VALIDACAO_CODIGO_REAL.md               ← ⚠️ NOVO: Análise real (02/11)
+│   ├── PLANO_ACAO_REFATORACAO_REAL.md         ← ⚠️ NOVO: Roadmap 30 semanas
 │   └── README.md                              ← Este arquivo
 │
 └── VW GOL - APLICAÇÃO (4)
@@ -176,41 +209,60 @@ docs/
     └── VW_GOL_QUICK_REFERENCE.md             ← Cheat sheet
 ```
 
-**Total:** 11 arquivos essenciais
+**Total:** 13 arquivos essenciais (9 projeto + 4 VW Gol)
 
 ---
 
-## 📊 MÓDULOS COMPLETOS (7/7)
+## 📊 STATUS REAL DOS MÓDULOS (Atualizado 02/11/2025)
 
 ```
-✅ Módulo 1: Board Configuration
-✅ Módulo 2: Auxiliaries (10 subsistemas)
-✅ Módulo 3: Decoders (32 decoders)
-✅ Módulo 4: Corrections (25 funções)
-✅ Módulo 5: Sensors (24 funções)
-✅ Módulo 6: Table Access (tabelas 2D/3D)
-✅ Módulo 7: Schedulers (fuel + ignition)
+ORGANIZAÇÃO: 7/7 ✅ (estrutura modular criada)
+REFATORAÇÃO: 0/7 ❌ (código não migrado/refatorado)
 
-Status Build: ✅ SUCCESS
-Flash Usage:  202KB / 524KB (38.6%)
-RAM Usage:    21KB / 131KB (16.3%)
-Warnings:     0
+⚠️ Módulo 1: Board Configuration    (~50% compliance - não verificado)
+⚠️ Módulo 2: Auxiliaries            (~40% compliance - parcial)
+❌ Módulo 3: Decoders               (10% - APENAS ESTRUTURA)
+⚠️ Módulo 4: Corrections            (30% - wrappers + guard clauses parciais)
+❌ Módulo 5: Sensors                (15% - APENAS ESTRUTURA)
+⚠️ Módulo 6: Table Access           (~50% - não verificado)
+⚠️ Módulo 7: Schedulers             (~40% - não verificado)
+
+Compliance Média:                    ~35%
+Código Migrado:                      Não (arquivos vazios/wrappers)
+Funções < 50 linhas:                 20% (50+ violações)
+Complexidade < 10:                   ~30% (30+ violações)
+Guard clauses:                       30% aplicadas
+
+Build Status:                        ✅ SUCCESS
+Flash Usage:                         202KB / 524KB (38.6%)
+RAM Usage:                           21KB / 131KB (16.3%)
+Warnings:                            0
+
+📄 Detalhes: VALIDACAO_CODIGO_REAL.md
+📄 Roadmap:  PLANO_ACAO_REFATORACAO_REAL.md (30 semanas)
 ```
 
 ---
 
-## 🔄 PRÓXIMAS FASES (Planejadas)
+## 🔄 PRÓXIMAS FASES (Roadmap Real - 30 semanas)
 
-Ver: `ARQUIVOS_PENDENTES_REFATORACAO.md`
+Ver: `PLANO_ACAO_REFATORACAO_REAL.md` para detalhes completos
 
 ```
-Fase 8:  Comunicação (comms_legacy, comms_CAN)
-Fase 9:  Data Logging (SD_logger, logger)
-Fase 10: Storage & Updates
-Fase 11: Loop Principal & Proteções
-Fase 12: Cálculos & Sensores
-Fase 13: Utilitários & Cleanup
+FASE A:  Análise Completa                (1 semana)   ← PRÓXIMO
+FASE B:  Priorização                     (3 dias)
+FASE C1: Decoders                        (6-8 semanas) - CRÍTICO (ISRs)
+FASE C2: Corrections                     (4-6 semanas) - Migrar + refatorar
+FASE C3: Communications                  (4 semanas)   - comms_legacy, CAN
+FASE C4: Sensors                         (2-3 semanas)
+FASE C5: Schedulers                      (2-3 semanas)
+FASE C6: Outros Módulos                  (2-3 semanas)
+FASE D:  Validação Final                 (2-3 semanas)
+
+Total Estimado: 23-31 semanas (~6 meses)
 ```
+
+**Arquivos Auxiliares Pendentes:** 37 arquivos (ver ARQUIVOS_PENDENTES_REFATORACAO.md)
 
 ---
 
@@ -233,10 +285,20 @@ Fase 13: Utilitários & Cleanup
 
 ## 📝 HISTÓRICO DE MUDANÇAS
 
-### 02/11/2025 - Consolidação Documentação
+### 02/11/2025 - VALIDAÇÃO CRÍTICA DO CÓDIGO REAL
+⚠️ **DESCOBERTA IMPORTANTE:** Análise de código revelou discrepância entre documentação e realidade
+- Criado: VALIDACAO_CODIGO_REAL.md (análise detalhada)
+- Criado: PLANO_ACAO_REFATORACAO_REAL.md (roadmap 30 semanas)
+- Atualizado: IMPLEMENTACAO_MODULARIZACAO_STATUS.md (status real ~35%)
+- Status real: Organizado mas NÃO refatorado
+- Código permanece em arquivos monolíticos
+- 50+ violações de REQUISITOS_TECNICOS.md identificadas
+- Roadmap realista: 6 meses para compliance real
+
+### 02/11/2025 - Consolidação Documentação (manhã)
 - Deletados 12 arquivos obsoletos
 - Consolidados MISRA e WORKFLOWS em REQUISITOS
-- Estrutura simplificada: 11 arquivos essenciais
+- Estrutura simplificada: agora 13 arquivos essenciais
 - Atualizado este README
 
 ### 01/11/2025 - Aplicação VW Gol
@@ -244,10 +306,10 @@ Fase 13: Utilitários & Cleanup
 - Documentação completa aspirado + turbo
 - Features opcionais (AC + Sequential)
 
-### 29/10/2025 - Módulos 5-7 Completos
-- Finalizados: Sensors, Table Access, Schedulers
-- 7/7 módulos principais completos
-- Build SUCCESS
+### 29/10/2025 - Módulos "Completos" (revisão necessária)
+- ⚠️ Status documentado: 7/7 módulos completos
+- ⚠️ Status real (02/11): Apenas estrutura criada
+- Build SUCCESS (código funcional mantido)
 
 ---
 

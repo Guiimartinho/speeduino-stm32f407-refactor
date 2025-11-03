@@ -56,7 +56,6 @@ int (*getCrankAngle)(void) = nullGetCrankAngle; ///Pointer to the getCrank Angle
 void (*triggerSetEndTeeth)(void) = triggerSetEndTeeth_missingTooth; ///Pointer to the triggerSetEndTeeth function of each decoder
 
 static void triggerRoverMEMSCommon(void);
-static inline void triggerRecordVVT1Angle (void);
 
 volatile unsigned long curTime;
 volatile unsigned long curGap;
@@ -67,12 +66,12 @@ volatile unsigned long curGap3;
 volatile unsigned long lastGap;
 volatile unsigned long targetGap;
 
-TESTABLE_STATIC unsigned long MAX_STALL_TIME = MICROS_PER_SEC/2U; //The maximum time (in uS) that the system will continue to function before the engine is considered stalled/stopped. This is unique to each decoder, depending on the number of teeth etc. 500000 (half a second) is used as the default value, most decoders will be much less.
+unsigned long MAX_STALL_TIME = MICROS_PER_SEC/2U; //The maximum time (in uS) that the system will continue to function before the engine is considered stalled/stopped. This is unique to each decoder, depending on the number of teeth etc. 500000 (half a second) is used as the default value, most decoders will be much less.
 volatile uint16_t toothCurrentCount = 0; //The current number of teeth (Once sync has been achieved, this can never actually be 0
 static volatile byte toothSystemCount = 0; //Used for decoders such as Audi 135 where not every tooth is used for calculating crank angle. This variable stores the actual number of teeth, not the number being used to calculate crank angle
 volatile unsigned long toothSystemLastToothTime = 0; //As below, but used for decoders where not every tooth count is used for calculation
-TESTABLE_STATIC volatile unsigned long toothLastToothTime = 0; //The time (micros()) that the last tooth was registered
-static volatile unsigned long toothLastSecToothTime = 0; //The time (micros()) that the last tooth was registered on the secondary input
+volatile unsigned long toothLastToothTime = 0; //The time (micros()) that the last tooth was registered
+volatile unsigned long toothLastSecToothTime = 0; //The time (micros()) that the last tooth was registered on the secondary input
 volatile unsigned long toothLastThirdToothTime = 0; //The time (micros()) that the last tooth was registered on the second cam input
 volatile unsigned long toothLastMinusOneToothTime = 0; //The time (micros()) that the tooth before the last tooth was registered
 volatile unsigned long toothLastMinusOneSecToothTime = 0; //The time (micros()) that the tooth before the last tooth was registered on secondary input
@@ -86,7 +85,7 @@ volatile unsigned long lastSyncRevolution = 0; // the revolution value of last v
 volatile bool revolutionOne = 0; // For sequential operation, this tracks whether the current revolution is 1 or 2 (not 1)
 volatile bool revolutionLastOne = 0; // used to identify in the rover pattern which has a non unique primary trigger something unique - has the secondary tooth changed.
 
-static volatile unsigned int secondaryToothCount; //Used for identifying the current secondary (Usually cam) tooth for patterns with multiple secondary teeth
+volatile unsigned int secondaryToothCount; //Used for identifying the current secondary (Usually cam) tooth for patterns with multiple secondary teeth
 volatile unsigned int secondaryLastToothCount = 0; // used to identify in the rover pattern which has a non unique primary trigger something unique - has the secondary tooth changed.
 volatile unsigned long secondaryLastToothTime = 0; //The time (micros()) that the last tooth was registered (Cam input)
 volatile unsigned long secondaryLastToothTime1 = 0; //The time (micros()) that the last tooth was registered (Cam input)
@@ -122,7 +121,7 @@ int16_t toothAngles[24]; //An array for storing fixed tooth angles. Currently si
 
 #ifdef USE_LIBDIVIDE
 #include "src/libdivide/libdivide.h"
-static libdivide::libdivide_s16_t divTriggerToothAngle;
+libdivide::libdivide_s16_t divTriggerToothAngle;
 #endif
 
 /** Universal (shared between decoders) decoder routines.
@@ -314,7 +313,7 @@ uint32_t angleToTimeIntervalTooth(uint16_t angle) {
 }
 #endif
 
-static uint16_t timeToAngleIntervalTooth(uint32_t time)
+uint16_t timeToAngleIntervalTooth(uint32_t time)
 {
     noInterrupts();
     //Still uses a last interval method (ie retrospective), but bases the interval on the gap between the 2 most recent teeth rather than the last full revolution
@@ -354,11 +353,7 @@ void resetDecoder(void) {
   secondaryToothCount = 0;
 }
 
-#if defined(UNIT_TEST)
-bool SetRevolutionTime(uint32_t revTime)
-#else
-static __attribute__((noinline)) bool SetRevolutionTime(uint32_t revTime)
-#endif
+__attribute__((noinline)) bool SetRevolutionTime(uint32_t revTime)
 {
   if (revTime!=revolutionTime) {
     revolutionTime = revTime;
@@ -398,7 +393,7 @@ static inline uint16_t RpmFromRevolutionTimeUs(uint32_t revTime) {
 * @param degreesOver - the number of crank degrees between tooth #1s. Some patterns have a tooth #1 every crank rev, others are every cam rev.
 * @return RPM
 */
-static __attribute__((noinline)) uint16_t stdGetRPM(bool isCamTeeth)
+__attribute__((noinline)) uint16_t stdGetRPM(bool isCamTeeth)
 {
   if (UpdateRevolutionTimeFromTeeth(isCamTeeth)) {
     return RpmFromRevolutionTimeUs(revolutionTime);
@@ -411,7 +406,7 @@ static __attribute__((noinline)) uint16_t stdGetRPM(bool isCamTeeth)
  * Sets the new filter time based on the current settings.
  * This ONLY works for even spaced decoders.
  */
-static void setFilter(unsigned long curGap)
+void setFilter(unsigned long curGap)
 {
   /*
   if(configPage4.triggerFilter == 0) { triggerFilterTime = 0; } //trigger filter is turned off.
@@ -448,7 +443,7 @@ It can only be used on patterns where the teeth are evenly spaced.
 It takes an argument of the full (COMPLETE) number of teeth per revolution.
 For a missing tooth wheel, this is the number if the tooth had NOT been missing (Eg 36-1 = 36)
 */
-static __attribute__((noinline)) int crankingGetRPM(byte totalTeeth, bool isCamTeeth)
+__attribute__((noinline)) int crankingGetRPM(byte totalTeeth, bool isCamTeeth)
 {
   if( (currentStatus.startRevolutions >= configPage4.StgCycles) && ((currentStatus.hasSync == true) || BIT_CHECK(currentStatus.status3, BIT_STATUS3_HALFSYNC)) )
   {
@@ -472,7 +467,7 @@ For each ignition channel, a check is made whether we're at the relevant tooth a
 Only if both these conditions are met will the schedule be updated with the latest timing information.
 If it's the correct tooth, but the schedule is not yet started, calculate and an end compare value (This situation occurs when both the start and end of the ignition pulse happen after the end tooth, but before the next tooth)
 */
-static inline void checkPerToothTiming(int16_t crankAngle, uint16_t currentTooth)
+void checkPerToothTiming(int16_t crankAngle, uint16_t currentTooth)
 {
   if ( (fixedCrankingOverride == 0) && (currentStatus.RPM > 0) )
   {
@@ -520,12 +515,28 @@ static inline void checkPerToothTiming(int16_t crankAngle, uint16_t currentTooth
 }
 /** @} */
   
+// Helper function for missing tooth decoder - must be outside #if 0 block
+uint16_t __attribute__((noinline)) calcEndTeeth_missingTooth(int endAngle, uint8_t toothAdder) {
+  //Temp variable used here to avoid potential issues if a trigger interrupt occurs part way through this function
+  int16_t tempEndTooth;
+#ifdef USE_LIBDIVIDE
+  tempEndTooth = libdivide::libdivide_s16_do(endAngle - configPage4.triggerAngle, &divTriggerToothAngle);
+#else
+  tempEndTooth = div((endAngle - configPage4.triggerAngle), (int16_t)triggerToothAngle).quot + 1;
+#endif
+  if(tempEndTooth > (configPage4.triggerTeeth + toothAdder)) { tempEndTooth -= (configPage4.triggerTeeth + toothAdder); }
+  else if(tempEndTooth <= 0) { tempEndTooth += (configPage4.triggerTeeth + toothAdder); }
+
+  return clampToActualTeeth(clampToToothCount(tempEndTooth, toothAdder), toothAdder);
+}
+
 /** A (single) multi-tooth wheel with one of more 'missing' teeth.
 * The first tooth after the missing one is considered number 1 and is the basis for the trigger angle.
-* Optionally a cam signal can be added to provide a sequential reference. 
+* Optionally a cam signal can be added to provide a sequential reference.
 * @defgroup dec_miss Missing tooth wheel
 * @{
 */
+#if 0 // REFACTORED - Implementation moved to decoders/implementations/missing_tooth.cpp
 void triggerSetup_missingTooth(void)
 {
   BIT_CLEAR(decoderState, BIT_DECODER_IS_SEQUENTIAL);
@@ -682,69 +693,7 @@ void triggerPri_missingTooth(void)
    }
 }
 
-// Secondary trigger pattern configuration - data-driven approach for simple trigger types
-// Captures common behaviors of POLL, SINGLE, and TOYOTA_3 patterns
-struct SecTriggerSimpleConfig {
-  uint8_t triggerType;          // SEC_TRIGGER constant
-  uint8_t filterShift;          // Right shift amount for filter calculation (1=>>1, 2=>>2)
-  bool shouldResetRevolution;   // Whether to reset revolutionOne flag
-  bool shouldIncrementCounter;  // Whether to increment secondaryToothCount
-  bool isToyotaSpecial;         // Toyota 3-tooth special logic flag
-};
-
-// Configuration for simple secondary trigger patterns
-// SEC_TRIGGER_4_1 is handled separately due to complex missing tooth detection
-static const SecTriggerSimpleConfig secTriggerSimpleConfigs[3] = {
-  {SEC_TRIGGER_POLL,     1, false, false, false},  // Poll: >>1 filter, no revolution reset, no counter
-  {SEC_TRIGGER_SINGLE,   1, true,  true,  false},  // Single: >>1 filter, reset revolution, increment counter
-  {SEC_TRIGGER_TOYOTA_3, 2, false, true,  true}    // Toyota: >>2 filter, conditional revolution, increment counter
-};
-
-// Helper function to process simple secondary trigger patterns
-static inline bool processSimpleSecTrigger(uint8_t triggerType, uint32_t curGap, volatile unsigned int* pSecondaryCount, volatile bool* pRevolutionOne, volatile uint32_t* pTriggerSecFilterTime)
-{
-  // Find matching configuration
-  for(uint8_t i = 0; i < 3; i++)
-  {
-    const SecTriggerSimpleConfig* config = &secTriggerSimpleConfigs[i];
-
-    if(config->triggerType == triggerType)
-    {
-      // Calculate filter time
-      *pTriggerSecFilterTime = curGap >> config->filterShift;
-
-      // Handle Toyota special case
-      if(config->isToyotaSpecial)
-      {
-        (*pSecondaryCount)++;
-        if(*pSecondaryCount == 2)
-        {
-          *pRevolutionOne = 1;
-          triggerRecordVVT1Angle();
-        }
-      }
-      else
-      {
-        // Standard processing
-        if(config->shouldResetRevolution)
-        {
-          *pRevolutionOne = 1;
-        }
-
-        if(config->shouldIncrementCounter)
-        {
-          (*pSecondaryCount)++;
-        }
-
-        triggerRecordVVT1Angle();
-      }
-
-      return true;
-    }
-  }
-
-  return false;  // Not a simple trigger type
-}
+// SecTriggerSimpleConfig struct, secTriggerSimpleConfigs array, and processSimpleSecTrigger function moved outside #if 0 block (line ~929)
 
 void triggerSec_missingTooth(void)
 {
@@ -787,21 +736,7 @@ void triggerSec_missingTooth(void)
   } //Trigger filter
 }
 
-static inline void triggerRecordVVT1Angle (void)
-{
-  //Record the VVT Angle
-  if( (configPage6.vvtEnabled > 0) && (revolutionOne == 1) )
-  {
-    int16_t curAngle;
-    curAngle = getCrankAngle();
-    while(curAngle > 360) { curAngle -= 360; }
-    curAngle -= configPage4.triggerAngle; //Value at TDC
-    if( configPage6.vvtMode == VVT_MODE_CLOSED_LOOP ) { curAngle -= configPage10.vvtCL0DutyAng; }
-
-    currentStatus.vvt1Angle = LOW_PASS_FILTER( (curAngle << 1), configPage4.ANGLEFILTER_VVT, currentStatus.vvt1Angle);
-  }
-}
-
+// triggerRecordVVT1Angle moved outside #if 0 block (line ~993)
 
 void triggerThird_missingTooth(void)
 {
@@ -881,30 +816,8 @@ int getCrankAngle_missingTooth(void)
     return crankAngle;
 }
 
-static inline uint16_t clampToToothCount(int16_t toothNum, uint8_t toothAdder) {
-  int16_t toothRange = (int16_t)configPage4.triggerTeeth + (int16_t)toothAdder;
-  return (uint16_t)nudge(1, toothRange, toothNum, toothRange);
-}
-
-static inline uint16_t clampToActualTeeth(uint16_t toothNum, uint8_t toothAdder) {
-  if(toothNum > triggerActualTeeth && toothNum <= configPage4.triggerTeeth) { toothNum = triggerActualTeeth; }
-  return min(toothNum, (uint16_t)(triggerActualTeeth + toothAdder));
-}
-
-static uint16_t __attribute__((noinline)) calcEndTeeth_missingTooth(int endAngle, uint8_t toothAdder) {
-  //Temp variable used here to avoid potential issues if a trigger interrupt occurs part way through this function
-  int16_t tempEndTooth;
-#ifdef USE_LIBDIVIDE  
-  tempEndTooth = libdivide::libdivide_s16_do(endAngle - configPage4.triggerAngle, &divTriggerToothAngle);
-#else
-  tempEndTooth = (endAngle - (int16_t)configPage4.triggerAngle) / (int16_t)triggerToothAngle;
-#endif
-  //For higher tooth count triggers, add a 1 tooth margin to allow for calculation time. 
-  if(configPage4.triggerTeeth > 12U) { tempEndTooth = tempEndTooth - 1; }
-  
-  // Clamp to tooth count
-  return clampToActualTeeth(clampToToothCount(tempEndTooth, toothAdder), toothAdder);
-}
+// clampToToothCount and clampToActualTeeth moved to decoders.h as static inline
+// calcEndTeeth_missingTooth moved before #if 0 block (line ~519)
 
 void triggerSetEndTeeth_missingTooth(void)
 {
@@ -935,8 +848,91 @@ Note: There can be no missing teeth on the primary wheel.
 * @defgroup dec_dual Dual wheels
 * @{
 */
+#endif // missing_tooth
+
+// Secondary trigger pattern configuration - data-driven approach for simple trigger types
+// Captures common behaviors of POLL, SINGLE, and TOYOTA_3 patterns - MOVED OUTSIDE #if 0
+struct SecTriggerSimpleConfig {
+  uint8_t triggerType;          // SEC_TRIGGER constant
+  uint8_t filterShift;          // Right shift amount for filter calculation (1=>>1, 2=>>2)
+  bool shouldResetRevolution;   // Whether to reset revolutionOne flag
+  bool shouldIncrementCounter;  // Whether to increment secondaryToothCount
+  bool isToyotaSpecial;         // Toyota 3-tooth special logic flag
+};
+
+// Configuration for simple secondary trigger patterns
+// SEC_TRIGGER_4_1 is handled separately due to complex missing tooth detection
+static const SecTriggerSimpleConfig secTriggerSimpleConfigs[3] = {
+  {SEC_TRIGGER_POLL,     1, false, false, false},  // Poll: >>1 filter, no revolution reset, no counter
+  {SEC_TRIGGER_SINGLE,   1, true,  true,  false},  // Single: >>1 filter, reset revolution, increment counter
+  {SEC_TRIGGER_TOYOTA_3, 2, false, true,  true}    // Toyota: >>2 filter, conditional revolution, increment counter
+};
+
+// Helper function to process simple secondary trigger patterns - MOVED OUTSIDE #if 0
+bool processSimpleSecTrigger(uint8_t triggerType, uint32_t curGap, volatile unsigned int* pSecondaryCount, volatile bool* pRevolutionOne, volatile uint32_t* pTriggerSecFilterTime)
+{
+  // Find matching configuration
+  for(uint8_t i = 0; i < 3; i++)
+  {
+    const SecTriggerSimpleConfig* config = &secTriggerSimpleConfigs[i];
+
+    if(config->triggerType == triggerType)
+    {
+      // Calculate filter time
+      *pTriggerSecFilterTime = curGap >> config->filterShift;
+
+      // Handle Toyota special case
+      if(config->isToyotaSpecial)
+      {
+        (*pSecondaryCount)++;
+        if(*pSecondaryCount == 2)
+        {
+          *pRevolutionOne = 1;
+          triggerRecordVVT1Angle();
+        }
+      }
+      else
+      {
+        // Standard processing
+        if(config->shouldResetRevolution)
+        {
+          *pRevolutionOne = 1;
+        }
+
+        if(config->shouldIncrementCounter)
+        {
+          (*pSecondaryCount)++;
+        }
+
+        triggerRecordVVT1Angle();
+      }
+
+      return true;
+    }
+  }
+
+  return false;  // Not a simple trigger type
+}
+
+// Helper function to record VVT1 angle - MOVED OUTSIDE #if 0
+void triggerRecordVVT1Angle (void)
+{
+  //Record the VVT Angle
+  if( (configPage6.vvtEnabled > 0) && (revolutionOne == 1) )
+  {
+    int16_t curAngle;
+    curAngle = getCrankAngle();
+    while(curAngle > 360) { curAngle -= 360; }
+    curAngle -= configPage4.triggerAngle; //Value at TDC
+    if( configPage6.vvtMode == VVT_MODE_CLOSED_LOOP ) { curAngle -= configPage10.vvtCL0DutyAng; }
+
+    currentStatus.vvt1Angle = LOW_PASS_FILTER( (curAngle << 1), configPage4.ANGLEFILTER_VVT, currentStatus.vvt1Angle);
+  }
+}
+
+#if 0 // REFACTORED - Implementation moved to decoders/implementations/dual_wheel.cpp
 /** Dual Wheel Setup.
- * 
+ *
  * */
 void triggerSetup_DualWheel(void)
 {
@@ -1126,6 +1122,8 @@ void triggerSetEndTeeth_DualWheel(void)
 }
 /** @} */
 
+// setEndTeethFromDistributorConfig moved outside #if 0 blocks (after line 1159)
+
 /** Basic Distributor where tooth count is equal to the number of cylinders and teeth are evenly spaced on the cam.
 * No position sensing (Distributor is retained) so crank angle is
 * a made up figure based purely on the first teeth to be seen.
@@ -1133,6 +1131,71 @@ void triggerSetEndTeeth_DualWheel(void)
 * @defgroup dec_dist Basic Distributor
 * @{
 */
+#endif // dual_wheel
+
+// FASE M: Shared configuration for distributor-based ignition end teeth
+// Eliminates 100% code duplication between BasicDistributor and FordTFI
+struct DistributorEndTeethRangeConfig {
+  uint8_t nCylinders;         // Number of engine cylinders
+  int16_t angleThresholdLow;  // Lower bound of angle range (exclusive)
+  int16_t angleThresholdHigh; // Upper bound of angle range (inclusive)
+  uint16_t endTeeth[4];       // ignition1-4EndTooth values for this range
+};
+
+// Static configuration table for distributor ignition end teeth
+// Covers 4-cyl, 6-cyl (3-cyl uses same as 6), and 8-cyl patterns
+static const DistributorEndTeethRangeConfig distributorEndTeethConfigs[] PROGMEM = {
+  // 4 cylinder ranges (2 ranges)
+  {4,   0, 180, {1, 2, 0, 0}},  // 0 < angle <= 180
+  {4, 180, 361, {2, 1, 0, 0}},  // 180 < angle <= 360 (361 catches ">180 || <=0" case)
+
+  // 6 cylinder ranges (3 ranges) - also used for 3 cylinder
+  {6,   0, 120, {1, 2, 3, 0}},  // 0 < angle <= 120
+  {6, 120, 240, {2, 3, 1, 0}},  // 120 < angle <= 240
+  {6, 240, 361, {3, 1, 2, 0}},  // 240 < angle <= 360
+
+  // 8 cylinder ranges (4 ranges)
+  {8,   0,  90, {1, 2, 3, 4}},  // 0 < angle <= 90
+  {8,  90, 180, {2, 3, 4, 1}},  // 90 < angle <= 180
+  {8, 180, 270, {3, 4, 1, 2}},  // 180 < angle <= 270
+  {8, 270, 361, {4, 1, 2, 3}}   // 270 < angle <= 360
+};
+
+// Helper function: Set ignition end teeth using data-driven lookup
+// Eliminates duplicated switch/if-else logic between multiple triggers - MOVED OUTSIDE #if 0 blocks
+void setEndTeethFromDistributorConfig(int16_t tempEndAngle, uint8_t nCylinders)
+{
+  const uint8_t configCount = sizeof(distributorEndTeethConfigs) / sizeof(DistributorEndTeethRangeConfig);
+
+  // Handle wrap-around case: angle > 180 OR angle <= 0 maps to range 180-360
+  // This matches original logic: if( (tempEndAngle > 180) || (tempEndAngle <= 0) )
+  if (tempEndAngle <= 0)
+  {
+    tempEndAngle = 361; // Force into highest range bucket
+  }
+
+  for (uint8_t i = 0; i < configCount; i++)
+  {
+    const DistributorEndTeethRangeConfig* cfg = &distributorEndTeethConfigs[i];
+
+    // Match: same cylinder count AND angle in valid range
+    if (cfg->nCylinders == nCylinders &&
+        tempEndAngle > cfg->angleThresholdLow &&
+        tempEndAngle <= cfg->angleThresholdHigh)
+    {
+      // Apply end teeth values
+      ignition1EndTooth = cfg->endTeeth[0];
+      ignition2EndTooth = cfg->endTeeth[1];
+      ignition3EndTooth = cfg->endTeeth[2];
+      ignition4EndTooth = cfg->endTeeth[3];
+      return;
+    }
+  }
+}
+
+// DistributorEndTeethRangeConfig struct and distributorEndTeethConfigs array moved to line ~1131
+
+#if 0 // REFACTORED - Implementation moved to decoders/implementations/basic_distributor.cpp
 void triggerSetup_BasicDistributor(void)
 {
   triggerActualTeeth = configPage2.nCylinders;
@@ -1259,65 +1322,7 @@ int getCrankAngle_BasicDistributor(void)
     return crankAngle;
 }
 
-// FASE M: Shared configuration for distributor-based ignition end teeth
-// Eliminates 100% code duplication between BasicDistributor and FordTFI
-struct DistributorEndTeethRangeConfig {
-  uint8_t nCylinders;         // Number of engine cylinders
-  int16_t angleThresholdLow;  // Lower bound of angle range (exclusive)
-  int16_t angleThresholdHigh; // Upper bound of angle range (inclusive)
-  uint16_t endTeeth[4];       // ignition1-4EndTooth values for this range
-};
-
-// Static configuration table for distributor ignition end teeth
-// Covers 4-cyl, 6-cyl (3-cyl uses same as 6), and 8-cyl patterns
-static const DistributorEndTeethRangeConfig distributorEndTeethConfigs[] PROGMEM = {
-  // 4 cylinder ranges (2 ranges)
-  {4,   0, 180, {1, 2, 0, 0}},  // 0 < angle <= 180
-  {4, 180, 361, {2, 1, 0, 0}},  // 180 < angle <= 360 (361 catches ">180 || <=0" case)
-
-  // 6 cylinder ranges (3 ranges) - also used for 3 cylinder
-  {6,   0, 120, {1, 2, 3, 0}},  // 0 < angle <= 120
-  {6, 120, 240, {2, 3, 1, 0}},  // 120 < angle <= 240
-  {6, 240, 361, {3, 1, 2, 0}},  // 240 < angle <= 360
-
-  // 8 cylinder ranges (4 ranges)
-  {8,   0,  90, {1, 2, 3, 4}},  // 0 < angle <= 90
-  {8,  90, 180, {2, 3, 4, 1}},  // 90 < angle <= 180
-  {8, 180, 270, {3, 4, 1, 2}},  // 180 < angle <= 270
-  {8, 270, 361, {4, 1, 2, 3}}   // 270 < angle <= 360
-};
-
-// Helper function: Set ignition end teeth using data-driven lookup
-// Eliminates duplicated switch/if-else logic between multiple triggers
-static inline void setEndTeethFromDistributorConfig(int16_t tempEndAngle, uint8_t nCylinders)
-{
-  const uint8_t configCount = sizeof(distributorEndTeethConfigs) / sizeof(DistributorEndTeethRangeConfig);
-
-  // Handle wrap-around case: angle > 180 OR angle <= 0 maps to range 180-360
-  // This matches original logic: if( (tempEndAngle > 180) || (tempEndAngle <= 0) )
-  if (tempEndAngle <= 0)
-  {
-    tempEndAngle = 361; // Force into highest range bucket
-  }
-
-  for (uint8_t i = 0; i < configCount; i++)
-  {
-    const DistributorEndTeethRangeConfig* cfg = &distributorEndTeethConfigs[i];
-
-    // Match: same cylinder count AND angle in valid range
-    if (cfg->nCylinders == nCylinders &&
-        tempEndAngle > cfg->angleThresholdLow &&
-        tempEndAngle <= cfg->angleThresholdHigh)
-    {
-      // Apply end teeth values
-      ignition1EndTooth = cfg->endTeeth[0];
-      ignition2EndTooth = cfg->endTeeth[1];
-      ignition3EndTooth = cfg->endTeeth[2];
-      ignition4EndTooth = cfg->endTeeth[3];
-      return;
-    }
-  }
-}
+// DistributorEndTeethRangeConfig struct and distributorEndTeethConfigs array moved outside #if 0 blocks (line ~1163)
 
 void triggerSetEndTeeth_BasicDistributor(void)
 {
@@ -1339,6 +1344,8 @@ void triggerSetEndTeeth_BasicDistributor(void)
 * @defgroup dec_gm7x GM7X
 * @{
 */
+#endif // basic_distributor
+#if 0 // REFACTORED - Implementation moved to decoders/implementations/gm_7x.cpp
 void triggerSetup_GM7X(void)
 {
   triggerToothAngle = 360 / 6; //The number of degrees that passes from tooth to tooth
@@ -1473,59 +1480,7 @@ Tooth number one is at 355* ATDC.
 * @defgroup dec_mitsu_miata Mistsubishi 4G63 and Miata + MX-5
 * @{
 */
-void triggerSetup_4G63(void)
-{
-  triggerToothAngle = 180; //The number of degrees that passes from tooth to tooth (primary)
-  toothCurrentCount = 99; //Fake tooth count represents no sync
-  BIT_CLEAR(decoderState, BIT_DECODER_2ND_DERIV);
-  BIT_SET(decoderState, BIT_DECODER_IS_SEQUENTIAL);
-  BIT_SET(decoderState, BIT_DECODER_HAS_FIXED_CRANKING);
-  BIT_SET(decoderState, BIT_DECODER_TOOTH_ANG_CORRECT);
-  BIT_SET(decoderState, BIT_DECODER_HAS_SECONDARY);
-  MAX_STALL_TIME = 366667UL; //Minimum 50rpm based on the 110 degree tooth spacing
-  if(currentStatus.initialisationComplete == false) { toothLastToothTime = micros(); } //Set a startup value here to avoid filter errors when starting. This MUST have the initial check to prevent the fuel pump just staying on all the time
-
-  //Note that these angles are for every rising and falling edge
-  if(configPage2.nCylinders == 6)
-  {
-    //New values below
-    toothAngles[0] = 715; //Rising edge of tooth #1
-    toothAngles[1] = 45;  //Falling edge of tooth #1
-    toothAngles[2] = 115; //Rising edge of tooth #2
-    toothAngles[3] = 165; //Falling edge of tooth #2
-    toothAngles[4] = 235; //Rising edge of tooth #3
-    toothAngles[5] = 285; //Falling edge of tooth #3
-
-    toothAngles[6] = 355; //Rising edge of tooth #4
-    toothAngles[7] = 405; //Falling edge of tooth #4
-    toothAngles[8] = 475; //Rising edge of tooth #5
-    toothAngles[9] = 525; //Falling edge of tooth $5
-    toothAngles[10] = 595; //Rising edge of tooth #6
-    toothAngles[11] = 645; //Falling edge of tooth #6
-
-    triggerActualTeeth = 12; //Both sides of all teeth over 720 degrees
-  }
-  else
-  {
-    // 70 / 110 for 4 cylinder
-    toothAngles[0] = 715; //Falling edge of tooth #1
-    toothAngles[1] = 105; //Rising edge of tooth #2
-    toothAngles[2] = 175; //Falling edge of tooth #2
-    toothAngles[3] = 285; //Rising edge of tooth #1
-
-    toothAngles[4] = 355; //Falling edge of tooth #1
-    toothAngles[5] = 465; //Rising edge of tooth #2
-    toothAngles[6] = 535; //Falling edge of tooth #2
-    toothAngles[7] = 645; //Rising edge of tooth #1
-
-    triggerActualTeeth = 8;
-  }
-
-  triggerFilterTime = 1500; //10000 rpm, assuming we're triggering on both edges off the crank tooth.
-  triggerSecFilterTime = (int)(MICROS_PER_SEC / (MAX_RPM / 60U * 2U)) / 2U; //Same as above, but fixed at 2 teeth on the secondary input and divided by 2 (for cam speed)
-  triggerSecFilterTime_duration = 4000;
-  secondaryLastToothTime = 0;
-}
+#endif // gm_7x
 
 // 4G63 trigger filter configuration - data-driven approach to eliminate 99 lines of duplication
 // Filter calculations: 0=direct, 1=rshift1, 2=rshift2, 3=rshift3, 4=mult5_rshift2, 5=mult3_rshift3, 6=mult11_rshift3, 7=mult9_rshift5
@@ -1603,8 +1558,8 @@ static inline uint32_t calculate4G63FilterTime(FilterCalcType calcType, uint32_t
   }
 }
 
-// Helper function to apply 4G63 trigger filter configuration
-static inline void apply4G63FilterConfig(uint8_t filterLevel, bool isOddTooth, uint8_t nCylinders, uint32_t curGap)
+// Helper function to apply 4G63 trigger filter configuration - MOVED OUTSIDE #if 0
+void apply4G63FilterConfig(uint8_t filterLevel, bool isOddTooth, uint8_t nCylinders, uint32_t curGap)
 {
   // Guard clause: invalid filter level
   if(filterLevel > 3) { filterLevel = 0; }
@@ -1640,6 +1595,63 @@ static inline void apply4G63FilterConfig(uint8_t filterLevel, bool isOddTooth, u
     }
   }
 }
+
+#if 0 // REFACTORED - Implementation moved to decoders/implementations/four_g63.cpp
+void triggerSetup_4G63(void)
+{
+  triggerToothAngle = 180; //The number of degrees that passes from tooth to tooth (primary)
+  toothCurrentCount = 99; //Fake tooth count represents no sync
+  BIT_CLEAR(decoderState, BIT_DECODER_2ND_DERIV);
+  BIT_SET(decoderState, BIT_DECODER_IS_SEQUENTIAL);
+  BIT_SET(decoderState, BIT_DECODER_HAS_FIXED_CRANKING);
+  BIT_SET(decoderState, BIT_DECODER_TOOTH_ANG_CORRECT);
+  BIT_SET(decoderState, BIT_DECODER_HAS_SECONDARY);
+  MAX_STALL_TIME = 366667UL; //Minimum 50rpm based on the 110 degree tooth spacing
+  if(currentStatus.initialisationComplete == false) { toothLastToothTime = micros(); } //Set a startup value here to avoid filter errors when starting. This MUST have the initial check to prevent the fuel pump just staying on all the time
+
+  //Note that these angles are for every rising and falling edge
+  if(configPage2.nCylinders == 6)
+  {
+    //New values below
+    toothAngles[0] = 715; //Rising edge of tooth #1
+    toothAngles[1] = 45;  //Falling edge of tooth #1
+    toothAngles[2] = 115; //Rising edge of tooth #2
+    toothAngles[3] = 165; //Falling edge of tooth #2
+    toothAngles[4] = 235; //Rising edge of tooth #3
+    toothAngles[5] = 285; //Falling edge of tooth #3
+
+    toothAngles[6] = 355; //Rising edge of tooth #4
+    toothAngles[7] = 405; //Falling edge of tooth #4
+    toothAngles[8] = 475; //Rising edge of tooth #5
+    toothAngles[9] = 525; //Falling edge of tooth $5
+    toothAngles[10] = 595; //Rising edge of tooth #6
+    toothAngles[11] = 645; //Falling edge of tooth #6
+
+    triggerActualTeeth = 12; //Both sides of all teeth over 720 degrees
+  }
+  else
+  {
+    // 70 / 110 for 4 cylinder
+    toothAngles[0] = 715; //Falling edge of tooth #1
+    toothAngles[1] = 105; //Rising edge of tooth #2
+    toothAngles[2] = 175; //Falling edge of tooth #2
+    toothAngles[3] = 285; //Rising edge of tooth #1
+
+    toothAngles[4] = 355; //Falling edge of tooth #1
+    toothAngles[5] = 465; //Rising edge of tooth #2
+    toothAngles[6] = 535; //Falling edge of tooth #2
+    toothAngles[7] = 645; //Rising edge of tooth #1
+
+    triggerActualTeeth = 8;
+  }
+
+  triggerFilterTime = 1500; //10000 rpm, assuming we're triggering on both edges off the crank tooth.
+  triggerSecFilterTime = (int)(MICROS_PER_SEC / (MAX_RPM / 60U * 2U)) / 2U; //Same as above, but fixed at 2 teeth on the secondary input and divided by 2 (for cam speed)
+  triggerSecFilterTime_duration = 4000;
+  secondaryLastToothTime = 0;
+}
+
+// 4G63 types moved outside #if 0 block (line ~1475): FilterCalcType, Trigger4G63FilterConfig, filter4G63Configs, calculate4G63FilterTime, apply4G63FilterConfig
 
 void triggerPri_4G63(void)
 {
@@ -1938,6 +1950,7 @@ Provided that the cam signal is used, this decoder simply counts the teeth and t
 * @defgroup dec_gm GM 24X
 * @{
 */
+#endif // four_g63
 void triggerSetup_24X(void)
 {
   triggerToothAngle = 15; //The number of degrees that passes from tooth to tooth (primary)

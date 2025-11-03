@@ -301,6 +301,7 @@ extern volatile unsigned long lastGap;
 extern volatile unsigned long targetGap;
 
 extern volatile uint16_t toothCurrentCount; //The current number of teeth (Once sync has been achieved, this can never actually be 0
+extern volatile unsigned long toothLastToothTime; //The time (micros()) that the last primary tooth was registered
 extern volatile unsigned long toothSystemLastToothTime; //As below, but used for decoders where not every tooth count is used for calculation
 extern volatile unsigned long toothLastThirdToothTime; //The time (micros()) that the last tooth was registered on the second cam input
 extern volatile unsigned long toothLastMinusOneToothTime; //The time (micros()) that the tooth before the last tooth was registered
@@ -313,12 +314,16 @@ extern volatile bool revolutionOne; // For sequential operation, this tracks whe
 
 extern volatile unsigned long secondaryLastToothTime; //The time (micros()) that the last tooth was registered (Cam input)
 extern volatile unsigned long secondaryLastToothTime1; //The time (micros()) that the last tooth was registered (Cam input)
+extern volatile unsigned int secondaryToothCount; //Used for identifying the current secondary (Usually cam) tooth
+extern volatile unsigned int thirdToothCount; //Used for identifying the current third (VVT2) tooth
+extern volatile unsigned long toothLastSecToothTime; //The time (micros()) that the last tooth was registered on the secondary input
 
 extern uint16_t triggerActualTeeth;
 extern volatile unsigned long triggerFilterTime; // The shortest time (in uS) that pulses will be accepted (Used for debounce filtering)
 extern volatile unsigned long triggerSecFilterTime; // The shortest time (in uS) that pulses will be accepted (Used for debounce filtering) for the secondary input
 extern unsigned int triggerSecFilterTime_duration; // The shortest valid time (in uS) pulse DURATION
 extern volatile uint16_t triggerToothAngle; //The number of crank degrees that elapse per tooth
+extern unsigned long MAX_STALL_TIME; //The maximum time (in uS) before engine is considered stalled
 extern byte checkSyncToothCount; //How many teeth must've been seen on this revolution before we try to confirm sync (Useful for missing tooth type decoders)
 extern unsigned long elapsedTime;
 extern unsigned long lastCrankAngleCalc;
@@ -348,6 +353,38 @@ extern int16_t toothAngles[24]; //An array for storing fixed tooth angles. Curre
 #define SKIP_TOOTH2 2
 #define SKIP_TOOTH3 3
 #define SKIP_TOOTH4 4
+
+// ============================================================================
+// DECODER HELPER FUNCTIONS
+// ============================================================================
+uint16_t stdGetRPM(bool isCamTeeth);
+int crankingGetRPM(byte totalTeeth, bool isCamTeeth);
+void setFilter(unsigned long curGap);
+void checkPerToothTiming(int16_t crankAngle, uint16_t currentTooth);
+bool SetRevolutionTime(uint32_t revTime);
+uint16_t timeToAngleIntervalTooth(uint32_t time);
+void triggerRecordVVT1Angle(void);
+
+// Inline helper functions to avoid linkage issues
+static inline uint16_t clampToToothCount(int16_t toothNum, uint8_t toothAdder) {
+  int16_t toothRange = (int16_t)configPage4.triggerTeeth + (int16_t)toothAdder;
+  return (uint16_t)nudge(1, toothRange, toothNum, toothRange);
+}
+
+static inline uint16_t clampToActualTeeth(uint16_t toothNum, uint8_t toothAdder) {
+  if(toothNum > triggerActualTeeth && toothNum <= configPage4.triggerTeeth) { toothNum = triggerActualTeeth; }
+  return min(toothNum, (uint16_t)(triggerActualTeeth + toothAdder));
+}
+
+void setEndTeethFromDistributorConfig(int16_t tempEndAngle, uint8_t nCylinders);
+uint16_t calcEndTeeth_missingTooth(int endAngle, uint8_t toothAdder);
+void apply4G63FilterConfig(uint8_t filterLevel, bool isOddTooth, uint8_t nCylinders, uint32_t curGap);
+bool processSimpleSecTrigger(uint8_t triggerType, uint32_t curGap, volatile unsigned int* pSecondaryCount, volatile bool* pRevolutionOne, volatile uint32_t* pTriggerSecFilterTime);
+
+#ifdef USE_LIBDIVIDE
+#include "src/libdivide/libdivide.h"
+extern libdivide::libdivide_s16_t divTriggerToothAngle;
+#endif
 
 // ============================================================================
 // MODULARIZED DECODER SYSTEM
