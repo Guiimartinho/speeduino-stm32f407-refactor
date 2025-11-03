@@ -1,4 +1,4 @@
-# ESTRATÉGIA DE TESTES SEM HARDWARE - ULTRATHINK
+# ESTRATÉGIA DE TESTES SEM HARDWARE - Structured Refactoring
 
 ## SITUAÇÃO ATUAL
 
@@ -33,7 +33,7 @@ test_tables         - Testes de tabelas
 
 ---
 
-## ESTRATÉGIA ULTRATHINK - 5 NÍVEIS
+## ESTRATÉGIA Structured Refactoring - 5 NÍVEIS
 
 ### NÍVEL 1: TESTES DE LÓGICA PURA (IMEDIATO - 1-2 dias)
 
@@ -573,7 +573,7 @@ Se os testes **NÃO detectarem** a mutação, significa que há gap de cobertura
 
 ---
 
-## PRIORIZAÇÃO ULTRATHINK
+## PRIORIZAÇÃO Structured Refactoring
 
 ### CRÍTICO (FAZER AGORA)
 1. Arduino Mocks - sem isso, nenhum teste compila
@@ -645,5 +645,5 @@ mkdir -p test/test_refactored_helpers
 ---
 
 **Data:** 2025-10-31
-**Metodologia:** ULTRATHINK
+**Metodologia:** Structured Refactoring
 **Status:** PROPOSTA COMPLETA

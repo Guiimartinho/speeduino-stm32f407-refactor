@@ -47,7 +47,7 @@ Detailed description of what changed.
 
 Explanation of the implementation.
 
-Follows UltraThink standards.
+Follows project coding standards.
 EOF
 )"
 ```
@@ -76,7 +76,7 @@ Before running git commit, verify:
 - [ ] NO "Author:" line
 - [ ] NO reference to AI/Claude/Assistant
 - [ ] Commit message ends with technical details
-- [ ] Last line is "Follows UltraThink standards." (period at end)
+- [ ] Last line is "Follows project coding standards." (period at end)
 
 ## PUNISHMENT FOR BREAKING THIS RULE
 
@@ -98,7 +98,7 @@ If you include author/co-author/generated-with:
 
 **ALWAYS END COMMIT WITH:**
 ```
-Follows UltraThink standards.
+Follows project coding standards.
 ```
 
 **NOTHING AFTER THIS LINE**

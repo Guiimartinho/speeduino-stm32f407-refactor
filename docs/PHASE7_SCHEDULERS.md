@@ -266,14 +266,14 @@ static inline __attribute__((always_inline)) void ignitionScheduleISR(...)
 | **8** | 1 | initialiseSchedulers() |
 | **9** | 2 | disableFuelSchedule(), disableIgnSchedule() |
 
-✅ **Todas funções <10** (compliance ultrathink)
+✅ **Todas funções <10** (compliance structured refactoring)
 
 ### 3.2 Aninhamento Máximo
 
 - **Máximo observado:** 2-3 níveis
 - **Localização:** disableFuelSchedule() switch-case
 
-✅ **Compliance ultrathink** (≤3 níveis)
+✅ **Compliance structured refactoring** (≤3 níveis)
 
 ### 3.3 Tamanho de Funções
 
@@ -491,7 +491,7 @@ git push
 
 ### 7.1 Código
 
-✅ **Compliance Ultrathink:**
+✅ **Compliance Structured Refactoring:**
 - [ ] Complexidade < 10 em todas funções
 - [ ] Aninhamento ≤ 3 níveis
 - [ ] Tamanho funções < 50 linhas (exceto initialise)

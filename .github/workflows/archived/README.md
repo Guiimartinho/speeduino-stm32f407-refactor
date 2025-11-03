@@ -75,4 +75,4 @@ For details on the new workflow structure, see:
 
 **Archived:** 2025-10-29
 **Project:** SCG-ECU 2.0 - STM32F407VGT6 8x8
-**Methodology:** Ultrathink Modularization
+**Methodology:** Structured Modularization

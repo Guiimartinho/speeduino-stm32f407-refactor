@@ -14,7 +14,7 @@
 | Documento | Descrição | Quando Ler |
 |-----------|-----------|------------|
 | **[PROJETO_SCG_ECU_MASTER_REFERENCE.md](PROJETO_SCG_ECU_MASTER_REFERENCE.md)** | **Documento central de referência** - Histórico completo, status atual, próximos passos | **SEMPRE** - Antes de qualquer modificação |
-| **[REQUISITOS_TECNICOS_ULTRATHINK.md](REQUISITOS_TECNICOS_ULTRATHINK.md)** | **Padrões de código obrigatórios** - Guard clauses, complexidade, ISR, MISRA C++ | **SEMPRE** - Antes de escrever código |
+| **[REQUISITOS_TECNICOS_Structured Refactoring.md](REQUISITOS_TECNICOS_Structured Refactoring.md)** | **Padrões de código obrigatórios** - Guard clauses, complexidade, ISR, MISRA C++ | **SEMPRE** - Antes de escrever código |
 | **[IMPLEMENTACAO_MODULARIZACAO_STATUS.md](IMPLEMENTACAO_MODULARIZACAO_STATUS.md)** | **Status de implementação** - Progresso dos 7 módulos | Diariamente - Acompanhar progresso |
 
 ---
@@ -62,14 +62,14 @@
 ### Para Novos Desenvolvedores
 
 1. **Leia primeiro:** [PROJETO_SCG_ECU_MASTER_REFERENCE.md](PROJETO_SCG_ECU_MASTER_REFERENCE.md)
-2. **Entenda os padrões:** [REQUISITOS_TECNICOS_ULTRATHINK.md](REQUISITOS_TECNICOS_ULTRATHINK.md)
+2. **Entenda os padrões:** [REQUISITOS_TECNICOS_Structured Refactoring.md](REQUISITOS_TECNICOS_Structured Refactoring.md)
 3. **Veja o progresso:** [IMPLEMENTACAO_MODULARIZACAO_STATUS.md](IMPLEMENTACAO_MODULARIZACAO_STATUS.md)
 4. **Siga o guia:** [MODULARIZATION_GUIDE.md](MODULARIZATION_GUIDE.md)
 
 ### Para Implementar Novo Módulo
 
 1. ✅ Ler [MODULARIZATION_GUIDE.md](MODULARIZATION_GUIDE.md) seção específica do módulo
-2. ✅ Consultar [REQUISITOS_TECNICOS_ULTRATHINK.md](REQUISITOS_TECNICOS_ULTRATHINK.md) - Checklist
+2. ✅ Consultar [REQUISITOS_TECNICOS_Structured Refactoring.md](REQUISITOS_TECNICOS_Structured Refactoring.md) - Checklist
 3. ✅ Seguir padrões estabelecidos em módulos anteriores
 4. ✅ Atualizar [IMPLEMENTACAO_MODULARIZACAO_STATUS.md](IMPLEMENTACAO_MODULARIZACAO_STATUS.md)
 5. ✅ Atualizar [PROJETO_SCG_ECU_MASTER_REFERENCE.md](PROJETO_SCG_ECU_MASTER_REFERENCE.md)
@@ -83,7 +83,7 @@ speeduino/
 ├── docs/                           ← VOCÊ ESTÁ AQUI
 │   ├── README.md                   ← Este arquivo (índice)
 │   ├── PROJETO_SCG_ECU_MASTER_REFERENCE.md    ← Documento central
-│   ├── REQUISITOS_TECNICOS_ULTRATHINK.md      ← Padrões obrigatórios
+│   ├── REQUISITOS_TECNICOS_Structured Refactoring.md      ← Padrões obrigatórios
 │   ├── IMPLEMENTACAO_MODULARIZACAO_STATUS.md  ← Status atual
 │   └── ... (outros documentos)
 │
@@ -184,7 +184,7 @@ Validação linha por linha (diff)
 **Dúvidas?** Consultar documentos na ordem:
 
 1. [PROJETO_SCG_ECU_MASTER_REFERENCE.md](PROJETO_SCG_ECU_MASTER_REFERENCE.md) - Tudo sobre o projeto
-2. [REQUISITOS_TECNICOS_ULTRATHINK.md](REQUISITOS_TECNICOS_ULTRATHINK.md) - Padrões de código
+2. [REQUISITOS_TECNICOS_Structured Refactoring.md](REQUISITOS_TECNICOS_Structured Refactoring.md) - Padrões de código
 3. [MODULARIZATION_GUIDE.md](MODULARIZATION_GUIDE.md) - Como implementar
 
 **Problemas de build?**
@@ -220,7 +220,7 @@ pio run -e black_F407VE-EEPROM-SPI
 ### Versão 4.0 (29/10/2025)
 - ✅ Módulo 4 (Corrections) completo
 - ✅ Documento MASTER_REFERENCE criado
-- ✅ Documento REQUISITOS_TECNICOS_ULTRATHINK criado
+- ✅ Documento REQUISITOS_TECNICOS_Structured Refactoring criado
 - ✅ Documento STATUS atualizado
 - ✅ Build SUCCESS: 7.49s
 

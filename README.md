@@ -4,14 +4,14 @@
 [![Platform](https://img.shields.io/badge/platform-STM32F407VGT6-green.svg)](https://www.st.com/en/microcontrollers-microprocessors/stm32f407vg.html)
 [![Framework](https://img.shields.io/badge/framework-PlatformIO-orange.svg)](https://platformio.org/)
 [![MISRA](https://img.shields.io/badge/MISRA-C%3A2012-purple.svg)](https://www.misra.org.uk/)
-[![Methodology](https://img.shields.io/badge/methodology-ULTRATHINK-red.svg)](#ultrathink-methodology)
+[![Methodology](https://img.shields.io/badge/methodology-Structured%20Refactoring-red.svg)](#structured-refactoring-methodology)
 [![Status](https://img.shields.io/badge/status-HIL%20Ready-brightgreen.svg)](#project-status)
 
 ## Project Overview
 
 SCG-ECU 2.0 is a complete refactoring and modularization of the Speeduino ECU firmware, specifically optimized for the STM32F407VGT6 microcontroller with 8x8 configuration (8 independent fuel injectors + 8 independent ignition channels).
 
-This version represents a significant architectural evolution from the original Speeduino codebase, implementing the ULTRATHINK methodology for embedded automotive systems development with focus on:
+This version represents a significant architectural evolution from the original Speeduino codebase, implementing the structured refactoring methodology for embedded automotive systems development with focus on:
 
 - Modular architecture following Single Responsibility Principle
 - Logic preservation with 100% functional equivalence
@@ -187,9 +187,9 @@ Speeduino is a flexible, fully featured Engine Management System based on the Ar
 
 ## Architecture Overview
 
-### ULTRATHINK Methodology
+### Structured Refactoring Methodology
 
-The refactoring process follows the ULTRATHINK methodology for embedded automotive systems:
+The refactoring process follows the structured refactoring methodology for embedded automotive systems:
 
 1. **ULTRA**-precise logic preservation (100% functional equivalence)
 2. **Modular decomposition** with Single Responsibility Principle
@@ -287,7 +287,7 @@ The following trigger decoders have been refactored and validated:
 - Honda J32
 - Suzuki K6A
 
-All decoders follow the ULTRATHINK methodology with guard clauses, reduced complexity, and improved maintainability.
+All decoders follow the structured refactoring methodology with guard clauses, reduced complexity, and improved maintainability.
 
 ## Technical Specifications
 
@@ -329,7 +329,7 @@ All decoders follow the ULTRATHINK methodology with guard clauses, reduced compl
 | Testability | Limited (tightly coupled) | High (independent modules) |
 | RTOS Support | Not prepared | Architecture ready |
 | Configuration Focus | Universal (1-12+ cylinders) | Optimized for 8x8 |
-| Code Methodology | Traditional | ULTRATHINK methodology |
+| Code Methodology | Traditional | structured refactoring methodology |
 
 ## Building and Installation
 
@@ -376,7 +376,7 @@ Located in `docs/` directory:
 
 **Core Documentation**:
 - `PROJETO_SCG_ECU_MASTER_REFERENCE.md` - Complete project reference
-- `REQUISITOS_TECNICOS_ULTRATHINK.md` - ULTRATHINK methodology specification
+- `REQUISITOS_TECNICOS_Structured Refactoring.md` - structured refactoring methodology specification
 - `IMPLEMENTACAO_MODULARIZACAO_STATUS.md` - Implementation status tracking
 - `DECODERS_REFACTOR_COMPLETE_REPORT.md` - Decoder refactoring report
 
@@ -457,7 +457,7 @@ Low Priority (Background):
 
 **Current Phase**: Modularization Complete - Ready for Hardware-In-Loop (HIL) Testing
 
-**Completed Modules** (ULTRATHINK methodology):
+**Completed Modules** (structured refactoring methodology):
 1. Board Configuration - 100% complete
 2. Auxiliaries - 100% complete
 3. Decoders (32 trigger patterns) - 100% complete
@@ -493,7 +493,7 @@ Contributions are welcome. Please follow these guidelines:
 
 ### Code Standards
 
-1. Follow ULTRATHINK methodology principles
+1. Follow structured refactoring methodology principles
 2. Adhere to MISRA C:2012 coding standards
 3. Use guard clauses for early returns
 4. Add comprehensive Doxygen comments

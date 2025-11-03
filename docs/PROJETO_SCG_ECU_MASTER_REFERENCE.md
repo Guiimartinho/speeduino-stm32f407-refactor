@@ -1022,7 +1022,7 @@ cppcheck --enable=all --addon=misra.py speeduino/
 
 | Documento | Descrição | Status |
 |-----------|-----------|--------|
-| REQUISITOS_TECNICOS_ULTRATHINK.md | Padrões de código obrigatórios | ✅ Atual |
+| REQUISITOS_TECNICOS_Structured Refactoring.md | Padrões de código obrigatórios | ✅ Atual |
 | MODULARIZATION_GUIDE.md | Guia completo de modularização | ✅ Atual |
 | MISRA_CPP_VALIDATION.md | Compliance MISRA C++ | ⚠️ Em progresso |
 | AUTOMOTIVE_IMPROVEMENTS.md | Melhorias automotivas | ✅ Atual |
