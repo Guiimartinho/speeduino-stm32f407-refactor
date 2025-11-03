@@ -2,10 +2,10 @@
 ## SCG-ECU 2.0 - STM32F407VGT6 8x8
 
 **Última Atualização:** 03/11/2025
-**Versão:** 8.0 (ALL DECODERS COMPLETE)
-**Status Real:** ✅ DECODERS 100% COMPLETO (29/29) - PRÓXIMA FASE: CORRECTIONS
+**Versão:** 9.0 (DECODERS + CORE MODULES COMPLETE)
+**Status Real:** ✅ DECODERS 100% + CORE 7 MÓDULOS 100% - PRÓXIMA FASE: CORRECTIONS
 
-✅ **MARCO ALCANÇADO:** TODOS OS 29 DECODERS REFATORADOS COM 100% MISRA-C COMPLIANCE
+✅ **MARCO ALCANÇADO:** 29 DECODERS + 7 CORE MODULES REFATORADOS COM 100% MISRA-C COMPLIANCE
 
 ---
 
@@ -14,19 +14,40 @@
 ### Status Geral
 
 ```
-DECODERS MODULE: ████████████████████████████   100% (29/29 decoders) ✅
-REFATORAÇÃO:     ████████████████████████████   100% DECODERS MODULE COMPLETO
+DECODERS MODULE:    ████████████████████████████   100% (29/29 decoders) ✅
+CORE MODULES:       ████████████████████████████   100% (7/7 modules) ✅
+TOTAL REFATORADO:   ████████████████████          ~40% do codebase
 
 Decoders Refatorados:        29/29 (100%) ✅
-Compliance MISRA-C:          100% em todos os decoders ✅
-Helper Functions:            5 movidas + 2 NGC helpers preservadas
+Core Modules Refatorados:    7/7 (100%) ✅
+  • crankMaths.cpp           ✅ 4 funções
+  • maths.cpp                ✅ 1 função
+  • schedule_calcs.hpp       ✅ 8 funções inline
+  • secondaryTables.cpp      ✅ 2 funções + 16 helpers
+  • scheduledIO.cpp          ✅ 94 wrappers
+  • ignition_calculations    ✅ 3 funções + 3 helpers (REFATORADO)
+  • fuel_calculations        ✅ 4 funções + 3 helpers (REFATORADO)
+
+Compliance MISRA-C:          100% em TODOS os módulos ✅
+Overhead Total:              +12 bytes (0.006%)
 
 Build Status:                ✅ SUCCESS (0 errors, 0 warnings)
-Flash Usage:                 196KB / 524KB (37.5%)
+Flash Usage:                 196920 bytes / 524KB (37.6%)
 RAM Usage:                   21KB / 131KB (16.3%)
-Build Time:                  1.97s
-Linkage Errors Fixed:        TODOS ✅
+Build Time:                  ~1.8s
 ```
+
+### Sessão 03/11/2025 - Refatoração Core Modules
+
+**Ver relatório completo:** `docs/SESSION_20251103_REFACTORING_REPORT.md`
+
+**Trabalho realizado:**
+- 7 módulos core refatorados com MISRA-C 100%
+- 2 refatorações grandes (ignition + fuel staging)
+- 5 adições de documentação Doxygen completa
+- Anonymous namespaces para 6 helper functions
+- Zero regressões funcionais
+- Overhead mínimo (+12 bytes total)
 
 ### Descoberta Crítica (02/11/2025)
 
