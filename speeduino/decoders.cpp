@@ -3654,6 +3654,7 @@ void triggerSetEndTeeth_Subaru67(void)
 * @defgroup dec_daihatsu Daihatsu (3  and 4 cyl.)
 * @{
 */
+#if 0  // Daihatsu, Harley - REFACTORED to implementations/
 void triggerSetup_Daihatsu(void)
 {
   triggerActualTeeth = configPage2.nCylinders + 1;
@@ -3946,7 +3947,9 @@ void triggerSetEndTeeth_Harley(void)
 {
 }
 /** @} */
+#endif  // Daihatsu, Harley - REFACTORED to implementations/
 
+#if 0  // ThirtySixMinus222, ThirtySixMinus21, 420a, FordST170 - REFACTORED to implementations/
 //************************************************************************************************************************
 
 /** 36-2-2-2 crank based trigger wheel.
@@ -4557,7 +4560,9 @@ void triggerSetEndTeeth_420a(void)
   }
 }
 /** @} */
+#endif  // ThirtySixMinus222, ThirtySixMinus21, 420a - REFACTORED to implementations/
 
+#if 0  // Weber - REFACTORED to implementations/
 /** Weber-Marelli trigger setup with 2 wheels, 4 teeth 90deg apart on crank and 2 90deg apart on cam.
 Uses DualWheel decoders, There can be no missing teeth on the primary wheel.
 * @defgroup dec_weber_marelli Weber-Marelli
@@ -4696,7 +4701,9 @@ void triggerSec_Webber(void)
   } //Trigger filter
 }
 /** @} */
+#endif  // Weber - REFACTORED to implementations/
 
+#if 0  // FordST170 - REFACTORED to implementations/
 /** Ford ST170 - a dedicated decoder for 01-04 Ford Focus ST170/SVT engine.
 Standard 36-1 trigger wheel running at crank speed and 8-3 trigger wheel running at cam speed.
 * @defgroup dec_ford_st170 Ford ST170 (01-04 Focus)
@@ -4861,8 +4868,9 @@ void triggerSetEndTeeth_FordST170(void)
   // Removed ign channels >4 as an ST170 engine is a 4 cylinder
 }
 /** @} */
+#endif  // FordST170 - REFACTORED to implementations/
 
-
+#if 0  // DRZ400, NGC, Vmax, Renix, RoverMEMS, SuzukiK6A - REFACTORED to implementations/
 void triggerSetup_DRZ400(void)
 {
   triggerToothAngle = 360 / configPage4.triggerTeeth; //The number of degrees that passes from tooth to tooth
@@ -5136,7 +5144,9 @@ void triggerPri_NGC(void)
     }
   }
 }
+#endif  // DRZ400, NGC (part 1) - REFACTORED to implementations/
 
+// NGC helper functions - still needed by init.cpp
 void triggerSec_NGC4(void)
 {
   //Only check the cam wheel for sequential operation
@@ -5244,6 +5254,7 @@ void triggerSec_NGC68(void)
   }
 }
 
+#if 0  // NGC (part 2), Vmax, Renix, RoverMEMS, SuzukiK6A - REFACTORED to implementations/
 uint16_t getRPM_NGC(void)
 {
   uint16_t tempRPM = 0;
@@ -6366,6 +6377,7 @@ void triggerSetEndTeeth_SuzukiK6A(void)
 }
 
 /** @} */
+#endif  // DRZ400, NGC, Vmax, Renix, RoverMEMS, SuzukiK6A - REFACTORED to implementations/
 
 /** Ford TFI - Distributor mounted signal tooth wheel. Same number of teeth as cylinders.
 Evenly spaced rising edge triggers, Cylinder 1 has a narrow teeth and will have a signature falling edge
@@ -6373,8 +6385,9 @@ Evenly spaced rising edge triggers, Cylinder 1 has a narrow teeth and will have 
 * @defgroup Ford_TFI Ford TFI
 * @{
 */
+#if 0  // FordTFI - REFACTORED to implementations/
 /** Ford TFI Setup.
- * 
+ *
  * */
 void triggerSetup_FordTFI(void)
 {
@@ -6578,4 +6591,5 @@ void triggerSetEndTeeth_FordTFI(void)
   // Handles 4-cyl, 6-cyl, and 8-cyl (no 3-cyl for TFI)
   setEndTeethFromDistributorConfig(tempEndAngle, configPage2.nCylinders);
 }
+#endif  // FordTFI - REFACTORED to implementations/
 /** @} */

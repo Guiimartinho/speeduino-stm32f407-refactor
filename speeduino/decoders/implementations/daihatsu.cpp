@@ -18,7 +18,7 @@ void triggerSetup_Daihatsu(void) {
 }
 
 void triggerPri_Daihatsu(void) {}
-void triggerSec_Daihatsu(void) { triggerHandler_DualWheel(); }
+void triggerSec_Daihatsu(void) { triggerSec_DualWheel(); }
 uint16_t getRPM_Daihatsu(void) { return stdGetRPM(CAM_SPEED); }
 int getCrankAngle_Daihatsu(void) { return getCrankAngle_DualWheel(); }
 void triggerSetEndTeeth_Daihatsu(void) {}

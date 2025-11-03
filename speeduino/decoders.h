@@ -298,7 +298,9 @@ extern volatile unsigned long curTime;
 extern volatile unsigned long curGap;
 extern volatile unsigned long curTime2;
 extern volatile unsigned long curGap2;
+extern volatile unsigned long curGap3;
 extern volatile unsigned long lastGap;
+extern volatile unsigned long lastSyncRevolution;
 extern volatile unsigned long targetGap;
 
 extern volatile uint16_t toothCurrentCount; //The current number of teeth (Once sync has been achieved, this can never actually be 0

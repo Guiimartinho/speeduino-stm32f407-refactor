@@ -1,0 +1,10 @@
+#ifndef ROVER_MEMS_H
+#define ROVER_MEMS_H
+#include <stdint.h>
+void triggerSetup_RoverMEMS(void);
+void triggerPri_RoverMEMS(void);
+void triggerSec_RoverMEMS(void);
+uint16_t getRPM_RoverMEMS(void);
+int getCrankAngle_RoverMEMS(void);
+void triggerSetEndTeeth_RoverMEMS(void);
+#endif
