@@ -521,7 +521,7 @@ WOT:    Wide Open Throttle (acelerador full)
 Este conjunto de documentos foi criado em **01/11/2025** baseado em:
 - ✅ Pesquisas reais sobre VW Gol AP 1.8 MI (1994)
 - ✅ Especificações técnicas SCG-ECU 2.0
-- ✅ Metodologia ULTRATHINK
+- ✅ Metodologia de refatoração e modularização do projeto
 - ✅ Best practices tuning automotivo
 
 **Versão dos documentos:** 1.0
