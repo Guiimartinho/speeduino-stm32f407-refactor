@@ -5,6 +5,9 @@ All functions in the gamma file return
 #ifndef CORRECTIONS_H
 #define CORRECTIONS_H
 
+#include "table2d.h"
+#include "table3d.h"
+
 #define IGN_IDLE_THRESHOLD 200 //RPM threshold (below CL idle target) for when ign based idle control will engage
 
 void initialiseCorrections(void);
@@ -52,6 +55,25 @@ extern uint8_t dfcoDelay;
 extern uint8_t idleAdvTaper;
 extern uint8_t crankingEnrichTaper;
 extern uint8_t dfcoTaper;
+
+// Correction tables - made global for modular access (defined in corrections.cpp)
+extern table2D_u8_u8_4 taeTable;
+extern table2D_u8_u8_4 maeTable;
+extern table2D_u8_u8_10 WUETable;
+extern table2D_u8_u8_4 ASETable;
+extern table2D_u8_u8_4 ASECountTable;
+extern table2D_u8_u8_4 crankingEnrichTable;
+extern table2D_u8_u8_6 dwellVCorrectionTable;
+extern table2D_u8_u8_6 injectorVCorrectionTable;
+extern table2D_u8_u8_9 IATDensityCorrectionTable;
+extern table2D_u8_u8_8 baroFuelTable;
+extern table2D_u8_u8_6 IATRetardTable;
+extern table2D_u8_u8_6 idleAdvanceTable;
+extern table2D_u8_u8_6 CLTAdvanceTable;
+extern table2D_u8_u8_6 flexFuelTable;
+extern table2D_u8_u8_6 flexAdvTable;
+extern table2D_u8_u8_6 fuelTempTable;
+extern table2D_u8_u8_6 wmiAdvTable;
 
 // ============================================================================
 // MODULARIZED CORRECTIONS SYSTEM

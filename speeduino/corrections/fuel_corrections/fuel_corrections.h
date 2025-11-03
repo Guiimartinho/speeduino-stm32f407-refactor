@@ -23,6 +23,16 @@
 #include "../../globals.h"
 
 // ============================================================================
+// GLOBAL STATE (Acceleration enrichment tracking)
+// ============================================================================
+
+/// MAP DOT value seen when MAE was activated (defined in fuel_corrections.cpp)
+extern byte activateMAPDOT;
+
+/// TPS DOT value seen when TAE was activated (defined in fuel_corrections.cpp)
+extern byte activateTPSDOT;
+
+// ============================================================================
 // FUEL CORRECTIONS INTERFACE
 // ============================================================================
 

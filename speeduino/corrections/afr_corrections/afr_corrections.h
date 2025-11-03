@@ -18,6 +18,16 @@
 #define AFR_CORRECTIONS_H
 
 #include "../../globals.h"
+#include "../../src/PID_v1/PID_v1.h"
+
+// ============================================================================
+// GLOBAL STATE (shared with corrections.cpp for initialization)
+// ============================================================================
+
+/// PID controller global variables (defined in afr_corrections.cpp)
+extern long PID_O2, PID_output, PID_AFRTarget;
+extern PID egoPID;
+extern uint16_t AFRnextCycle;
 
 // ============================================================================
 // AFR CORRECTIONS INTERFACE
@@ -39,19 +49,27 @@ typedef uint8_t (*AfrTargetCalculationFn)(
 );
 
 /**
+ * @brief Function pointer type for AFR closed-loop correction
+ * @return Correction percentage (100 = no correction, <100 = lean, >100 = rich)
+ */
+typedef byte (*AfrClosedLoopCorrectionFn)(void);
+
+/**
  * @brief AFR corrections interface structure
- * @note Structured for future expansion (EGO control, wideband processing)
+ * @note Groups all AFR-related functions (target calculation and closed-loop control)
  */
 typedef struct {
     // Target AFR calculation
     AfrTargetCalculationFn calculateAfrTarget;
+
+    // Closed-loop AFR correction (Simple & PID algorithms)
+    AfrClosedLoopCorrectionFn correctionAFRClosedLoop;
 
 } AfrCorrectionsInterface;
 
 // ============================================================================
 // FORWARD DECLARATIONS
 // ============================================================================
-// These link to the original implementations in corrections.cpp
 
 /**
  * @brief Calculate target AFR from tables
@@ -69,6 +87,21 @@ uint8_t calculateAfrTarget(
     const config2 &page2,
     const config6 &page6
 );
+
+/**
+ * @brief Closed-loop AFR feedback correction
+ * @return Correction percentage (100 = no correction, <100 = lean, >100 = rich)
+ * @note Supports both Simple (1% steps) and PID algorithms
+ * @note Only active when all closed-loop conditions are met:
+ *       - Engine warmed up (coolant > egoTemp)
+ *       - RPM > egoRPM
+ *       - TPS < egoTPSMax
+ *       - O2 sensor in valid range (ego_min < O2 < ego_max)
+ *       - After startup delay (runSecs > ego_sdelay)
+ *       - MAP within valid range (egoMAPMin < MAP < egoMAPMax)
+ *       - DFCO not active
+ */
+byte correctionAFRClosedLoop(void);
 
 // ============================================================================
 // INITIALIZATION

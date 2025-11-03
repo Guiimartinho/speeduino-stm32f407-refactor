@@ -34,20 +34,19 @@ There are 2 top level functions that call more detailed corrections for Fuel and
 #include "src/PID_v1/PID_v1.h"
 #include "units.h"
 
-long PID_O2, PID_output, PID_AFRTarget;
-/** Instance of the PID object in case that algorithm is used (Always instantiated).
-* Needs to be global as it maintains state outside of each function call.
-* Comes from Arduino (?) PID library.
-*/
-PID egoPID(&PID_O2, &PID_output, &PID_AFRTarget, configPage6.egoKP, configPage6.egoKI, configPage6.egoKD, REVERSE);
+// REFACTORED MODULE INCLUDES
+#include "corrections/afr_corrections/afr_corrections.h"
+#include "corrections/dwell_corrections/dwell_corrections.h"
+#include "corrections/fuel_corrections/fuel_corrections.h"
+#include "corrections/ignition_corrections/ignition_corrections.h"
 
-byte activateMAPDOT; //The mapDOT value seen when the MAE was activated. 
-byte activateTPSDOT; //The tpsDOT value seen when the MAE was activated.
+// PID_O2, PID_output, PID_AFRTarget, egoPID, and AFRnextCycle moved to afr_corrections.cpp
+// activateMAPDOT and activateTPSDOT moved to fuel_corrections.cpp
+// idleAdvActive, knockStartTime, knockLastRecoveryStep moved to ignition_corrections.cpp
 
-bool idleAdvActive = false;
-uint16_t AFRnextCycle;
-unsigned long knockStartTime;
-uint8_t knockLastRecoveryStep;
+//bool idleAdvActive = false;
+//unsigned long knockStartTime;
+//uint8_t knockLastRecoveryStep;
 //int16_t knockWindowMin; //The current minimum crank angle for a knock pulse to be valid
 //int16_t knockWindowMax;//The current maximum crank angle for a knock pulse to be valid
 uint8_t aseTaper;
@@ -56,23 +55,25 @@ uint8_t idleAdvTaper;
 uint8_t crankingEnrichTaper;
 uint8_t dfcoTaper;
 
-TESTABLE_STATIC table2D_u8_u8_4 taeTable(&configPage4.taeBins, &configPage4.taeValues);
-TESTABLE_STATIC table2D_u8_u8_4 maeTable(&configPage4.maeBins, &configPage4.maeRates);
-TESTABLE_STATIC table2D_u8_u8_10 WUETable(&configPage4.wueBins, &configPage2.wueValues);
-TESTABLE_STATIC table2D_u8_u8_4 ASETable(&configPage2.aseBins, &configPage2.asePct);
-TESTABLE_STATIC table2D_u8_u8_4 ASECountTable(&configPage2.aseBins, &configPage2.aseCount);
-TESTABLE_STATIC table2D_u8_u8_4 crankingEnrichTable(&configPage10.crankingEnrichBins, &configPage10.crankingEnrichValues);
-TESTABLE_STATIC table2D_u8_u8_6 dwellVCorrectionTable(&configPage6.voltageCorrectionBins, &configPage4.dwellCorrectionValues);
-TESTABLE_STATIC table2D_u8_u8_6 injectorVCorrectionTable(&configPage6.voltageCorrectionBins, &configPage6.injVoltageCorrectionValues);
-TESTABLE_STATIC table2D_u8_u8_9 IATDensityCorrectionTable(&configPage6.airDenBins, &configPage6.airDenRates);
-TESTABLE_STATIC table2D_u8_u8_8 baroFuelTable(&configPage4.baroFuelBins, &configPage4.baroFuelValues);
-TESTABLE_STATIC table2D_u8_u8_6 IATRetardTable(&configPage4.iatRetBins, &configPage4.iatRetValues);
-TESTABLE_STATIC table2D_u8_u8_6 idleAdvanceTable(&configPage4.idleAdvBins, &configPage4.idleAdvValues);
-TESTABLE_STATIC table2D_u8_u8_6 CLTAdvanceTable(&configPage4.cltAdvBins, &configPage4.cltAdvValues);
-TESTABLE_STATIC table2D_u8_u8_6 flexFuelTable(&configPage10.flexFuelBins, &configPage10.flexFuelAdj);
-TESTABLE_STATIC table2D_u8_u8_6 flexAdvTable(&configPage10.flexAdvBins, &configPage10.flexAdvAdj);
-TESTABLE_STATIC table2D_u8_u8_6 fuelTempTable(&configPage10.fuelTempBins, &configPage10.fuelTempValues);
-TESTABLE_STATIC table2D_u8_u8_6 wmiAdvTable(&configPage10.wmiAdvBins, &configPage10.wmiAdvAdj);
+// Correction tables - made global for modular access
+// (changed from TESTABLE_STATIC to allow module access)
+table2D_u8_u8_4 taeTable(&configPage4.taeBins, &configPage4.taeValues);
+table2D_u8_u8_4 maeTable(&configPage4.maeBins, &configPage4.maeRates);
+table2D_u8_u8_10 WUETable(&configPage4.wueBins, &configPage2.wueValues);
+table2D_u8_u8_4 ASETable(&configPage2.aseBins, &configPage2.asePct);
+table2D_u8_u8_4 ASECountTable(&configPage2.aseBins, &configPage2.aseCount);
+table2D_u8_u8_4 crankingEnrichTable(&configPage10.crankingEnrichBins, &configPage10.crankingEnrichValues);
+table2D_u8_u8_6 dwellVCorrectionTable(&configPage6.voltageCorrectionBins, &configPage4.dwellCorrectionValues);
+table2D_u8_u8_6 injectorVCorrectionTable(&configPage6.voltageCorrectionBins, &configPage6.injVoltageCorrectionValues);
+table2D_u8_u8_9 IATDensityCorrectionTable(&configPage6.airDenBins, &configPage6.airDenRates);
+table2D_u8_u8_8 baroFuelTable(&configPage4.baroFuelBins, &configPage4.baroFuelValues);
+table2D_u8_u8_6 IATRetardTable(&configPage4.iatRetBins, &configPage4.iatRetValues);
+table2D_u8_u8_6 idleAdvanceTable(&configPage4.idleAdvBins, &configPage4.idleAdvValues);
+table2D_u8_u8_6 CLTAdvanceTable(&configPage4.cltAdvBins, &configPage4.cltAdvValues);
+table2D_u8_u8_6 flexFuelTable(&configPage10.flexFuelBins, &configPage10.flexFuelAdj);
+table2D_u8_u8_6 flexAdvTable(&configPage10.flexAdvBins, &configPage10.flexAdvAdj);
+table2D_u8_u8_6 fuelTempTable(&configPage10.fuelTempBins, &configPage10.fuelTempValues);
+table2D_u8_u8_6 wmiAdvTable(&configPage10.wmiAdvBins, &configPage10.wmiAdvAdj);
 
 /** Initialise instances and vars related to corrections (at ECU boot-up).
  */
@@ -99,6 +100,7 @@ void initialiseCorrections(void)
   currentStatus.battery10 = 125; //Set battery voltage to sensible value for dwell correction for "flying start" (else ignition gets spurious pulses after boot)  
 }
 
+#if 0 // REFACTORED - Implementation moved to corrections/fuel_corrections/fuel_corrections.cpp
 /** Dispatch calculations for all fuel related corrections.
 Calls all the other corrections functions and combines their results.
 This is the only function that should be called from anywhere outside the file
@@ -610,21 +612,23 @@ byte correctionFuelTemp(void)
   }
   return fuelTempValue;
 }
+#endif // REFACTORED - Fuel corrections module (END OF ALL 14 FUEL FUNCTIONS)
 
 
 // ============================= Air Fuel Ratio (AFR) correction =============================
 
+#if 0 // REFACTORED - Implementation moved to corrections/afr_corrections/afr_corrections.cpp
 uint8_t calculateAfrTarget(table3d16RpmLoad &afrLookUpTable, const statuses &current, const config2 &page2, const config6 &page6) {
   //afrTarget value lookup must be done if O2 sensor is enabled, and always if incorporateAFR is enabled
   if (page2.incorporateAFR == true) {
     return get3DTableValue(&afrLookUpTable, current.fuelLoad, current.RPM);
   }
-  if (page6.egoType!=EGO_TYPE_OFF) 
+  if (page6.egoType!=EGO_TYPE_OFF)
   {
     //Determine whether the Y axis of the AFR target table tshould be MAP (Speed-Density) or TPS (Alpha-N)
     //Note that this should only run after the sensor warmup delay when using Include AFR option,
-    if( current.runSecs > page6.ego_sdelay) { 
-      return get3DTableValue(&afrLookUpTable, current.fuelLoad, current.RPM); 
+    if( current.runSecs > page6.ego_sdelay) {
+      return get3DTableValue(&afrLookUpTable, current.fuelLoad, current.RPM);
     }
     return current.O2; //Catch all
   }
@@ -753,7 +757,9 @@ byte correctionAFRClosedLoop(void)
 
   return AFRValue;
 }
+#endif // REFACTORED - AFR corrections module
 
+#if 0 // REFACTORED - Implementation moved to corrections/ignition_corrections/ignition_corrections.cpp
 //******************************** IGNITION ADVANCE CORRECTIONS ********************************
 /** Dispatch calculations for all ignition related corrections.
  * @param base_advance - Base ignition advance (deg. ?)
@@ -1191,7 +1197,9 @@ int8_t correctionDFCOignition(int8_t advance)
   else { dfcoTaper = configPage9.dfcoTaperTime; } //Keep updating the duration until DFCO is active
   return dfcoRetard;
 }
+#endif // REFACTORED - Ignition corrections module (END OF ALL 14 IGNITION FUNCTIONS)
 
+#if 0 // REFACTORED - Implementation moved to corrections/dwell_corrections/dwell_corrections.cpp
 /** Ignition Dwell Correction.
  */
 uint16_t correctionsDwell(uint16_t dwell)
@@ -1240,3 +1248,4 @@ uint16_t correctionsDwell(uint16_t dwell)
 
   return tempDwell;
 }
+#endif // REFACTORED - Dwell corrections module

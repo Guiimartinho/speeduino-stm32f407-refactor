@@ -21,6 +21,22 @@
 #include "../../globals.h"
 
 // ============================================================================
+// GLOBAL STATE (Ignition tracking variables)
+// ============================================================================
+
+/// Idle advance active flag (defined in ignition_corrections.cpp)
+extern bool idleAdvActive;
+
+/// Knock retard start time in microseconds (defined in ignition_corrections.cpp)
+extern uint32_t knockStartTime;
+
+/// Knock recovery last step (defined in ignition_corrections.cpp)
+extern uint8_t knockLastRecoveryStep;
+
+/// Soft limit time counter (defined in ignition_corrections.cpp)
+extern uint8_t softLimitTime;
+
+// ============================================================================
 // IGNITION CORRECTIONS INTERFACE
 // ============================================================================
 

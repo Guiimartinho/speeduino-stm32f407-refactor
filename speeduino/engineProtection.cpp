@@ -5,6 +5,7 @@
 #include "utilities.h"
 #include "units.h"
 #include "crankMaths.h"
+#include "corrections/ignition_corrections/ignition_corrections.h"
 
 byte oilProtStartTime = 0;
 static table2D_u8_u8_4 oilPressureProtectTable(&configPage10.oilPressureProtRPM, &configPage10.oilPressureProtMins);
