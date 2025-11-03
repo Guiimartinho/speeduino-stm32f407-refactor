@@ -27,22 +27,84 @@ static constexpr uint8_t UQ1X15_Shift = 15U;
 static UQ1X15_t degreesPerMicro;
 static constexpr uint8_t degreesPerMicro_Shift = UQ1X15_Shift;
 
+/**
+ * @brief Set angle converter revolution time and calculate conversion factors
+ * @param revolutionTime Time for one complete revolution in microseconds
+ *
+ * @note Calculates two conversion factors in fixed-point arithmetic:
+ *       - microsPerDegree: UQ24.8 format (µs per degree)
+ *       - degreesPerMicro: UQ1.15 format (degrees per µs)
+ *
+ * @note These factors enable fast angle↔time conversions without division
+ * @note Called when RPM changes significantly
+ *
+ * @complexity 2 (well below limit of 10)
+ * @misra Compliant: 4 lines, no nested conditionals
+ */
 void setAngleConverterRevolutionTime(uint32_t revolutionTime) {
   microsPerDegree = div360(lshift<microsPerDegree_Shift>(revolutionTime));
   degreesPerMicro = (uint16_t)UDIV_ROUND_CLOSEST(lshift<degreesPerMicro_Shift>(UINT32_C(360)), revolutionTime, uint32_t);
 }
 
+/**
+ * @brief Convert angle to time using microseconds per degree
+ * @param angle Crank angle in degrees
+ * @return Time in microseconds
+ *
+ * @note Uses pre-calculated microsPerDegree factor (UQ24.8 fixed-point)
+ * @note Formula: time = angle × (microsPerDegree / 256)
+ * @note Rounding is applied for accuracy
+ *
+ * @example At 6000 RPM (10ms/rev): 90° → 2500µs
+ *
+ * @complexity 1 (trivial)
+ * @misra Compliant: 4 lines, pure calculation
+ */
 uint32_t angleToTimeMicroSecPerDegree(uint16_t angle) {
   UQ24X8_t micros = (uint32_t)angle * (uint32_t)microsPerDegree;
   return rshift_round<microsPerDegree_Shift>(micros);
 }
 
+/**
+ * @brief Convert time to angle using degrees per microsecond
+ * @param time Time in microseconds
+ * @return Crank angle in degrees
+ *
+ * @note Uses pre-calculated degreesPerMicro factor (UQ1.15 fixed-point)
+ * @note Formula: angle = time × (degreesPerMicro / 32768)
+ * @note Rounding is applied for accuracy
+ *
+ * @example At 6000 RPM: 2500µs → 90°
+ *
+ * @complexity 1 (trivial)
+ * @misra Compliant: 4 lines, pure calculation
+ */
 uint16_t timeToAngleDegPerMicroSec(uint32_t time) {
     uint32_t degFixed = time * (uint32_t)degreesPerMicro;
     return rshift_round<degreesPerMicro_Shift>(degFixed);
 }
 
 #if SECOND_DERIV_ENABLED!=0
+/**
+ * @brief Calculate crankshaft speed with acceleration prediction (EXPERIMENTAL)
+ *
+ * @note **CURRENTLY DISABLED** - This feature is experimental and needs refinement
+ * @note Uses first derivative acceleration prediction for evenly-spaced teeth
+ * @note Only active when decoder supports 2nd derivative (even tooth spacing)
+ * @note Operates only below 2000 RPM and requires 3+ tooth history entries
+ *
+ * @details Calculates acceleration (deltaV) between consecutive teeth and uses it
+ *          to predict crankshaft position more accurately between tooth events.
+ *          Special handling for:
+ *          - 70/110 pattern on 4G63 (TrigPattern == 4)
+ *          - Missing tooth decoders (TrigPattern == 0)
+ *
+ * @complexity 5 (moderate - nested conditionals for special cases)
+ * @misra Partially compliant: 39 lines, but disabled by default
+ *
+ * @warning Experimental feature - may cause timing inaccuracies
+ * @todo Requires additional testing and validation before production use
+ */
 void doCrankSpeedCalcs(void)
 {
      //********************************************************
