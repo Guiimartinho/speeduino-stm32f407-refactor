@@ -165,502 +165,541 @@ static constexpr uint8_t TRIGGER_INTERRUPT_INVALID = 0xFFU;
  * All variables modified are globals and changes persist after function returns.
  * Must be called during initialization after trigger setup.
  */
+namespace {
+
+/** @brief Configure timing for 1 cylinder engine. */
+static void configureCylinderTimings_1Cyl(void)
+{
+  channel1IgnDegrees = 0;
+  channel1InjDegrees = 0;
+  maxIgnOutputs = 1;
+  maxInjOutputs = 1;
+
+  //Sequential ignition works identically on a 1 cylinder whether it's odd or even fire.
+  if( (configPage4.sparkMode == IGN_MODE_SEQUENTIAL) && (configPage2.strokes == FOUR_STROKE) ) { CRANK_ANGLE_MAX_IGN = 720; }
+
+  if ( (configPage2.injLayout == INJ_SEQUENTIAL) && (configPage2.strokes == FOUR_STROKE) )
+  {
+    CRANK_ANGLE_MAX_INJ = 720;
+    currentStatus.nSquirts = 1;
+    req_fuel_uS = req_fuel_uS * 2;
+  }
+
+  //Check if injector staging is enabled
+  if(configPage10.stagingEnabled == true)
+  {
+    maxInjOutputs = 2;
+    channel2InjDegrees = channel1InjDegrees;
+  }
+}
+
+/** @brief Configure timing for 2 cylinder engine. */
+static void configureCylinderTimings_2Cyl(void)
+{
+  channel1IgnDegrees = 0;
+  channel1InjDegrees = 0;
+  maxIgnOutputs = 2;
+  maxInjOutputs = 2;
+  if (configPage2.engineType == EVEN_FIRE ) { channel2IgnDegrees = 180; }
+  else { channel2IgnDegrees = configPage2.oddfire2; }
+
+  //Sequential ignition works identically on a 2 cylinder whether it's odd or even fire (With the default being a 180 degree second cylinder).
+  if( (configPage4.sparkMode == IGN_MODE_SEQUENTIAL) && (configPage2.strokes == FOUR_STROKE) ) { CRANK_ANGLE_MAX_IGN = 720; }
+
+  if ( (configPage2.injLayout == INJ_SEQUENTIAL) && (configPage2.strokes == FOUR_STROKE) )
+  {
+    CRANK_ANGLE_MAX_INJ = 720;
+    currentStatus.nSquirts = 1;
+    req_fuel_uS = req_fuel_uS * 2;
+  }
+  //The below are true regardless of whether this is running sequential or not
+  if (configPage2.engineType == EVEN_FIRE ) { channel2InjDegrees = 180; }
+  else { channel2InjDegrees = configPage2.oddfire2; }
+  if (!configPage2.injTiming)
+  {
+    //For simultaneous, all squirts happen at the same time
+    channel1InjDegrees = 0;
+    channel2InjDegrees = 0;
+  }
+
+  //Check if injector staging is enabled
+  if(configPage10.stagingEnabled == true)
+  {
+    maxInjOutputs = 4;
+
+    channel3InjDegrees = channel1InjDegrees;
+    channel4InjDegrees = channel2InjDegrees;
+  }
+}
+
+/** @brief Configure timing for 3 cylinder engine. */
+static void configureCylinderTimings_3Cyl(void)
+{
+  channel1IgnDegrees = 0;
+  maxIgnOutputs = 3;
+  maxInjOutputs = 3;
+  if (configPage2.engineType == EVEN_FIRE )
+  {
+    //Sequential and Single channel modes both run over 720 crank degrees, but only on 4 stroke engines.
+    if( ( (configPage4.sparkMode == IGN_MODE_SEQUENTIAL) || (configPage4.sparkMode == IGN_MODE_SINGLE) ) && (configPage2.strokes == FOUR_STROKE) )
+    {
+      channel2IgnDegrees = 240;
+      channel3IgnDegrees = 480;
+
+      CRANK_ANGLE_MAX_IGN = 720;
+    }
+    else
+    {
+      channel2IgnDegrees = 120;
+      channel3IgnDegrees = 240;
+    }
+  }
+  else
+  {
+    channel2IgnDegrees = configPage2.oddfire2;
+    channel3IgnDegrees = configPage2.oddfire3;
+  }
+
+  //For alternating injection, the squirt occurs at different times for each channel
+  if( (configPage2.injLayout == INJ_SEMISEQUENTIAL) || (configPage2.injLayout == INJ_PAIRED) )
+  {
+    channel1InjDegrees = 0;
+    channel2InjDegrees = 120;
+    channel3InjDegrees = 240;
+
+    if(configPage2.injType == INJ_TYPE_PORT)
+    {
+      //Force nSquirts to 2 for individual port injection. This prevents TunerStudio forcing the value to 3 even when this isn't wanted.
+      currentStatus.nSquirts = 2;
+      if(configPage2.strokes == FOUR_STROKE) { CRANK_ANGLE_MAX_INJ = 360; }
+      else { CRANK_ANGLE_MAX_INJ = 180; }
+    }
+
+    //Adjust the injection angles based on the number of squirts
+    if (currentStatus.nSquirts > 2)
+    {
+      channel2InjDegrees = (channel2InjDegrees * 2) / currentStatus.nSquirts;
+      channel3InjDegrees = (channel3InjDegrees * 2) / currentStatus.nSquirts;
+    }
+
+    if (!configPage2.injTiming)
+    {
+      //For simultaneous, all squirts happen at the same time
+      channel1InjDegrees = 0;
+      channel2InjDegrees = 0;
+      channel3InjDegrees = 0;
+    }
+  }
+  else if (configPage2.injLayout == INJ_SEQUENTIAL)
+  {
+    currentStatus.nSquirts = 1;
+
+    if(configPage2.strokes == TWO_STROKE)
+    {
+      channel1InjDegrees = 0;
+      channel2InjDegrees = 120;
+      channel3InjDegrees = 240;
+      CRANK_ANGLE_MAX_INJ = 360;
+    }
+    else
+    {
+      req_fuel_uS = req_fuel_uS * 2;
+      channel1InjDegrees = 0;
+      channel2InjDegrees = 240;
+      channel3InjDegrees = 480;
+      CRANK_ANGLE_MAX_INJ = 720;
+    }
+  }
+  else
+  {
+    //Should never happen, but default values
+    channel1InjDegrees = 0;
+    channel2InjDegrees = 120;
+    channel3InjDegrees = 240;
+  }
+
+  //Check if injector staging is enabled
+  if(configPage10.stagingEnabled == true)
+  {
+    #if INJ_CHANNELS >= 6
+      maxInjOutputs = 6;
+
+      channel4InjDegrees = channel1InjDegrees;
+      channel5InjDegrees = channel2InjDegrees;
+      channel6InjDegrees = channel3InjDegrees;
+    #else
+      //Staged output is on channel 4
+      maxInjOutputs = 4;
+      channel4InjDegrees = channel1InjDegrees;
+    #endif
+  }
+}
+
+/** @brief Configure timing for 4 cylinder engine. */
+static void configureCylinderTimings_4Cyl(void)
+{
+  channel1IgnDegrees = 0;
+  channel1InjDegrees = 0;
+  maxIgnOutputs = 2; //Default value for 4 cylinder, may be changed below
+  maxInjOutputs = 2;
+  if (configPage2.engineType == EVEN_FIRE )
+  {
+    channel2IgnDegrees = 180;
+
+    if( (configPage4.sparkMode == IGN_MODE_SEQUENTIAL) && (configPage2.strokes == FOUR_STROKE) )
+    {
+      channel3IgnDegrees = 360;
+      channel4IgnDegrees = 540;
+
+      CRANK_ANGLE_MAX_IGN = 720;
+      maxIgnOutputs = 4;
+    }
+    if(configPage4.sparkMode == IGN_MODE_ROTARY)
+    {
+      //Rotary uses the ign 3 and 4 schedules for the trailing spark. They are offset from the ign 1 and 2 channels respectively and so use the same degrees as them
+      channel3IgnDegrees = 0;
+      channel4IgnDegrees = 180;
+      maxIgnOutputs = 4;
+
+      configPage4.IgInv = GOING_LOW; //Force Going Low ignition mode (Going high is never used for rotary)
+    }
+  }
+  else
+  {
+    channel2IgnDegrees = configPage2.oddfire2;
+    channel3IgnDegrees = configPage2.oddfire3;
+    channel4IgnDegrees = configPage2.oddfire4;
+    maxIgnOutputs = 4;
+  }
+
+  //For alternating injection, the squirt occurs at different times for each channel
+  if( (configPage2.injLayout == INJ_SEMISEQUENTIAL) || (configPage2.injLayout == INJ_PAIRED) || (configPage2.strokes == TWO_STROKE) )
+  {
+    channel2InjDegrees = 180;
+
+    if (!configPage2.injTiming)
+    {
+      //For simultaneous, all squirts happen at the same time
+      channel1InjDegrees = 0;
+      channel2InjDegrees = 0;
+    }
+    else if (currentStatus.nSquirts > 2)
+    {
+      //Adjust the injection angles based on the number of squirts
+      channel2InjDegrees = (channel2InjDegrees * 2) / currentStatus.nSquirts;
+    }
+    else { } //Do nothing, default values are correct
+  }
+  else if (configPage2.injLayout == INJ_SEQUENTIAL)
+  {
+    channel2InjDegrees = 180;
+    channel3InjDegrees = 360;
+    channel4InjDegrees = 540;
+
+    maxInjOutputs = 4;
+
+    CRANK_ANGLE_MAX_INJ = 720;
+    currentStatus.nSquirts = 1;
+    req_fuel_uS = req_fuel_uS * 2;
+  }
+  else
+  {
+    //Should never happen, but default values
+    maxInjOutputs = 2;
+  }
+
+  //Check if injector staging is enabled
+  if(configPage10.stagingEnabled == true)
+  {
+    maxInjOutputs = 4;
+
+    if( (configPage2.injLayout == INJ_SEQUENTIAL) || (configPage2.injLayout == INJ_SEMISEQUENTIAL) )
+    {
+      //Staging with 4 cylinders semi/sequential requires 8 total channels
+      #if INJ_CHANNELS >= 8
+        maxInjOutputs = 8;
+
+        channel5InjDegrees = channel1InjDegrees;
+        channel6InjDegrees = channel2InjDegrees;
+        channel7InjDegrees = channel3InjDegrees;
+        channel8InjDegrees = channel4InjDegrees;
+      #else
+        //This is an invalid config as there are not enough outputs to support sequential + staging
+        //Put the staging output to the non-existent channel 5
+        #if (INJ_CHANNELS >= 5)
+        maxInjOutputs = 5;
+        channel5InjDegrees = channel1InjDegrees;
+        #endif
+      #endif
+    }
+    else
+    {
+      channel3InjDegrees = channel1InjDegrees;
+      channel4InjDegrees = channel2InjDegrees;
+    }
+  }
+}
+
+/** @brief Configure timing for 5 cylinder engine. */
+static void configureCylinderTimings_5Cyl(void)
+{
+  channel1IgnDegrees = 0;
+  channel2IgnDegrees = 72;
+  channel3IgnDegrees = 144;
+  channel4IgnDegrees = 216;
+#if (IGN_CHANNELS >= 5)
+  channel5IgnDegrees = 288;
+#endif
+  maxIgnOutputs = 5; //Only 4 actual outputs, so that's all that can be cut
+  maxInjOutputs = 4; //Is updated below to 5 if there are enough channels
+
+  if(configPage4.sparkMode == IGN_MODE_SEQUENTIAL)
+  {
+    channel2IgnDegrees = 144;
+    channel3IgnDegrees = 288;
+    channel4IgnDegrees = 432;
+#if (IGN_CHANNELS >= 5)
+    channel5IgnDegrees = 576;
+#endif
+
+    CRANK_ANGLE_MAX_IGN = 720;
+  }
+
+  //For alternating injection, the squirt occurs at different times for each channel
+  if( (configPage2.injLayout == INJ_SEMISEQUENTIAL) || (configPage2.injLayout == INJ_PAIRED) || (configPage2.strokes == TWO_STROKE) )
+  {
+    if (!configPage2.injTiming)
+    {
+      //For simultaneous, all squirts happen at the same time
+      channel1InjDegrees = 0;
+      channel2InjDegrees = 0;
+      channel3InjDegrees = 0;
+      channel4InjDegrees = 0;
+#if (INJ_CHANNELS >= 5)
+      channel5InjDegrees = 0;
+#endif
+    }
+    else
+    {
+      channel1InjDegrees = 0;
+      channel2InjDegrees = 72;
+      channel3InjDegrees = 144;
+      channel4InjDegrees = 216;
+#if (INJ_CHANNELS >= 5)
+      channel5InjDegrees = 288;
+#endif
+
+      //Divide by currentStatus.nSquirts ?
+    }
+  }
+#if INJ_CHANNELS >= 5
+  else if (configPage2.injLayout == INJ_SEQUENTIAL)
+  {
+    channel1InjDegrees = 0;
+    channel2InjDegrees = 144;
+    channel3InjDegrees = 288;
+    channel4InjDegrees = 432;
+    channel5InjDegrees = 576;
+
+    maxInjOutputs = 5;
+
+    CRANK_ANGLE_MAX_INJ = 720;
+    currentStatus.nSquirts = 1;
+    req_fuel_uS = req_fuel_uS * 2;
+  }
+#endif
+
+#if INJ_CHANNELS >= 6
+  if(configPage10.stagingEnabled == true) { maxInjOutputs = 6; }
+#endif
+}
+
+/** @brief Configure timing for 6 cylinder engine. */
+static void configureCylinderTimings_6Cyl(void)
+{
+  channel1IgnDegrees = 0;
+  channel2IgnDegrees = 120;
+  channel3IgnDegrees = 240;
+  maxIgnOutputs = 3;
+  maxInjOutputs = 3;
+
+#if IGN_CHANNELS >= 6
+  if( (configPage4.sparkMode == IGN_MODE_SEQUENTIAL))
+  {
+  channel4IgnDegrees = 360;
+  channel5IgnDegrees = 480;
+  channel6IgnDegrees = 600;
+  CRANK_ANGLE_MAX_IGN = 720;
+  maxIgnOutputs = 6;
+  }
+#endif
+
+  //For alternating injection, the squirt occurs at different times for each channel
+  if( (configPage2.injLayout == INJ_SEMISEQUENTIAL) || (configPage2.injLayout == INJ_PAIRED) )
+  {
+    channel1InjDegrees = 0;
+    channel2InjDegrees = 120;
+    channel3InjDegrees = 240;
+    if (!configPage2.injTiming)
+    {
+      //For simultaneous, all squirts happen at the same time
+      channel1InjDegrees = 0;
+      channel2InjDegrees = 0;
+      channel3InjDegrees = 0;
+    }
+    else if (currentStatus.nSquirts > 2)
+    {
+      //Adjust the injection angles based on the number of squirts
+      channel2InjDegrees = (channel2InjDegrees * 2) / currentStatus.nSquirts;
+      channel3InjDegrees = (channel3InjDegrees * 2) / currentStatus.nSquirts;
+    }
+  }
+
+#if INJ_CHANNELS >= 6
+  if (configPage2.injLayout == INJ_SEQUENTIAL)
+  {
+    channel1InjDegrees = 0;
+    channel2InjDegrees = 120;
+    channel3InjDegrees = 240;
+    channel4InjDegrees = 360;
+    channel5InjDegrees = 480;
+    channel6InjDegrees = 600;
+
+    maxInjOutputs = 6;
+
+    CRANK_ANGLE_MAX_INJ = 720;
+    currentStatus.nSquirts = 1;
+    req_fuel_uS = req_fuel_uS * 2;
+  }
+  else if(configPage10.stagingEnabled == true) //Check if injector staging is enabled
+  {
+    maxInjOutputs = 6;
+
+    if( (configPage2.injLayout == INJ_SEQUENTIAL) || (configPage2.injLayout == INJ_SEMISEQUENTIAL) )
+    {
+      //Staging with 6 cylinders semi/sequential requires 7 total channels
+      #if INJ_CHANNELS >= 7
+        maxInjOutputs = 7;
+
+        channel5InjDegrees = channel1InjDegrees;
+        channel6InjDegrees = channel2InjDegrees;
+        channel7InjDegrees = channel3InjDegrees;
+        channel8InjDegrees = channel4InjDegrees;
+      #else
+        //This is an invalid config as there are not enough outputs to support sequential + staging
+        //No staging output will be active
+        maxInjOutputs = 6;
+      #endif
+    }
+  }
+#endif
+}
+
+/** @brief Configure timing for 8 cylinder engine. */
+static void configureCylinderTimings_8Cyl(void)
+{
+  channel1IgnDegrees = 0;
+  channel2IgnDegrees = 90;
+  channel3IgnDegrees = 180;
+  channel4IgnDegrees = 270;
+  maxIgnOutputs = 4;
+  maxInjOutputs = 4;
+
+
+  if( (configPage4.sparkMode == IGN_MODE_SINGLE))
+  {
+    maxIgnOutputs = 4;
+    CRANK_ANGLE_MAX_IGN = 360;
+  }
+
+
+#if IGN_CHANNELS >= 8
+  if( (configPage4.sparkMode == IGN_MODE_SEQUENTIAL))
+  {
+  channel5IgnDegrees = 360;
+  channel6IgnDegrees = 450;
+  channel7IgnDegrees = 540;
+  channel8IgnDegrees = 630;
+  maxIgnOutputs = 8;
+  CRANK_ANGLE_MAX_IGN = 720;
+  }
+#endif
+
+  //For alternating injection, the squirt occurs at different times for each channel
+  if( (configPage2.injLayout == INJ_SEMISEQUENTIAL) || (configPage2.injLayout == INJ_PAIRED) )
+  {
+    channel1InjDegrees = 0;
+    channel2InjDegrees = 90;
+    channel3InjDegrees = 180;
+    channel4InjDegrees = 270;
+
+    if (!configPage2.injTiming)
+    {
+      //For simultaneous, all squirts happen at the same time
+      channel1InjDegrees = 0;
+      channel2InjDegrees = 0;
+      channel3InjDegrees = 0;
+      channel4InjDegrees = 0;
+    }
+    else if (currentStatus.nSquirts > 2)
+    {
+      //Adjust the injection angles based on the number of squirts
+      channel2InjDegrees = (channel2InjDegrees * 2) / currentStatus.nSquirts;
+      channel3InjDegrees = (channel3InjDegrees * 2) / currentStatus.nSquirts;
+      channel4InjDegrees = (channel4InjDegrees * 2) / currentStatus.nSquirts;
+    }
+  }
+
+#if INJ_CHANNELS >= 8
+  else if (configPage2.injLayout == INJ_SEQUENTIAL)
+  {
+    channel1InjDegrees = 0;
+    channel2InjDegrees = 90;
+    channel3InjDegrees = 180;
+    channel4InjDegrees = 270;
+    channel5InjDegrees = 360;
+    channel6InjDegrees = 450;
+    channel7InjDegrees = 540;
+    channel8InjDegrees = 630;
+
+    maxInjOutputs = 8;
+
+    CRANK_ANGLE_MAX_INJ = 720;
+    currentStatus.nSquirts = 1;
+    req_fuel_uS = req_fuel_uS * 2;
+  }
+#endif
+}
+
+/** @brief Default cylinder timing configuration fallback. */
+static void configureCylinderTimings_Default(void)
+{
+  channel1InjDegrees = 0;
+  channel2InjDegrees = 180;
+}
+
+} // anonymous namespace
+
+/**
+ * @brief Configure injection/ignition timing angles for all cylinder counts.
+ *
+ * Dispatcher function using Command Handler Pattern. Delegates to per-cylinder
+ * configuration handlers based on configPage2.nCylinders (1-8 supported).
+ *
+ * @note MISRA-C compliant refactored version (497 lines → 15 lines dispatcher + 7 handlers)
+ */
 static void configureCylinderTimings(void)
 {
-    switch (configPage2.nCylinders) {
-    case 1:
-        channel1IgnDegrees = 0;
-        channel1InjDegrees = 0;
-        maxIgnOutputs = 1;
-        maxInjOutputs = 1;
-
-        //Sequential ignition works identically on a 1 cylinder whether it's odd or even fire.
-        if( (configPage4.sparkMode == IGN_MODE_SEQUENTIAL) && (configPage2.strokes == FOUR_STROKE) ) { CRANK_ANGLE_MAX_IGN = 720; }
-
-        if ( (configPage2.injLayout == INJ_SEQUENTIAL) && (configPage2.strokes == FOUR_STROKE) )
-        {
-          CRANK_ANGLE_MAX_INJ = 720;
-          currentStatus.nSquirts = 1;
-          req_fuel_uS = req_fuel_uS * 2;
-        }
-
-        //Check if injector staging is enabled
-        if(configPage10.stagingEnabled == true)
-        {
-          maxInjOutputs = 2;
-          channel2InjDegrees = channel1InjDegrees;
-        }
-        break;
-
-    case 2:
-        channel1IgnDegrees = 0;
-        channel1InjDegrees = 0;
-        maxIgnOutputs = 2;
-        maxInjOutputs = 2;
-        if (configPage2.engineType == EVEN_FIRE ) { channel2IgnDegrees = 180; }
-        else { channel2IgnDegrees = configPage2.oddfire2; }
-
-        //Sequential ignition works identically on a 2 cylinder whether it's odd or even fire (With the default being a 180 degree second cylinder).
-        if( (configPage4.sparkMode == IGN_MODE_SEQUENTIAL) && (configPage2.strokes == FOUR_STROKE) ) { CRANK_ANGLE_MAX_IGN = 720; }
-
-        if ( (configPage2.injLayout == INJ_SEQUENTIAL) && (configPage2.strokes == FOUR_STROKE) )
-        {
-          CRANK_ANGLE_MAX_INJ = 720;
-          currentStatus.nSquirts = 1;
-          req_fuel_uS = req_fuel_uS * 2;
-        }
-        //The below are true regardless of whether this is running sequential or not
-        if (configPage2.engineType == EVEN_FIRE ) { channel2InjDegrees = 180; }
-        else { channel2InjDegrees = configPage2.oddfire2; }
-        if (!configPage2.injTiming)
-        {
-          //For simultaneous, all squirts happen at the same time
-          channel1InjDegrees = 0;
-          channel2InjDegrees = 0;
-        }
-
-        //Check if injector staging is enabled
-        if(configPage10.stagingEnabled == true)
-        {
-          maxInjOutputs = 4;
-
-          channel3InjDegrees = channel1InjDegrees;
-          channel4InjDegrees = channel2InjDegrees;
-        }
-
-        break;
-
-    case 3:
-        channel1IgnDegrees = 0;
-        maxIgnOutputs = 3;
-        maxInjOutputs = 3;
-        if (configPage2.engineType == EVEN_FIRE )
-        {
-          //Sequential and Single channel modes both run over 720 crank degrees, but only on 4 stroke engines.
-          if( ( (configPage4.sparkMode == IGN_MODE_SEQUENTIAL) || (configPage4.sparkMode == IGN_MODE_SINGLE) ) && (configPage2.strokes == FOUR_STROKE) )
-          {
-            channel2IgnDegrees = 240;
-            channel3IgnDegrees = 480;
-
-            CRANK_ANGLE_MAX_IGN = 720;
-          }
-          else
-          {
-            channel2IgnDegrees = 120;
-            channel3IgnDegrees = 240;
-          }
-        }
-        else
-        {
-          channel2IgnDegrees = configPage2.oddfire2;
-          channel3IgnDegrees = configPage2.oddfire3;
-        }
-
-        //For alternating injection, the squirt occurs at different times for each channel
-        if( (configPage2.injLayout == INJ_SEMISEQUENTIAL) || (configPage2.injLayout == INJ_PAIRED) )
-        {
-          channel1InjDegrees = 0;
-          channel2InjDegrees = 120;
-          channel3InjDegrees = 240;
-
-          if(configPage2.injType == INJ_TYPE_PORT)
-          {
-            //Force nSquirts to 2 for individual port injection. This prevents TunerStudio forcing the value to 3 even when this isn't wanted.
-            currentStatus.nSquirts = 2;
-            if(configPage2.strokes == FOUR_STROKE) { CRANK_ANGLE_MAX_INJ = 360; }
-            else { CRANK_ANGLE_MAX_INJ = 180; }
-          }
-
-          //Adjust the injection angles based on the number of squirts
-          if (currentStatus.nSquirts > 2)
-          {
-            channel2InjDegrees = (channel2InjDegrees * 2) / currentStatus.nSquirts;
-            channel3InjDegrees = (channel3InjDegrees * 2) / currentStatus.nSquirts;
-          }
-
-          if (!configPage2.injTiming)
-          {
-            //For simultaneous, all squirts happen at the same time
-            channel1InjDegrees = 0;
-            channel2InjDegrees = 0;
-            channel3InjDegrees = 0;
-          }
-        }
-        else if (configPage2.injLayout == INJ_SEQUENTIAL)
-        {
-          currentStatus.nSquirts = 1;
-
-          if(configPage2.strokes == TWO_STROKE)
-          {
-            channel1InjDegrees = 0;
-            channel2InjDegrees = 120;
-            channel3InjDegrees = 240;
-            CRANK_ANGLE_MAX_INJ = 360;
-          }
-          else
-          {
-            req_fuel_uS = req_fuel_uS * 2;
-            channel1InjDegrees = 0;
-            channel2InjDegrees = 240;
-            channel3InjDegrees = 480;
-            CRANK_ANGLE_MAX_INJ = 720;
-          }
-        }
-        else
-        {
-          //Should never happen, but default values
-          channel1InjDegrees = 0;
-          channel2InjDegrees = 120;
-          channel3InjDegrees = 240;
-        }
-
-        //Check if injector staging is enabled
-        if(configPage10.stagingEnabled == true)
-        {
-          #if INJ_CHANNELS >= 6
-            maxInjOutputs = 6;
-
-            channel4InjDegrees = channel1InjDegrees;
-            channel5InjDegrees = channel2InjDegrees;
-            channel6InjDegrees = channel3InjDegrees;
-          #else
-            //Staged output is on channel 4
-            maxInjOutputs = 4;
-            channel4InjDegrees = channel1InjDegrees;
-          #endif
-        }
-        break;
-    case 4:
-        channel1IgnDegrees = 0;
-        channel1InjDegrees = 0;
-        maxIgnOutputs = 2; //Default value for 4 cylinder, may be changed below
-        maxInjOutputs = 2;
-        if (configPage2.engineType == EVEN_FIRE )
-        {
-          channel2IgnDegrees = 180;
-
-          if( (configPage4.sparkMode == IGN_MODE_SEQUENTIAL) && (configPage2.strokes == FOUR_STROKE) )
-          {
-            channel3IgnDegrees = 360;
-            channel4IgnDegrees = 540;
-
-            CRANK_ANGLE_MAX_IGN = 720;
-            maxIgnOutputs = 4;
-          }
-          if(configPage4.sparkMode == IGN_MODE_ROTARY)
-          {
-            //Rotary uses the ign 3 and 4 schedules for the trailing spark. They are offset from the ign 1 and 2 channels respectively and so use the same degrees as them
-            channel3IgnDegrees = 0;
-            channel4IgnDegrees = 180;
-            maxIgnOutputs = 4;
-
-            configPage4.IgInv = GOING_LOW; //Force Going Low ignition mode (Going high is never used for rotary)
-          }
-        }
-        else
-        {
-          channel2IgnDegrees = configPage2.oddfire2;
-          channel3IgnDegrees = configPage2.oddfire3;
-          channel4IgnDegrees = configPage2.oddfire4;
-          maxIgnOutputs = 4;
-        }
-
-        //For alternating injection, the squirt occurs at different times for each channel
-        if( (configPage2.injLayout == INJ_SEMISEQUENTIAL) || (configPage2.injLayout == INJ_PAIRED) || (configPage2.strokes == TWO_STROKE) )
-        {
-          channel2InjDegrees = 180;
-
-          if (!configPage2.injTiming)
-          {
-            //For simultaneous, all squirts happen at the same time
-            channel1InjDegrees = 0;
-            channel2InjDegrees = 0;
-          }
-          else if (currentStatus.nSquirts > 2)
-          {
-            //Adjust the injection angles based on the number of squirts
-            channel2InjDegrees = (channel2InjDegrees * 2) / currentStatus.nSquirts;
-          }
-          else { } //Do nothing, default values are correct
-        }
-        else if (configPage2.injLayout == INJ_SEQUENTIAL)
-        {
-          channel2InjDegrees = 180;
-          channel3InjDegrees = 360;
-          channel4InjDegrees = 540;
-
-          maxInjOutputs = 4;
-
-          CRANK_ANGLE_MAX_INJ = 720;
-          currentStatus.nSquirts = 1;
-          req_fuel_uS = req_fuel_uS * 2;
-        }
-        else
-        {
-          //Should never happen, but default values
-          maxInjOutputs = 2;
-        }
-
-        //Check if injector staging is enabled
-        if(configPage10.stagingEnabled == true)
-        {
-          maxInjOutputs = 4;
-
-          if( (configPage2.injLayout == INJ_SEQUENTIAL) || (configPage2.injLayout == INJ_SEMISEQUENTIAL) )
-          {
-            //Staging with 4 cylinders semi/sequential requires 8 total channels
-            #if INJ_CHANNELS >= 8
-              maxInjOutputs = 8;
-
-              channel5InjDegrees = channel1InjDegrees;
-              channel6InjDegrees = channel2InjDegrees;
-              channel7InjDegrees = channel3InjDegrees;
-              channel8InjDegrees = channel4InjDegrees;
-            #else
-              //This is an invalid config as there are not enough outputs to support sequential + staging
-              //Put the staging output to the non-existent channel 5
-              #if (INJ_CHANNELS >= 5)
-              maxInjOutputs = 5;
-              channel5InjDegrees = channel1InjDegrees;
-              #endif
-            #endif
-          }
-          else
-          {
-            channel3InjDegrees = channel1InjDegrees;
-            channel4InjDegrees = channel2InjDegrees;
-          }
-        }
-
-        break;
-    case 5:
-        channel1IgnDegrees = 0;
-        channel2IgnDegrees = 72;
-        channel3IgnDegrees = 144;
-        channel4IgnDegrees = 216;
-#if (IGN_CHANNELS >= 5)
-        channel5IgnDegrees = 288;
-#endif
-        maxIgnOutputs = 5; //Only 4 actual outputs, so that's all that can be cut
-        maxInjOutputs = 4; //Is updated below to 5 if there are enough channels
-
-        if(configPage4.sparkMode == IGN_MODE_SEQUENTIAL)
-        {
-          channel2IgnDegrees = 144;
-          channel3IgnDegrees = 288;
-          channel4IgnDegrees = 432;
-#if (IGN_CHANNELS >= 5)
-          channel5IgnDegrees = 576;
-#endif
-
-          CRANK_ANGLE_MAX_IGN = 720;
-        }
-
-        //For alternating injection, the squirt occurs at different times for each channel
-        if( (configPage2.injLayout == INJ_SEMISEQUENTIAL) || (configPage2.injLayout == INJ_PAIRED) || (configPage2.strokes == TWO_STROKE) )
-        {
-          if (!configPage2.injTiming)
-          {
-            //For simultaneous, all squirts happen at the same time
-            channel1InjDegrees = 0;
-            channel2InjDegrees = 0;
-            channel3InjDegrees = 0;
-            channel4InjDegrees = 0;
-#if (INJ_CHANNELS >= 5)
-            channel5InjDegrees = 0;
-#endif
-          }
-          else
-          {
-            channel1InjDegrees = 0;
-            channel2InjDegrees = 72;
-            channel3InjDegrees = 144;
-            channel4InjDegrees = 216;
-#if (INJ_CHANNELS >= 5)
-            channel5InjDegrees = 288;
-#endif
-
-            //Divide by currentStatus.nSquirts ?
-          }
-        }
-    #if INJ_CHANNELS >= 5
-        else if (configPage2.injLayout == INJ_SEQUENTIAL)
-        {
-          channel1InjDegrees = 0;
-          channel2InjDegrees = 144;
-          channel3InjDegrees = 288;
-          channel4InjDegrees = 432;
-          channel5InjDegrees = 576;
-
-          maxInjOutputs = 5;
-
-          CRANK_ANGLE_MAX_INJ = 720;
-          currentStatus.nSquirts = 1;
-          req_fuel_uS = req_fuel_uS * 2;
-        }
-    #endif
-
-    #if INJ_CHANNELS >= 6
-          if(configPage10.stagingEnabled == true) { maxInjOutputs = 6; }
-    #endif
-        break;
-    case 6:
-        channel1IgnDegrees = 0;
-        channel2IgnDegrees = 120;
-        channel3IgnDegrees = 240;
-        maxIgnOutputs = 3;
-        maxInjOutputs = 3;
-
-    #if IGN_CHANNELS >= 6
-        if( (configPage4.sparkMode == IGN_MODE_SEQUENTIAL))
-        {
-        channel4IgnDegrees = 360;
-        channel5IgnDegrees = 480;
-        channel6IgnDegrees = 600;
-        CRANK_ANGLE_MAX_IGN = 720;
-        maxIgnOutputs = 6;
-        }
-    #endif
-
-        //For alternating injection, the squirt occurs at different times for each channel
-        if( (configPage2.injLayout == INJ_SEMISEQUENTIAL) || (configPage2.injLayout == INJ_PAIRED) )
-        {
-          channel1InjDegrees = 0;
-          channel2InjDegrees = 120;
-          channel3InjDegrees = 240;
-          if (!configPage2.injTiming)
-          {
-            //For simultaneous, all squirts happen at the same time
-            channel1InjDegrees = 0;
-            channel2InjDegrees = 0;
-            channel3InjDegrees = 0;
-          }
-          else if (currentStatus.nSquirts > 2)
-          {
-            //Adjust the injection angles based on the number of squirts
-            channel2InjDegrees = (channel2InjDegrees * 2) / currentStatus.nSquirts;
-            channel3InjDegrees = (channel3InjDegrees * 2) / currentStatus.nSquirts;
-          }
-        }
-
-    #if INJ_CHANNELS >= 6
-        if (configPage2.injLayout == INJ_SEQUENTIAL)
-        {
-          channel1InjDegrees = 0;
-          channel2InjDegrees = 120;
-          channel3InjDegrees = 240;
-          channel4InjDegrees = 360;
-          channel5InjDegrees = 480;
-          channel6InjDegrees = 600;
-
-          maxInjOutputs = 6;
-
-          CRANK_ANGLE_MAX_INJ = 720;
-          currentStatus.nSquirts = 1;
-          req_fuel_uS = req_fuel_uS * 2;
-        }
-        else if(configPage10.stagingEnabled == true) //Check if injector staging is enabled
-        {
-          maxInjOutputs = 6;
-
-          if( (configPage2.injLayout == INJ_SEQUENTIAL) || (configPage2.injLayout == INJ_SEMISEQUENTIAL) )
-          {
-            //Staging with 6 cylinders semi/sequential requires 7 total channels
-            #if INJ_CHANNELS >= 7
-              maxInjOutputs = 7;
-
-              channel5InjDegrees = channel1InjDegrees;
-              channel6InjDegrees = channel2InjDegrees;
-              channel7InjDegrees = channel3InjDegrees;
-              channel8InjDegrees = channel4InjDegrees;
-            #else
-              //This is an invalid config as there are not enough outputs to support sequential + staging
-              //No staging output will be active
-              maxInjOutputs = 6;
-            #endif
-          }
-        }
-    #endif
-        break;
-    case 8:
-        channel1IgnDegrees = 0;
-        channel2IgnDegrees = 90;
-        channel3IgnDegrees = 180;
-        channel4IgnDegrees = 270;
-        maxIgnOutputs = 4;
-        maxInjOutputs = 4;
-
-
-        if( (configPage4.sparkMode == IGN_MODE_SINGLE))
-        {
-          maxIgnOutputs = 4;
-          CRANK_ANGLE_MAX_IGN = 360;
-        }
-
-
-    #if IGN_CHANNELS >= 8
-        if( (configPage4.sparkMode == IGN_MODE_SEQUENTIAL))
-        {
-        channel5IgnDegrees = 360;
-        channel6IgnDegrees = 450;
-        channel7IgnDegrees = 540;
-        channel8IgnDegrees = 630;
-        maxIgnOutputs = 8;
-        CRANK_ANGLE_MAX_IGN = 720;
-        }
-    #endif
-
-        //For alternating injection, the squirt occurs at different times for each channel
-        if( (configPage2.injLayout == INJ_SEMISEQUENTIAL) || (configPage2.injLayout == INJ_PAIRED) )
-        {
-          channel1InjDegrees = 0;
-          channel2InjDegrees = 90;
-          channel3InjDegrees = 180;
-          channel4InjDegrees = 270;
-
-          if (!configPage2.injTiming)
-          {
-            //For simultaneous, all squirts happen at the same time
-            channel1InjDegrees = 0;
-            channel2InjDegrees = 0;
-            channel3InjDegrees = 0;
-            channel4InjDegrees = 0;
-          }
-          else if (currentStatus.nSquirts > 2)
-          {
-            //Adjust the injection angles based on the number of squirts
-            channel2InjDegrees = (channel2InjDegrees * 2) / currentStatus.nSquirts;
-            channel3InjDegrees = (channel3InjDegrees * 2) / currentStatus.nSquirts;
-            channel4InjDegrees = (channel4InjDegrees * 2) / currentStatus.nSquirts;
-          }
-        }
-
-    #if INJ_CHANNELS >= 8
-        else if (configPage2.injLayout == INJ_SEQUENTIAL)
-        {
-          channel1InjDegrees = 0;
-          channel2InjDegrees = 90;
-          channel3InjDegrees = 180;
-          channel4InjDegrees = 270;
-          channel5InjDegrees = 360;
-          channel6InjDegrees = 450;
-          channel7InjDegrees = 540;
-          channel8InjDegrees = 630;
-
-          maxInjOutputs = 8;
-
-          CRANK_ANGLE_MAX_INJ = 720;
-          currentStatus.nSquirts = 1;
-          req_fuel_uS = req_fuel_uS * 2;
-        }
-    #endif
-
-        break;
-    default: //Handle this better!!!
-        channel1InjDegrees = 0;
-        channel2InjDegrees = 180;
-        break;
-    }
+  switch (configPage2.nCylinders) {
+  case 1: configureCylinderTimings_1Cyl(); break;
+  case 2: configureCylinderTimings_2Cyl(); break;
+  case 3: configureCylinderTimings_3Cyl(); break;
+  case 4: configureCylinderTimings_4Cyl(); break;
+  case 5: configureCylinderTimings_5Cyl(); break;
+  case 6: configureCylinderTimings_6Cyl(); break;
+  case 8: configureCylinderTimings_8Cyl(); break;
+  default: configureCylinderTimings_Default(); break;
+  }
 }
 
 /**
@@ -762,408 +801,433 @@ static void safetyShutdownAllOutputs(void)
     digitalWrite(pinTachOut, HIGH);
 }
 
+namespace {
+
+/** @brief Configure paired injection layout. */
+static void configureInjectionLayout_Paired(void)
+{
+  fuelSchedule1.pStartFunction = openInjector1;
+  fuelSchedule1.pEndFunction = closeInjector1;
+  fuelSchedule2.pStartFunction = openInjector2;
+  fuelSchedule2.pEndFunction = closeInjector2;
+  fuelSchedule3.pStartFunction = openInjector3;
+  fuelSchedule3.pEndFunction = closeInjector3;
+  fuelSchedule4.pStartFunction = openInjector4;
+  fuelSchedule4.pEndFunction = closeInjector4;
+#if INJ_CHANNELS >= 5
+  fuelSchedule5.pStartFunction = openInjector5;
+  fuelSchedule5.pEndFunction = closeInjector5;
+#endif
+}
+
+/** @brief Semi-sequential 4-cyl pairing mode 1&3, 2&4. */
+static void configureInjectionLayout_SemiSeq_4Cyl_Pair1324(void)
+{
+  fuelSchedule1.pStartFunction = openInjector1and3;
+  fuelSchedule1.pEndFunction = closeInjector1and3;
+  fuelSchedule2.pStartFunction = openInjector2and4;
+  fuelSchedule2.pEndFunction = closeInjector2and4;
+}
+
+/** @brief Semi-sequential 4-cyl pairing mode 1&4, 2&3. */
+static void configureInjectionLayout_SemiSeq_4Cyl_Pair1423(void)
+{
+  fuelSchedule1.pStartFunction = openInjector1and4;
+  fuelSchedule1.pEndFunction = closeInjector1and4;
+  fuelSchedule2.pStartFunction = openInjector2and3;
+  fuelSchedule2.pEndFunction = closeInjector2and3;
+}
+
+/** @brief Semi-sequential 4-cyl dispatcher. */
+static void configureInjectionLayout_SemiSeq_4Cyl(void)
+{
+  if(configPage4.inj4cylPairing == INJ_PAIR_13_24) { configureInjectionLayout_SemiSeq_4Cyl_Pair1324(); }
+  else { configureInjectionLayout_SemiSeq_4Cyl_Pair1423(); }
+}
+
+/** @brief Semi-sequential 5-cyl (pairs 3&5). */
+static void configureInjectionLayout_SemiSeq_5Cyl(void)
+{
+  fuelSchedule1.pStartFunction = openInjector1;
+  fuelSchedule1.pEndFunction = closeInjector1;
+  fuelSchedule2.pStartFunction = openInjector2;
+  fuelSchedule2.pEndFunction = closeInjector2;
+  fuelSchedule3.pStartFunction = openInjector3and5;
+  fuelSchedule3.pEndFunction = closeInjector3and5;
+  fuelSchedule4.pStartFunction = openInjector4;
+  fuelSchedule4.pEndFunction = closeInjector4;
+}
+
+/** @brief Semi-sequential 6-cyl (pairs 1&4, 2&5, 3&6). */
+static void configureInjectionLayout_SemiSeq_6Cyl(void)
+{
+  fuelSchedule1.pStartFunction = openInjector1and4;
+  fuelSchedule1.pEndFunction = closeInjector1and4;
+  fuelSchedule2.pStartFunction = openInjector2and5;
+  fuelSchedule2.pEndFunction = closeInjector2and5;
+  fuelSchedule3.pStartFunction = openInjector3and6;
+  fuelSchedule3.pEndFunction = closeInjector3and6;
+}
+
+/** @brief Semi-sequential 8-cyl (pairs 1&5, 2&6, 3&7, 4&8). */
+static void configureInjectionLayout_SemiSeq_8Cyl(void)
+{
+  fuelSchedule1.pStartFunction = openInjector1and5;
+  fuelSchedule1.pEndFunction = closeInjector1and5;
+  fuelSchedule2.pStartFunction = openInjector2and6;
+  fuelSchedule2.pEndFunction = closeInjector2and6;
+  fuelSchedule3.pStartFunction = openInjector3and7;
+  fuelSchedule3.pEndFunction = closeInjector3and7;
+  fuelSchedule4.pStartFunction = openInjector4and8;
+  fuelSchedule4.pEndFunction = closeInjector4and8;
+}
+
+/** @brief Semi-sequential fallback (paired injection). */
+static void configureInjectionLayout_SemiSeq_Fallback(void)
+{
+  fuelSchedule1.pStartFunction = openInjector1;
+  fuelSchedule1.pEndFunction = closeInjector1;
+  fuelSchedule2.pStartFunction = openInjector2;
+  fuelSchedule2.pEndFunction = closeInjector2;
+  fuelSchedule3.pStartFunction = openInjector3;
+  fuelSchedule3.pEndFunction = closeInjector3;
+  fuelSchedule4.pStartFunction = openInjector4;
+  fuelSchedule4.pEndFunction = closeInjector4;
+#if INJ_CHANNELS >= 5
+  fuelSchedule5.pStartFunction = openInjector5;
+  fuelSchedule5.pEndFunction = closeInjector5;
+#endif
+}
+
+/** @brief Semi-sequential dispatcher based on cylinder count. */
+static void configureInjectionLayout_SemiSequential(void)
+{
+  if( configPage2.nCylinders == 4 ) { configureInjectionLayout_SemiSeq_4Cyl(); }
+  else if( configPage2.nCylinders == 5 ) { configureInjectionLayout_SemiSeq_5Cyl(); }
+  else if( configPage2.nCylinders == 6 ) { configureInjectionLayout_SemiSeq_6Cyl(); }
+  else if( configPage2.nCylinders == 8 ) { configureInjectionLayout_SemiSeq_8Cyl(); }
+  else { configureInjectionLayout_SemiSeq_Fallback(); }
+}
+
+/** @brief Configure sequential injection layout. */
+static void configureInjectionLayout_Sequential(void)
+{
+  fuelSchedule1.pStartFunction = openInjector1;
+  fuelSchedule1.pEndFunction = closeInjector1;
+  fuelSchedule2.pStartFunction = openInjector2;
+  fuelSchedule2.pEndFunction = closeInjector2;
+  fuelSchedule3.pStartFunction = openInjector3;
+  fuelSchedule3.pEndFunction = closeInjector3;
+  fuelSchedule4.pStartFunction = openInjector4;
+  fuelSchedule4.pEndFunction = closeInjector4;
+#if INJ_CHANNELS >= 5
+  fuelSchedule5.pStartFunction = openInjector5;
+  fuelSchedule5.pEndFunction = closeInjector5;
+#endif
+#if INJ_CHANNELS >= 6
+  fuelSchedule6.pStartFunction = openInjector6;
+  fuelSchedule6.pEndFunction = closeInjector6;
+#endif
+#if INJ_CHANNELS >= 7
+  fuelSchedule7.pStartFunction = openInjector7;
+  fuelSchedule7.pEndFunction = closeInjector7;
+#endif
+#if INJ_CHANNELS >= 8
+  fuelSchedule8.pStartFunction = openInjector8;
+  fuelSchedule8.pEndFunction = closeInjector8;
+#endif
+}
+
+} // anonymous namespace
+
 /**
- * Configure injection layout by assigning function pointers to fuel schedules.
+ * @brief Configure injection layout by assigning function pointers to fuel schedules.
  *
- * This function sets up the fuel delivery system based on the configured injection
- * layout (configPage2.injLayout). It assigns appropriate start/end function pointers
- * to each fuel schedule (fuelSchedule1-8) based on the injection mode:
+ * Dispatcher function using Command Handler Pattern. Delegates to injection layout
+ * configuration handlers based on configPage2.injLayout.
  *
+ * Supported modes:
  * - INJ_PAIRED: Each injector operates independently, paired with its cylinder
- * - INJ_SEMISEQUENTIAL: Injectors are paired (e.g., 1&3, 2&4 for 4-cyl)
+ * - INJ_SEMISEQUENTIAL: Injectors are paired (4/5/6/8 cyl special cases)
  * - INJ_SEQUENTIAL: Each injector fires independently in engine firing order
- * - default: Falls back to paired injection mode
  *
- * Special cases handled:
- * - 4-cylinder: Supports two pairing modes (INJ_PAIR_13_24 or INJ_PAIR_14_23)
- * - 5-cylinder: Uses 5 outputs with special pairing for cylinders 3&5
- * - 6-cylinder: Pairs 1&4, 2&5, 3&6
- * - 8-cylinder: Pairs 1&5, 2&6, 3&7, 4&8
- *
- * All variables modified are global schedule structures, changes persist after return.
- * Must be called after configureCylinderTimings() during initialization.
+ * @note MISRA-C compliant refactored version (133 lines → 8 lines dispatcher + 11 handlers)
  */
 static void configureInjectionLayout(void)
 {
-    switch(configPage2.injLayout)
-    {
-    case INJ_PAIRED:
-        //Paired injection
-        fuelSchedule1.pStartFunction = openInjector1;
-        fuelSchedule1.pEndFunction = closeInjector1;
-        fuelSchedule2.pStartFunction = openInjector2;
-        fuelSchedule2.pEndFunction = closeInjector2;
-        fuelSchedule3.pStartFunction = openInjector3;
-        fuelSchedule3.pEndFunction = closeInjector3;
-        fuelSchedule4.pStartFunction = openInjector4;
-        fuelSchedule4.pEndFunction = closeInjector4;
-#if INJ_CHANNELS >= 5
-        fuelSchedule5.pStartFunction = openInjector5;
-        fuelSchedule5.pEndFunction = closeInjector5;
-#endif
-        break;
-
-    case INJ_SEMISEQUENTIAL:
-        //Semi-Sequential injection. Currently possible with 4, 6 and 8 cylinders. 5 cylinder is a special case
-        if( configPage2.nCylinders == 4 )
-        {
-          if(configPage4.inj4cylPairing == INJ_PAIR_13_24)
-          {
-            fuelSchedule1.pStartFunction = openInjector1and3;
-            fuelSchedule1.pEndFunction = closeInjector1and3;
-            fuelSchedule2.pStartFunction = openInjector2and4;
-            fuelSchedule2.pEndFunction = closeInjector2and4;
-          }
-          else
-          {
-            fuelSchedule1.pStartFunction = openInjector1and4;
-            fuelSchedule1.pEndFunction = closeInjector1and4;
-            fuelSchedule2.pStartFunction = openInjector2and3;
-            fuelSchedule2.pEndFunction = closeInjector2and3;
-          }
-        }
-        else if( configPage2.nCylinders == 5 ) //This is similar to the paired injection but uses five injector outputs instead of four
-        {
-          fuelSchedule1.pStartFunction = openInjector1;
-          fuelSchedule1.pEndFunction = closeInjector1;
-          fuelSchedule2.pStartFunction = openInjector2;
-          fuelSchedule2.pEndFunction = closeInjector2;
-          fuelSchedule3.pStartFunction = openInjector3and5;
-          fuelSchedule3.pEndFunction = closeInjector3and5;
-          fuelSchedule4.pStartFunction = openInjector4;
-          fuelSchedule4.pEndFunction = closeInjector4;
-        }
-        else if( configPage2.nCylinders == 6 )
-        {
-          fuelSchedule1.pStartFunction = openInjector1and4;
-          fuelSchedule1.pEndFunction = closeInjector1and4;
-          fuelSchedule2.pStartFunction = openInjector2and5;
-          fuelSchedule2.pEndFunction = closeInjector2and5;
-          fuelSchedule3.pStartFunction = openInjector3and6;
-          fuelSchedule3.pEndFunction = closeInjector3and6;
-        }
-        else if( configPage2.nCylinders == 8 )
-        {
-          fuelSchedule1.pStartFunction = openInjector1and5;
-          fuelSchedule1.pEndFunction = closeInjector1and5;
-          fuelSchedule2.pStartFunction = openInjector2and6;
-          fuelSchedule2.pEndFunction = closeInjector2and6;
-          fuelSchedule3.pStartFunction = openInjector3and7;
-          fuelSchedule3.pEndFunction = closeInjector3and7;
-          fuelSchedule4.pStartFunction = openInjector4and8;
-          fuelSchedule4.pEndFunction = closeInjector4and8;
-        }
-        else
-        {
-          //Fall back to paired injection
-          fuelSchedule1.pStartFunction = openInjector1;
-          fuelSchedule1.pEndFunction = closeInjector1;
-          fuelSchedule2.pStartFunction = openInjector2;
-          fuelSchedule2.pEndFunction = closeInjector2;
-          fuelSchedule3.pStartFunction = openInjector3;
-          fuelSchedule3.pEndFunction = closeInjector3;
-          fuelSchedule4.pStartFunction = openInjector4;
-          fuelSchedule4.pEndFunction = closeInjector4;
-#if INJ_CHANNELS >= 5
-          fuelSchedule5.pStartFunction = openInjector5;
-          fuelSchedule5.pEndFunction = closeInjector5;
-#endif
-        }
-        break;
-
-    case INJ_SEQUENTIAL:
-        //Sequential injection
-        fuelSchedule1.pStartFunction = openInjector1;
-        fuelSchedule1.pEndFunction = closeInjector1;
-        fuelSchedule2.pStartFunction = openInjector2;
-        fuelSchedule2.pEndFunction = closeInjector2;
-        fuelSchedule3.pStartFunction = openInjector3;
-        fuelSchedule3.pEndFunction = closeInjector3;
-        fuelSchedule4.pStartFunction = openInjector4;
-        fuelSchedule4.pEndFunction = closeInjector4;
-#if INJ_CHANNELS >= 5
-        fuelSchedule5.pStartFunction = openInjector5;
-        fuelSchedule5.pEndFunction = closeInjector5;
-#endif
-#if INJ_CHANNELS >= 6
-        fuelSchedule6.pStartFunction = openInjector6;
-        fuelSchedule6.pEndFunction = closeInjector6;
-#endif
-#if INJ_CHANNELS >= 7
-        fuelSchedule7.pStartFunction = openInjector7;
-        fuelSchedule7.pEndFunction = closeInjector7;
-#endif
-#if INJ_CHANNELS >= 8
-        fuelSchedule8.pStartFunction = openInjector8;
-        fuelSchedule8.pEndFunction = closeInjector8;
-#endif
-        break;
-
-    default:
-        //Paired injection
-        fuelSchedule1.pStartFunction = openInjector1;
-        fuelSchedule1.pEndFunction = closeInjector1;
-        fuelSchedule2.pStartFunction = openInjector2;
-        fuelSchedule2.pEndFunction = closeInjector2;
-        fuelSchedule3.pStartFunction = openInjector3;
-        fuelSchedule3.pEndFunction = closeInjector3;
-        fuelSchedule4.pStartFunction = openInjector4;
-        fuelSchedule4.pEndFunction = closeInjector4;
-#if INJ_CHANNELS >= 5
-        fuelSchedule5.pStartFunction = openInjector5;
-        fuelSchedule5.pEndFunction = closeInjector5;
-#endif
-        break;
-    }
+  switch(configPage2.injLayout)
+  {
+  case INJ_PAIRED: configureInjectionLayout_Paired(); break;
+  case INJ_SEMISEQUENTIAL: configureInjectionLayout_SemiSequential(); break;
+  case INJ_SEQUENTIAL: configureInjectionLayout_Sequential(); break;
+  default: configureInjectionLayout_Paired(); break;
+  }
 }
 
+namespace {
+
+/** @brief Configure wasted spark ignition mode. */
+static void configureIgnitionMode_Wasted(void)
+{
+  ignitionSchedule1.pStartCallback = beginCoil1Charge;
+  ignitionSchedule1.pEndCallback = endCoil1Charge;
+  ignitionSchedule2.pStartCallback = beginCoil2Charge;
+  ignitionSchedule2.pEndCallback = endCoil2Charge;
+  ignitionSchedule3.pStartCallback = beginCoil3Charge;
+  ignitionSchedule3.pEndCallback = endCoil3Charge;
+  ignitionSchedule4.pStartCallback = beginCoil4Charge;
+  ignitionSchedule4.pEndCallback = endCoil4Charge;
+  ignitionSchedule5.pStartCallback = beginCoil5Charge;
+  ignitionSchedule5.pEndCallback = endCoil5Charge;
+}
+
+/** @brief Configure single channel ignition mode (all on coil 1). */
+static void configureIgnitionMode_Single(void)
+{
+  ignitionSchedule1.pStartCallback = beginCoil1Charge;
+  ignitionSchedule1.pEndCallback = endCoil1Charge;
+  ignitionSchedule2.pStartCallback = beginCoil1Charge;
+  ignitionSchedule2.pEndCallback = endCoil1Charge;
+  ignitionSchedule3.pStartCallback = beginCoil1Charge;
+  ignitionSchedule3.pEndCallback = endCoil1Charge;
+  ignitionSchedule4.pStartCallback = beginCoil1Charge;
+  ignitionSchedule4.pEndCallback = endCoil1Charge;
+#if IGN_CHANNELS >= 5
+  ignitionSchedule5.pStartCallback = beginCoil1Charge;
+  ignitionSchedule5.pEndCallback = endCoil1Charge;
+#endif
+#if IGN_CHANNELS >= 6
+  ignitionSchedule6.pStartCallback = beginCoil1Charge;
+  ignitionSchedule6.pEndCallback = endCoil1Charge;
+#endif
+#if IGN_CHANNELS >= 7
+  ignitionSchedule7.pStartCallback = beginCoil1Charge;
+  ignitionSchedule7.pEndCallback = endCoil1Charge;
+#endif
+#if IGN_CHANNELS >= 8
+  ignitionSchedule8.pStartCallback = beginCoil1Charge;
+  ignitionSchedule8.pEndCallback = endCoil1Charge;
+#endif
+}
+
+/** @brief Wasted COP for 1-3 cylinders (same as regular wasted). */
+static void configureIgnitionMode_WastedCOP_1to3Cyl(void)
+{
+  ignitionSchedule1.pStartCallback = beginCoil1Charge;
+  ignitionSchedule1.pEndCallback = endCoil1Charge;
+  ignitionSchedule2.pStartCallback = beginCoil2Charge;
+  ignitionSchedule2.pEndCallback = endCoil2Charge;
+  ignitionSchedule3.pStartCallback = beginCoil3Charge;
+  ignitionSchedule3.pEndCallback = endCoil3Charge;
+}
+
+/** @brief Wasted COP for 4 cylinders (pairs 1&3, 2&4). */
+static void configureIgnitionMode_WastedCOP_4Cyl(void)
+{
+  ignitionSchedule1.pStartCallback = beginCoil1and3Charge;
+  ignitionSchedule1.pEndCallback = endCoil1and3Charge;
+  ignitionSchedule2.pStartCallback = beginCoil2and4Charge;
+  ignitionSchedule2.pEndCallback = endCoil2and4Charge;
+
+  ignitionSchedule3.pStartCallback = nullCallback;
+  ignitionSchedule3.pEndCallback = nullCallback;
+  ignitionSchedule4.pStartCallback = nullCallback;
+  ignitionSchedule4.pEndCallback = nullCallback;
+}
+
+/** @brief Wasted COP for 6 cylinders (pairs 1&4, 2&5, 3&6). */
+static void configureIgnitionMode_WastedCOP_6Cyl(void)
+{
+  ignitionSchedule1.pStartCallback = beginCoil1and4Charge;
+  ignitionSchedule1.pEndCallback = endCoil1and4Charge;
+  ignitionSchedule2.pStartCallback = beginCoil2and5Charge;
+  ignitionSchedule2.pEndCallback = endCoil2and5Charge;
+  ignitionSchedule3.pStartCallback = beginCoil3and6Charge;
+  ignitionSchedule3.pEndCallback = endCoil3and6Charge;
+
+  ignitionSchedule4.pStartCallback = nullCallback;
+  ignitionSchedule4.pEndCallback = nullCallback;
+  ignitionSchedule5.pStartCallback = nullCallback;
+  ignitionSchedule5.pEndCallback = nullCallback;
+#if IGN_CHANNELS >= 6
+  ignitionSchedule6.pStartCallback = nullCallback;
+  ignitionSchedule6.pEndCallback = nullCallback;
+#endif
+}
+
+/** @brief Wasted COP for 8 cylinders (pairs 1&5, 2&6, 3&7, 4&8). */
+static void configureIgnitionMode_WastedCOP_8Cyl(void)
+{
+  ignitionSchedule1.pStartCallback = beginCoil1and5Charge;
+  ignitionSchedule1.pEndCallback = endCoil1and5Charge;
+  ignitionSchedule2.pStartCallback = beginCoil2and6Charge;
+  ignitionSchedule2.pEndCallback = endCoil2and6Charge;
+  ignitionSchedule3.pStartCallback = beginCoil3and7Charge;
+  ignitionSchedule3.pEndCallback = endCoil3and7Charge;
+  ignitionSchedule4.pStartCallback = beginCoil4and8Charge;
+  ignitionSchedule4.pEndCallback = endCoil4and8Charge;
+
+  ignitionSchedule5.pStartCallback = nullCallback;
+  ignitionSchedule5.pEndCallback = nullCallback;
+#if IGN_CHANNELS >= 6
+  ignitionSchedule6.pStartCallback = nullCallback;
+  ignitionSchedule6.pEndCallback = nullCallback;
+#endif
+#if IGN_CHANNELS >= 7
+  ignitionSchedule7.pStartCallback = nullCallback;
+  ignitionSchedule7.pEndCallback = nullCallback;
+#endif
+#if IGN_CHANNELS >= 8
+  ignitionSchedule8.pStartCallback = nullCallback;
+  ignitionSchedule8.pEndCallback = nullCallback;
+#endif
+}
+
+/** @brief Wasted COP fallback (uses standard wasted spark mode). */
+static void configureIgnitionMode_WastedCOP_Fallback(void)
+{
+  ignitionSchedule1.pStartCallback = beginCoil1Charge;
+  ignitionSchedule1.pEndCallback = endCoil1Charge;
+  ignitionSchedule2.pStartCallback = beginCoil2Charge;
+  ignitionSchedule2.pEndCallback = endCoil2Charge;
+  ignitionSchedule3.pStartCallback = beginCoil3Charge;
+  ignitionSchedule3.pEndCallback = endCoil3Charge;
+  ignitionSchedule4.pStartCallback = beginCoil4Charge;
+  ignitionSchedule4.pEndCallback = endCoil4Charge;
+  ignitionSchedule5.pStartCallback = beginCoil5Charge;
+  ignitionSchedule5.pEndCallback = endCoil5Charge;
+}
+
+/** @brief Wasted COP mode dispatcher based on cylinder count. */
+static void configureIgnitionMode_WastedCOP(void)
+{
+  if( configPage2.nCylinders <= 3) { configureIgnitionMode_WastedCOP_1to3Cyl(); }
+  else if( configPage2.nCylinders == 4 ) { configureIgnitionMode_WastedCOP_4Cyl(); }
+  else if( configPage2.nCylinders == 6 ) { configureIgnitionMode_WastedCOP_6Cyl(); }
+  else if( configPage2.nCylinders == 8 ) { configureIgnitionMode_WastedCOP_8Cyl(); }
+  else { configureIgnitionMode_WastedCOP_Fallback(); }
+}
+
+/** @brief Configure sequential ignition mode. */
+static void configureIgnitionMode_Sequential(void)
+{
+  ignitionSchedule1.pStartCallback = beginCoil1Charge;
+  ignitionSchedule1.pEndCallback = endCoil1Charge;
+  ignitionSchedule2.pStartCallback = beginCoil2Charge;
+  ignitionSchedule2.pEndCallback = endCoil2Charge;
+  ignitionSchedule3.pStartCallback = beginCoil3Charge;
+  ignitionSchedule3.pEndCallback = endCoil3Charge;
+  ignitionSchedule4.pStartCallback = beginCoil4Charge;
+  ignitionSchedule4.pEndCallback = endCoil4Charge;
+  ignitionSchedule5.pStartCallback = beginCoil5Charge;
+  ignitionSchedule5.pEndCallback = endCoil5Charge;
+#if IGN_CHANNELS >= 6
+  ignitionSchedule6.pStartCallback = beginCoil6Charge;
+  ignitionSchedule6.pEndCallback = endCoil6Charge;
+#endif
+#if IGN_CHANNELS >= 7
+  ignitionSchedule7.pStartCallback = beginCoil7Charge;
+  ignitionSchedule7.pEndCallback = endCoil7Charge;
+#endif
+#if IGN_CHANNELS >= 8
+  ignitionSchedule8.pStartCallback = beginCoil8Charge;
+  ignitionSchedule8.pEndCallback = endCoil8Charge;
+#endif
+}
+
+/** @brief Rotary FC mode (wasted leading + shared trailing). */
+static void configureIgnitionMode_Rotary_FC(void)
+{
+  ignitionSchedule1.pStartCallback = beginCoil1Charge;
+  ignitionSchedule1.pEndCallback = endCoil1Charge;
+  ignitionSchedule2.pStartCallback = beginCoil1Charge;
+  ignitionSchedule2.pEndCallback = endCoil1Charge;
+
+  ignitionSchedule3.pStartCallback = beginTrailingCoilCharge;
+  ignitionSchedule3.pEndCallback = endTrailingCoilCharge1;
+  ignitionSchedule4.pStartCallback = beginTrailingCoilCharge;
+  ignitionSchedule4.pEndCallback = endTrailingCoilCharge2;
+}
+
+/** @brief Rotary FD mode (wasted leading + individual trailing). */
+static void configureIgnitionMode_Rotary_FD(void)
+{
+  ignitionSchedule1.pStartCallback = beginCoil1Charge;
+  ignitionSchedule1.pEndCallback = endCoil1Charge;
+  ignitionSchedule2.pStartCallback = beginCoil1Charge;
+  ignitionSchedule2.pEndCallback = endCoil1Charge;
+
+  ignitionSchedule3.pStartCallback = beginCoil2Charge;
+  ignitionSchedule3.pEndCallback = endCoil2Charge;
+  ignitionSchedule4.pStartCallback = beginCoil3Charge;
+  ignitionSchedule4.pEndCallback = endCoil3Charge;
+}
+
+/** @brief Rotary RX8 mode (1 coil + 1 output per plug). */
+static void configureIgnitionMode_Rotary_RX8(void)
+{
+  ignitionSchedule1.pStartCallback = beginCoil1Charge;
+  ignitionSchedule1.pEndCallback = endCoil1Charge;
+  ignitionSchedule2.pStartCallback = beginCoil2Charge;
+  ignitionSchedule2.pEndCallback = endCoil2Charge;
+  ignitionSchedule3.pStartCallback = beginCoil3Charge;
+  ignitionSchedule3.pEndCallback = endCoil3Charge;
+  ignitionSchedule4.pStartCallback = beginCoil4Charge;
+  ignitionSchedule4.pEndCallback = endCoil4Charge;
+}
+
+/** @brief Rotary ignition mode dispatcher based on rotary type. */
+static void configureIgnitionMode_Rotary(void)
+{
+  if(configPage10.rotaryType == ROTARY_IGN_FC) { configureIgnitionMode_Rotary_FC(); }
+  else if(configPage10.rotaryType == ROTARY_IGN_FD) { configureIgnitionMode_Rotary_FD(); }
+  else if(configPage10.rotaryType == ROTARY_IGN_RX8) { configureIgnitionMode_Rotary_RX8(); }
+  else { } //No action for other RX ignition modes (Future expansion).
+}
+
+/** @brief Default ignition mode (wasted spark fallback). */
+static void configureIgnitionMode_Default(void)
+{
+  ignitionSchedule1.pStartCallback = beginCoil1Charge;
+  ignitionSchedule1.pEndCallback = endCoil1Charge;
+  ignitionSchedule2.pStartCallback = beginCoil2Charge;
+  ignitionSchedule2.pEndCallback = endCoil2Charge;
+  ignitionSchedule3.pStartCallback = beginCoil3Charge;
+  ignitionSchedule3.pEndCallback = endCoil3Charge;
+  ignitionSchedule4.pStartCallback = beginCoil4Charge;
+  ignitionSchedule4.pEndCallback = endCoil4Charge;
+  ignitionSchedule5.pStartCallback = beginCoil5Charge;
+  ignitionSchedule5.pEndCallback = endCoil5Charge;
+}
+
+} // anonymous namespace
+
 /**
- * Configure ignition mode by assigning function pointers to ignition schedules.
+ * @brief Configure ignition mode by assigning function pointers to ignition schedules.
  *
- * This function sets up the ignition system based on the configured spark mode
- * (configPage4.sparkMode). It assigns appropriate start/end callback function pointers
- * to each ignition schedule (ignitionSchedule1-8) based on the ignition mode:
+ * Dispatcher function using Command Handler Pattern. Delegates to ignition mode
+ * configuration handlers based on configPage4.sparkMode.
  *
+ * Supported modes:
  * - IGN_MODE_WASTED: Wasted spark mode, each coil fires twice per cycle
  * - IGN_MODE_SINGLE: Single channel mode, all sparks use coil 1 output
- * - IGN_MODE_WASTEDCOP: Wasted COP mode with paired coils
- *   - 4-cyl: Pairs 1&3, 2&4
- *   - 6-cyl: Pairs 1&4, 2&5, 3&6
- *   - 8-cyl: Pairs 1&5, 2&6, 3&7, 4&8
+ * - IGN_MODE_WASTEDCOP: Wasted COP mode with paired coils (4/6/8 cyl)
  * - IGN_MODE_SEQUENTIAL: Each coil fires independently in firing order
  * - IGN_MODE_ROTARY: Special rotary engine modes (FC, FD, RX8)
- *   - FC: Wasted leading + shared trailing coil
- *   - FD: Wasted leading + individual trailing coils
- *   - RX8: Individual coils per plug (4 outputs)
- * - default: Falls back to wasted spark mode
  *
- * All variables modified are global schedule structures, changes persist after return.
- * Must be called after configureCylinderTimings() during initialization.
+ * @note MISRA-C compliant refactored version (225 lines → 11 lines dispatcher + 14 handlers)
  */
 static void configureIgnitionMode(void)
 {
-    switch(configPage4.sparkMode)
-    {
-    case IGN_MODE_WASTED:
-        //Wasted Spark (Normal mode)
-        ignitionSchedule1.pStartCallback = beginCoil1Charge;
-        ignitionSchedule1.pEndCallback = endCoil1Charge;
-        ignitionSchedule2.pStartCallback = beginCoil2Charge;
-        ignitionSchedule2.pEndCallback = endCoil2Charge;
-        ignitionSchedule3.pStartCallback = beginCoil3Charge;
-        ignitionSchedule3.pEndCallback = endCoil3Charge;
-        ignitionSchedule4.pStartCallback = beginCoil4Charge;
-        ignitionSchedule4.pEndCallback = endCoil4Charge;
-        ignitionSchedule5.pStartCallback = beginCoil5Charge;
-        ignitionSchedule5.pEndCallback = endCoil5Charge;
-        break;
-
-    case IGN_MODE_SINGLE:
-        //Single channel mode. All ignition pulses are on channel 1
-        ignitionSchedule1.pStartCallback = beginCoil1Charge;
-        ignitionSchedule1.pEndCallback = endCoil1Charge;
-        ignitionSchedule2.pStartCallback = beginCoil1Charge;
-        ignitionSchedule2.pEndCallback = endCoil1Charge;
-        ignitionSchedule3.pStartCallback = beginCoil1Charge;
-        ignitionSchedule3.pEndCallback = endCoil1Charge;
-        ignitionSchedule4.pStartCallback = beginCoil1Charge;
-        ignitionSchedule4.pEndCallback = endCoil1Charge;
-#if IGN_CHANNELS >= 5
-        ignitionSchedule5.pStartCallback = beginCoil1Charge;
-        ignitionSchedule5.pEndCallback = endCoil1Charge;
-#endif
-#if IGN_CHANNELS >= 6
-        ignitionSchedule6.pStartCallback = beginCoil1Charge;
-        ignitionSchedule6.pEndCallback = endCoil1Charge;
-#endif
-#if IGN_CHANNELS >= 7
-        ignitionSchedule7.pStartCallback = beginCoil1Charge;
-        ignitionSchedule7.pEndCallback = endCoil1Charge;
-#endif
-#if IGN_CHANNELS >= 8
-        ignitionSchedule8.pStartCallback = beginCoil1Charge;
-        ignitionSchedule8.pEndCallback = endCoil1Charge;
-#endif
-        break;
-
-    case IGN_MODE_WASTEDCOP:
-        //Wasted COP mode. Note, most of the boards can only run this for 4-cyl only.
-        if( configPage2.nCylinders <= 3)
-        {
-          //1-3 cylinder wasted COP is the same as regular wasted mode
-          ignitionSchedule1.pStartCallback = beginCoil1Charge;
-          ignitionSchedule1.pEndCallback = endCoil1Charge;
-          ignitionSchedule2.pStartCallback = beginCoil2Charge;
-          ignitionSchedule2.pEndCallback = endCoil2Charge;
-          ignitionSchedule3.pStartCallback = beginCoil3Charge;
-          ignitionSchedule3.pEndCallback = endCoil3Charge;
-        }
-        else if( configPage2.nCylinders == 4 )
-        {
-          //Wasted COP mode for 4 cylinders. Ignition channels 1&3 and 2&4 are paired together
-          ignitionSchedule1.pStartCallback = beginCoil1and3Charge;
-          ignitionSchedule1.pEndCallback = endCoil1and3Charge;
-          ignitionSchedule2.pStartCallback = beginCoil2and4Charge;
-          ignitionSchedule2.pEndCallback = endCoil2and4Charge;
-
-          ignitionSchedule3.pStartCallback = nullCallback;
-          ignitionSchedule3.pEndCallback = nullCallback;
-          ignitionSchedule4.pStartCallback = nullCallback;
-          ignitionSchedule4.pEndCallback = nullCallback;
-        }
-        else if( configPage2.nCylinders == 6 )
-        {
-          //Wasted COP mode for 6 cylinders. Ignition channels 1&4, 2&5 and 3&6 are paired together
-          ignitionSchedule1.pStartCallback = beginCoil1and4Charge;
-          ignitionSchedule1.pEndCallback = endCoil1and4Charge;
-          ignitionSchedule2.pStartCallback = beginCoil2and5Charge;
-          ignitionSchedule2.pEndCallback = endCoil2and5Charge;
-          ignitionSchedule3.pStartCallback = beginCoil3and6Charge;
-          ignitionSchedule3.pEndCallback = endCoil3and6Charge;
-
-          ignitionSchedule4.pStartCallback = nullCallback;
-          ignitionSchedule4.pEndCallback = nullCallback;
-          ignitionSchedule5.pStartCallback = nullCallback;
-          ignitionSchedule5.pEndCallback = nullCallback;
-#if IGN_CHANNELS >= 6
-          ignitionSchedule6.pStartCallback = nullCallback;
-          ignitionSchedule6.pEndCallback = nullCallback;
-#endif
-        }
-        else if( configPage2.nCylinders == 8 )
-        {
-          //Wasted COP mode for 8 cylinders. Ignition channels 1&5, 2&6, 3&7 and 4&8 are paired together
-          ignitionSchedule1.pStartCallback = beginCoil1and5Charge;
-          ignitionSchedule1.pEndCallback = endCoil1and5Charge;
-          ignitionSchedule2.pStartCallback = beginCoil2and6Charge;
-          ignitionSchedule2.pEndCallback = endCoil2and6Charge;
-          ignitionSchedule3.pStartCallback = beginCoil3and7Charge;
-          ignitionSchedule3.pEndCallback = endCoil3and7Charge;
-          ignitionSchedule4.pStartCallback = beginCoil4and8Charge;
-          ignitionSchedule4.pEndCallback = endCoil4and8Charge;
-
-          ignitionSchedule5.pStartCallback = nullCallback;
-          ignitionSchedule5.pEndCallback = nullCallback;
-#if IGN_CHANNELS >= 6
-          ignitionSchedule6.pStartCallback = nullCallback;
-          ignitionSchedule6.pEndCallback = nullCallback;
-#endif
-#if IGN_CHANNELS >= 7
-          ignitionSchedule7.pStartCallback = nullCallback;
-          ignitionSchedule7.pEndCallback = nullCallback;
-#endif
-#if IGN_CHANNELS >= 8
-          ignitionSchedule8.pStartCallback = nullCallback;
-          ignitionSchedule8.pEndCallback = nullCallback;
-#endif
-        }
-        else
-        {
-          //If the person has inadvertently selected this when running more than 4 cylinders or other than 6 cylinders, just use standard Wasted spark mode
-          ignitionSchedule1.pStartCallback = beginCoil1Charge;
-          ignitionSchedule1.pEndCallback = endCoil1Charge;
-          ignitionSchedule2.pStartCallback = beginCoil2Charge;
-          ignitionSchedule2.pEndCallback = endCoil2Charge;
-          ignitionSchedule3.pStartCallback = beginCoil3Charge;
-          ignitionSchedule3.pEndCallback = endCoil3Charge;
-          ignitionSchedule4.pStartCallback = beginCoil4Charge;
-          ignitionSchedule4.pEndCallback = endCoil4Charge;
-          ignitionSchedule5.pStartCallback = beginCoil5Charge;
-          ignitionSchedule5.pEndCallback = endCoil5Charge;
-        }
-        break;
-
-    case IGN_MODE_SEQUENTIAL:
-        ignitionSchedule1.pStartCallback = beginCoil1Charge;
-        ignitionSchedule1.pEndCallback = endCoil1Charge;
-        ignitionSchedule2.pStartCallback = beginCoil2Charge;
-        ignitionSchedule2.pEndCallback = endCoil2Charge;
-        ignitionSchedule3.pStartCallback = beginCoil3Charge;
-        ignitionSchedule3.pEndCallback = endCoil3Charge;
-        ignitionSchedule4.pStartCallback = beginCoil4Charge;
-        ignitionSchedule4.pEndCallback = endCoil4Charge;
-        ignitionSchedule5.pStartCallback = beginCoil5Charge;
-        ignitionSchedule5.pEndCallback = endCoil5Charge;
-#if IGN_CHANNELS >= 6
-        ignitionSchedule6.pStartCallback = beginCoil6Charge;
-        ignitionSchedule6.pEndCallback = endCoil6Charge;
-#endif
-#if IGN_CHANNELS >= 7
-        ignitionSchedule7.pStartCallback = beginCoil7Charge;
-        ignitionSchedule7.pEndCallback = endCoil7Charge;
-#endif
-#if IGN_CHANNELS >= 8
-        ignitionSchedule8.pStartCallback = beginCoil8Charge;
-        ignitionSchedule8.pEndCallback = endCoil8Charge;
-#endif
-        break;
-
-    case IGN_MODE_ROTARY:
-        if(configPage10.rotaryType == ROTARY_IGN_FC)
-        {
-          //Ignition channel 1 is a wasted spark signal for leading signal on both rotors
-          ignitionSchedule1.pStartCallback = beginCoil1Charge;
-          ignitionSchedule1.pEndCallback = endCoil1Charge;
-          ignitionSchedule2.pStartCallback = beginCoil1Charge;
-          ignitionSchedule2.pEndCallback = endCoil1Charge;
-
-          ignitionSchedule3.pStartCallback = beginTrailingCoilCharge;
-          ignitionSchedule3.pEndCallback = endTrailingCoilCharge1;
-          ignitionSchedule4.pStartCallback = beginTrailingCoilCharge;
-          ignitionSchedule4.pEndCallback = endTrailingCoilCharge2;
-        }
-        else if(configPage10.rotaryType == ROTARY_IGN_FD)
-        {
-          //Ignition channel 1 is a wasted spark signal for leading signal on both rotors
-          ignitionSchedule1.pStartCallback = beginCoil1Charge;
-          ignitionSchedule1.pEndCallback = endCoil1Charge;
-          ignitionSchedule2.pStartCallback = beginCoil1Charge;
-          ignitionSchedule2.pEndCallback = endCoil1Charge;
-
-          //Trailing coils have their own channel each
-          //IGN2 = front rotor trailing spark
-          ignitionSchedule3.pStartCallback = beginCoil2Charge;
-          ignitionSchedule3.pEndCallback = endCoil2Charge;
-          //IGN3 = rear rotor trailing spark
-          ignitionSchedule4.pStartCallback = beginCoil3Charge;
-          ignitionSchedule4.pEndCallback = endCoil3Charge;
-
-          //IGN4 not used
-        }
-        else if(configPage10.rotaryType == ROTARY_IGN_RX8)
-        {
-          //RX8 outputs are simply 1 coil and 1 output per plug
-
-          //IGN1 is front rotor, leading spark
-          ignitionSchedule1.pStartCallback = beginCoil1Charge;
-          ignitionSchedule1.pEndCallback = endCoil1Charge;
-          //IGN2 is rear rotor, leading spark
-          ignitionSchedule2.pStartCallback = beginCoil2Charge;
-          ignitionSchedule2.pEndCallback = endCoil2Charge;
-          //IGN3 = front rotor trailing spark
-          ignitionSchedule3.pStartCallback = beginCoil3Charge;
-          ignitionSchedule3.pEndCallback = endCoil3Charge;
-          //IGN4 = rear rotor trailing spark
-          ignitionSchedule4.pStartCallback = beginCoil4Charge;
-          ignitionSchedule4.pEndCallback = endCoil4Charge;
-        }
-        else { } //No action for other RX ignition modes (Future expansion / MISRA compliant).
-        break;
-
-    default:
-        //Wasted spark (Shouldn't ever happen anyway)
-        ignitionSchedule1.pStartCallback = beginCoil1Charge;
-        ignitionSchedule1.pEndCallback = endCoil1Charge;
-        ignitionSchedule2.pStartCallback = beginCoil2Charge;
-        ignitionSchedule2.pEndCallback = endCoil2Charge;
-        ignitionSchedule3.pStartCallback = beginCoil3Charge;
-        ignitionSchedule3.pEndCallback = endCoil3Charge;
-        ignitionSchedule4.pStartCallback = beginCoil4Charge;
-        ignitionSchedule4.pEndCallback = endCoil4Charge;
-        ignitionSchedule5.pStartCallback = beginCoil5Charge;
-        ignitionSchedule5.pEndCallback = endCoil5Charge;
-        break;
-    }
+  switch(configPage4.sparkMode)
+  {
+  case IGN_MODE_WASTED: configureIgnitionMode_Wasted(); break;
+  case IGN_MODE_SINGLE: configureIgnitionMode_Single(); break;
+  case IGN_MODE_WASTEDCOP: configureIgnitionMode_WastedCOP(); break;
+  case IGN_MODE_SEQUENTIAL: configureIgnitionMode_Sequential(); break;
+  case IGN_MODE_ROTARY: configureIgnitionMode_Rotary(); break;
+  default: configureIgnitionMode_Default(); break;
+  }
 }
 
 /** Initialise Speeduino for the main loop.
@@ -1283,205 +1347,206 @@ static void setupSensorInterrupts(void)
     }
 }
 
-void initialiseAll(void)
-{   
-    currentStatus.fpPrimed = false;
-    currentStatus.injPrimed = false;
+namespace {
 
-    pinMode(LED_BUILTIN, OUTPUT);
-    digitalWrite(LED_BUILTIN, LOW);
-
-    #if defined(CORE_STM32)
-    configPage9.intcan_available = 1;   // device has internal canbus
-    //STM32 can not currently enabled
-    #endif
-
-    /*
-    ***********************************************************************************************************
-    * EEPROM reset
-    */
-    handleEepromResetPin();
-  
-    // Unit tests should be independent of any stored configuration on the board!
+/** @brief Phase 1: EEPROM and config initialization. */
+static void initialiseAll_EepromAndConfig(void)
+{
+  handleEepromResetPin();
 #if !defined(UNIT_TEST)
-    loadConfig();
-    doUpdates(); //Check if any data items need updating (Occurs with firmware updates)
+  loadConfig();
+  doUpdates();
 #endif
+  configPage4.bootloaderCaps = 0;
+}
 
+/** @brief Phase 2: Board and timers initialization. */
+static void initialiseAll_BoardAndTimers(void)
+{
+  initBoard();
+  initialiseTimers();
+#ifdef SD_LOGGING
+  initRTC();
+  if(configPage13.onboard_log_file_style) { initSD(); }
+#endif
+}
 
-    //Always start with a clean slate on the bootloader capabilities level
-    //This should be 0 until we hear otherwise from the 16u2
-    configPage4.bootloaderCaps = 0;
-    
-    initBoard(); //This calls the current individual boards init function. See the board_xxx.ino files for these.
-    initialiseTimers();
-    
-  #ifdef SD_LOGGING
-    initRTC();
-    if(configPage13.onboard_log_file_style) { initSD(); }
-  #endif
-
-//Teensy 4.1 does not require .begin() to be called. This introduces a 700ms delay on startup time whilst USB is enumerated if it is called
+/** @brief Phase 3: Serial communications setup. */
+static void initialiseAll_Serial(void)
+{
 #ifndef CORE_TEENSY41
-    Serial.begin(115200);
-    #else
-    teensy41_customSerialBegin();
+  Serial.begin(115200);
+#else
+  teensy41_customSerialBegin();
 #endif
-    pPrimarySerial = &Serial; //Default to standard Serial interface
-    BIT_SET(currentStatus.status4, BIT_STATUS4_ALLOW_LEGACY_COMMS); //Flag legacy comms as being allowed on startup
-   
-    //Setup the calibration tables
-    loadCalibration();   
+  pPrimarySerial = &Serial;
+  BIT_SET(currentStatus.status4, BIT_STATUS4_ALLOW_LEGACY_COMMS);
+  loadCalibration();
+}
 
-    //Set the pin mappings
-    if((configPage2.pinMapping == 255) || (configPage2.pinMapping == 0)) //255 = EEPROM value in a blank AVR; 0 = EEPROM value in new FRAM
-    {
-      //First time running on this board
-      resetConfigPages();
-      setPinMapping(3); //Force board to v0.4
-    }
-    else { setPinMapping(configPage2.pinMapping); }
+/** @brief Phase 4: Pin mapping and CAN initialization. */
+static void initialiseAll_PinMapping(void)
+{
+  if((configPage2.pinMapping == 255) || (configPage2.pinMapping == 0))
+  {
+    resetConfigPages();
+    setPinMapping(3);
+  }
+  else { setPinMapping(configPage2.pinMapping); }
+#if defined(NATIVE_CAN_AVAILABLE) && !defined(UNIT_TEST)
+  initCAN();
+#endif
+  if (configPage9.enable_secondarySerial == 1) { secondarySerial.begin(115200); }
+}
 
-    // Repeatedly initialising the CAN bus hangs the system when
-    // running initialisation tests on Teensy 3.5
-    #if defined(NATIVE_CAN_AVAILABLE) && !defined(UNIT_TEST)
-      initCAN();
-    #endif
+/** @brief Phase 5: Peripheral modules initialization. */
+static void initialiseAll_Peripherals(void)
+{
+  safetyShutdownAllOutputs();
+  initialiseSchedulers();
+  initialiseIdle(true);
+  initialiseFan();
+  initialiseAirCon();
+  initialiseAuxPWM();
+  initialiseCorrections();
+  BIT_CLEAR(currentStatus.engineProtectStatus, PROTECT_IO_ERROR);
+  initialiseADC();
+  initialiseMAPBaro();
+  initialiseProgrammableIO();
+  setupSensorInterrupts();
+  calculateFuelParameters();
+}
 
-    //Must come after setPinMapping() as secondary serial can be changed on a per board basis
-    if (configPage9.enable_secondarySerial == 1) { secondarySerial.begin(115200); }
+/** @brief Phase 6: Status variables initialization. */
+static void initialiseAll_StatusVars(void)
+{
+  currentStatus.RPM = 0;
+  currentStatus.hasSync = false;
+  BIT_CLEAR(currentStatus.status3, BIT_STATUS3_HALFSYNC);
+  currentStatus.runSecs = 0;
+  currentStatus.secl = 0;
+  currentStatus.startRevolutions = 0;
+  currentStatus.syncLossCounter = 0;
+  currentStatus.flatShiftingHard = false;
+  currentStatus.launchingHard = false;
+  currentStatus.crankRPM = ((unsigned int)configPage4.crankRPM * 10);
+  currentStatus.fuelPumpOn = false;
+  currentStatus.engineProtectStatus = 0;
+  triggerFilterTime = 0;
+  dwellLimit_uS = (1000 * configPage4.dwellLimit);
+  currentStatus.nChannels = ((uint8_t)INJ_CHANNELS << 4) + IGN_CHANNELS;
+  fpPrimeTime = 0;
+  ms_counter = 0;
+  fixedCrankingOverride = 0;
+  timer5_overflow_count = 0;
+  toothHistoryIndex = 0;
+  resetDecoder();
+}
 
-    safetyShutdownAllOutputs();
-    //Perform all initialisations
-    initialiseSchedulers();
-    //initialiseDisplay();
-    initialiseIdle(true);
-    initialiseFan();
-    initialiseAirCon();
-    initialiseAuxPWM();
-    initialiseCorrections();
-    BIT_CLEAR(currentStatus.engineProtectStatus, PROTECT_IO_ERROR); //Clear the I/O error bit. The bit will be set in initialiseADC() if there is problem in there.
-    initialiseADC();
-    initialiseMAPBaro();
-    initialiseProgrammableIO();
+/** @brief Phase 7: Trigger interrupts initialization. */
+static void initialiseAll_Triggers(void)
+{
+  noInterrupts();
+  initialiseTriggers();
+  if( VSS_USES_RPM2() ) { attachInterrupt(digitalPinToInterrupt(pinVSS), vssPulse, RISING); }
+  if( FLEX_USES_RPM2() ) { attachInterrupt(digitalPinToInterrupt(pinFlex), flexPulse, CHANGE); }
+  if(configPage2.strokes == FOUR_STROKE) { req_fuel_uS = req_fuel_uS / 2; }
+  currentLoopTime = micros();
+  mainLoopCount = 0;
+}
 
-    setupSensorInterrupts();
+/** @brief Phase 8: Fuel/ignition configuration. */
+static void initialiseAll_FuelIgnition(void)
+{
+  if(configPage2.divider == 0) { currentStatus.nSquirts = 2; }
+  else { currentStatus.nSquirts = configPage2.nCylinders / configPage2.divider; }
+  if(currentStatus.nSquirts == 0) { currentStatus.nSquirts = 1; }
 
-    calculateFuelParameters();
+  CRANK_ANGLE_MAX_IGN = 360;
+  CRANK_ANGLE_MAX_INJ = 360;
+  maxInjOutputs = 1;
 
-    //Begin the main crank trigger interrupt pin setup
-    //The interrupt numbering is a bit odd - See here for reference: arduino.cc/en/Reference/AttachInterrupt
-    //These assignments are based on the Arduino Mega AND VARY BETWEEN BOARDS. Please confirm the board you are using and update accordingly.
-    currentStatus.RPM = 0;
-    currentStatus.hasSync = false;
-    BIT_CLEAR(currentStatus.status3, BIT_STATUS3_HALFSYNC);
-    currentStatus.runSecs = 0;
-    currentStatus.secl = 0;
-    //currentStatus.seclx10 = 0;
-    currentStatus.startRevolutions = 0;
-    currentStatus.syncLossCounter = 0;
-    currentStatus.flatShiftingHard = false;
-    currentStatus.launchingHard = false;
-    currentStatus.crankRPM = ((unsigned int)configPage4.crankRPM * 10); //Crank RPM limit (Saves us calculating this over and over again. It's updated once per second in timers.ino)
-    currentStatus.fuelPumpOn = false;
-    currentStatus.engineProtectStatus = 0;
-    triggerFilterTime = 0; //Trigger filter time is the shortest possible time (in uS) that there can be between crank teeth (ie at max RPM). Any pulses that occur faster than this time will be discarded as noise. This is simply a default value, the actual values are set in the setup() functions of each decoder
-    dwellLimit_uS = (1000 * configPage4.dwellLimit);
-    currentStatus.nChannels = ((uint8_t)INJ_CHANNELS << 4) + IGN_CHANNELS; //First 4 bits store the number of injection channels, 2nd 4 store the number of ignition channels
-    fpPrimeTime = 0;
-    ms_counter = 0;
-    fixedCrankingOverride = 0;
-    timer5_overflow_count = 0;
-    toothHistoryIndex = 0;
-    resetDecoder();
-    
-    noInterrupts();
-    initialiseTriggers();
-
-    //The secondary input can be used for VSS if nothing else requires it. Allows for the standard VR conditioner to be used for VSS. This MUST be run after the initialiseTriggers() function
-    if( VSS_USES_RPM2() ) { attachInterrupt(digitalPinToInterrupt(pinVSS), vssPulse, RISING); } //Secondary trigger input can safely be used for VSS
-    if( FLEX_USES_RPM2() ) { attachInterrupt(digitalPinToInterrupt(pinFlex), flexPulse, CHANGE); } //Secondary trigger input can safely be used for Flex sensor
-
-    //End crank trigger interrupt attachment
-    if(configPage2.strokes == FOUR_STROKE)
-    {
-      //Default is 1 squirt per revolution, so we halve the given req-fuel figure (Which would be over 2 revolutions)
-      req_fuel_uS = req_fuel_uS / 2; //The req_fuel calculation above gives the total required fuel (At VE 100%) in the full cycle. If we're doing more than 1 squirt per cycle then we need to split the amount accordingly. (Note that in a non-sequential 4-stroke setup you cannot have less than 2 squirts as you cannot determine the stroke to make the single squirt on)
-    }
-
-    //Initial values for loop times
-    currentLoopTime = micros();
-    mainLoopCount = 0;
-
-    if(configPage2.divider == 0) { currentStatus.nSquirts = 2; } //Safety check.
-    else { currentStatus.nSquirts = configPage2.nCylinders / configPage2.divider; } //The number of squirts being requested. This is manually overridden below for sequential setups (Due to TS req_fuel calc limitations)
-    if(currentStatus.nSquirts == 0) { currentStatus.nSquirts = 1; } //Safety check. Should never happen as TS will give an error, but leave in case tune is manually altered etc. 
-
-    //Calculate the number of degrees between cylinders
-    //Set some default values. These will be updated below if required.
-    CRANK_ANGLE_MAX_IGN = 360;
-    CRANK_ANGLE_MAX_INJ = 360;
-
-    maxInjOutputs = 1; // Disable all injectors expect channel 1
-
-    ignition1EndAngle = 0;
-    ignition2EndAngle = 0;
-    ignition3EndAngle = 0;
-    ignition4EndAngle = 0;
+  ignition1EndAngle = 0; ignition2EndAngle = 0; ignition3EndAngle = 0; ignition4EndAngle = 0;
 #if IGN_CHANNELS >= 5
-    ignition5EndAngle = 0;
+  ignition5EndAngle = 0;
 #endif
 #if IGN_CHANNELS >= 6
-    ignition6EndAngle = 0;
+  ignition6EndAngle = 0;
 #endif
 #if IGN_CHANNELS >= 7
-    ignition7EndAngle = 0;
+  ignition7EndAngle = 0;
 #endif
 #if IGN_CHANNELS >= 8
-    ignition8EndAngle = 0;
+  ignition8EndAngle = 0;
 #endif
 
-    if(configPage2.strokes == FOUR_STROKE) { CRANK_ANGLE_MAX_INJ = 720 / currentStatus.nSquirts; }
-    else { CRANK_ANGLE_MAX_INJ = 360 / currentStatus.nSquirts; }
+  if(configPage2.strokes == FOUR_STROKE) { CRANK_ANGLE_MAX_INJ = 720 / currentStatus.nSquirts; }
+  else { CRANK_ANGLE_MAX_INJ = 360 / currentStatus.nSquirts; }
 
-    configureCylinderTimings();
+  configureCylinderTimings();
+  currentStatus.status3 |= currentStatus.nSquirts << BIT_STATUS3_NSQUIRTS1;
 
-    currentStatus.status3 |= currentStatus.nSquirts << BIT_STATUS3_NSQUIRTS1; //Top 3 bits of the status3 variable are the number of squirts. This must be done after the above section due to nSquirts being forced to 1 for sequential
-    
-    //Special case:
-    //3 or 5 squirts per cycle MUST be tracked over 720 degrees. This is because the angles for them (Eg 720/3=240) are not evenly divisible into 360
-    //This is ONLY the case on 4 stroke systems
-    if( (currentStatus.nSquirts == 3) || (currentStatus.nSquirts == 5) )
-    {
-      if(configPage2.strokes == FOUR_STROKE) { CRANK_ANGLE_MAX_INJ = (720U / currentStatus.nSquirts); }
-    }
+  if( (currentStatus.nSquirts == 3) || (currentStatus.nSquirts == 5) )
+  {
+    if(configPage2.strokes == FOUR_STROKE) { CRANK_ANGLE_MAX_INJ = (720U / currentStatus.nSquirts); }
+  }
 
-    configureInjectionLayout();
+  configureInjectionLayout();
+  configureIgnitionMode();
+}
 
-    configureIgnitionMode();
+/** @brief Phase 9: Final setup and fuel pump priming. */
+static void initialiseAll_FinalSetup(void)
+{
+  if(configPage2.fpPrime > 0)
+  {
+    FUEL_PUMP_ON();
+    currentStatus.fuelPumpOn = true;
+  }
+  else { currentStatus.fpPrimed = true; }
 
-    //Begin priming the fuel pump. This is turned off in the low resolution, 1s interrupt in timers.ino
-    //First check that the priming time is not 0
-    if(configPage2.fpPrime > 0)
-    {
-      FUEL_PUMP_ON();
-      currentStatus.fuelPumpOn = true;
-    }
-    else { currentStatus.fpPrimed = true; } //If the user has set 0 for the pump priming, immediately mark the priming as being completed
+  interrupts();
+  readCLT(false);
+  readTPS(false);
 
-    interrupts();
-    readCLT(false); // Need to read coolant temp to make priming pulsewidth work correctly. The false here disables use of the filter
-    readTPS(false); // Need to read tps to detect flood clear state
+  currentStatus.tachoSweepEnabled = (configPage2.useTachoSweep > 0);
+  tachoSweepIncr = configPage2.tachoSweepMaxRPM * maxIgnOutputs * 5 / 3;
 
-    /* tacho sweep function. */
-    currentStatus.tachoSweepEnabled = (configPage2.useTachoSweep > 0);
-    /* SweepMax is stored as a byte, RPM/100. divide by 60 to convert min to sec (net 5/3).  Multiply by ignition pulses per rev.
-       tachoSweepIncr is also the number of tach pulses per second */
-    tachoSweepIncr = configPage2.tachoSweepMaxRPM * maxIgnOutputs * 5 / 3;
-    
-    currentStatus.initialisationComplete = true;
-    digitalWrite(LED_BUILTIN, HIGH);
+  currentStatus.initialisationComplete = true;
+  digitalWrite(LED_BUILTIN, HIGH);
+}
 
+} // anonymous namespace
+
+/**
+ * @brief Main ECU initialization entry point.
+ *
+ * Top-level init function performing complete startup sequence through 9 phases:
+ * EEPROM/config, board/timers, serial, pin mapping, peripherals, status vars,
+ * triggers, fuel/ignition, and final setup.
+ *
+ * @note MISRA-C compliant refactored version (200 lines → 38 lines + 9 helper phases)
+ */
+void initialiseAll(void)
+{
+  currentStatus.fpPrimed = false;
+  currentStatus.injPrimed = false;
+  pinMode(LED_BUILTIN, OUTPUT);
+  digitalWrite(LED_BUILTIN, LOW);
+
+#if defined(CORE_STM32)
+  configPage9.intcan_available = 1;
+#endif
+
+  initialiseAll_EepromAndConfig();
+  initialiseAll_BoardAndTimers();
+  initialiseAll_Serial();
+  initialiseAll_PinMapping();
+  initialiseAll_Peripherals();
+  initialiseAll_StatusVars();
+  initialiseAll_Triggers();
+  initialiseAll_FuelIgnition();
+  initialiseAll_FinalSetup();
 }
 /** Set board / microcontroller specific pin mappings / assignments.
  *
@@ -1546,75 +1611,51 @@ void setPinMapping(byte boardID)
  * @param[out] triggerInterrupt2   Pointer to store secondary trigger interrupt number
  * @param[out] triggerInterrupt3   Pointer to store tertiary trigger interrupt number
  */
+namespace {
+
+#if defined(CORE_AVR)
+/** @brief Map Arduino Mega 2560 pin to interrupt number. */
+static byte mapPinToInterruptAVR(byte pin)
+{
+  switch (pin) {
+    case 2: return 0;
+    case 3: return 1;
+    case 18: return 5;
+    case 19: return 4;
+    case 20: return 3;
+    case 21: return 2;
+    default: return 0; //Should never happen
+  }
+}
+#endif
+
+} // anonymous namespace
+
+/**
+ * @brief Configure trigger pin interrupts and modes.
+ *
+ * Platform-specific interrupt mapping (AVR vs non-AVR). Configures pin modes,
+ * detaches existing interrupts, sets default trigger edges.
+ *
+ * @param triggerInterrupt Primary trigger interrupt number output
+ * @param triggerInterrupt2 Secondary trigger interrupt number output
+ * @param triggerInterrupt3 Tertiary trigger interrupt number output
+ *
+ * @note MISRA-C compliant refactored version (84 lines → 30 lines + 1 helper)
+ */
 static void setupTriggerPins(byte *triggerInterrupt, byte *triggerInterrupt2, byte *triggerInterrupt3)
 {
-  *triggerInterrupt = 0; // By default, use the first interrupt
+  *triggerInterrupt = 0;
   *triggerInterrupt2 = 1;
   *triggerInterrupt3 = 2;
 
   #if defined(CORE_AVR)
-    switch (pinTrigger) {
-      //Arduino Mega 2560 mapping
-      case 2:
-        *triggerInterrupt = 0; break;
-      case 3:
-        *triggerInterrupt = 1; break;
-      case 18:
-        *triggerInterrupt = 5; break;
-      case 19:
-        *triggerInterrupt = 4; break;
-      case 20:
-        *triggerInterrupt = 3; break;
-      case 21:
-        *triggerInterrupt = 2; break;
-      default:
-        *triggerInterrupt = 0; break; //This should NEVER happen
-    }
+    *triggerInterrupt = mapPinToInterruptAVR(pinTrigger);
+    *triggerInterrupt2 = mapPinToInterruptAVR(pinTrigger2);
+    *triggerInterrupt3 = mapPinToInterruptAVR(pinTrigger3);
   #else
     *triggerInterrupt = pinTrigger;
-  #endif
-
-  #if defined(CORE_AVR)
-    switch (pinTrigger2) {
-      //Arduino Mega 2560 mapping
-      case 2:
-        *triggerInterrupt2 = 0; break;
-      case 3:
-        *triggerInterrupt2 = 1; break;
-      case 18:
-        *triggerInterrupt2 = 5; break;
-      case 19:
-        *triggerInterrupt2 = 4; break;
-      case 20:
-        *triggerInterrupt2 = 3; break;
-      case 21:
-        *triggerInterrupt2 = 2; break;
-      default:
-        *triggerInterrupt2 = 0; break; //This should NEVER happen
-    }
-  #else
     *triggerInterrupt2 = pinTrigger2;
-  #endif
-
-  #if defined(CORE_AVR)
-    switch (pinTrigger3) {
-      //Arduino Mega 2560 mapping
-      case 2:
-        *triggerInterrupt3 = 0; break;
-      case 3:
-        *triggerInterrupt3 = 1; break;
-      case 18:
-        *triggerInterrupt3 = 5; break;
-      case 19:
-        *triggerInterrupt3 = 4; break;
-      case 20:
-        *triggerInterrupt3 = 3; break;
-      case 21:
-        *triggerInterrupt3 = 2; break;
-      default:
-        *triggerInterrupt3 = 0; break; //This should NEVER happen
-    }
-  #else
     *triggerInterrupt3 = pinTrigger3;
   #endif
 
@@ -1625,10 +1666,10 @@ static void setupTriggerPins(byte *triggerInterrupt, byte *triggerInterrupt2, by
   detachInterrupt(*triggerInterrupt);
   detachInterrupt(*triggerInterrupt2);
   detachInterrupt(*triggerInterrupt3);
-  //The default values for edges
-  primaryTriggerEdge = 0; //This should ALWAYS be changed below
-  secondaryTriggerEdge = 0; //This is optional and may not be changed below, depending on the decoder in use
-  tertiaryTriggerEdge = 0; //This is even more optional and may not be changed below, depending on the decoder in use
+
+  primaryTriggerEdge = 0;
+  secondaryTriggerEdge = 0;
+  tertiaryTriggerEdge = 0;
 }
 
 /*
@@ -2341,140 +2382,58 @@ static void initDecoder_Default(byte triggerInterrupt, byte triggerInterrupt2, b
  *
  * @todo Explain why triggerSetup_*() alone cannot do all the setup, but there's ~10+ lines worth of extra init for each of decoders.
  */
+/**
+ * @brief Initialize trigger decoder based on configuration.
+ *
+ * Main trigger decoder initialization dispatcher. Calls setupTriggerPins() then
+ * switches on configPage4.TrigPattern (29 decoder types) to call appropriate
+ * initDecoder_XXX() function.
+ *
+ * @note MISRA-C compliant refactored version (137 lines → 41 lines, compacted format)
+ */
 void initialiseTriggers(void)
 {
-  byte triggerInterrupt = 0; // By default, use the first interrupt
+  byte triggerInterrupt = 0;
   byte triggerInterrupt2 = 1;
   byte triggerInterrupt3 = 2;
 
   setupTriggerPins(&triggerInterrupt, &triggerInterrupt2, &triggerInterrupt3);
 
-  //Set the trigger function based on the decoder in the config
   switch (configPage4.TrigPattern)
   {
-    case DECODER_MISSING_TOOTH:
-      initDecoder_MissingTooth(triggerInterrupt, triggerInterrupt2, triggerInterrupt3);
-      break;
-
-    case DECODER_BASIC_DISTRIBUTOR:
-      initDecoder_BasicDistributor(triggerInterrupt, triggerInterrupt2, triggerInterrupt3);
-      break;
-
-    case 2:
-      initDecoder_DualWheel(triggerInterrupt, triggerInterrupt2, triggerInterrupt3);
-      break;
-
-    case DECODER_GM7X:
-      initDecoder_GM7X(triggerInterrupt, triggerInterrupt2, triggerInterrupt3);
-      break;
-
-    case DECODER_4G63:
-      initDecoder_4G63(triggerInterrupt, triggerInterrupt2, triggerInterrupt3);
-      break;
-
-    case DECODER_24X:
-      initDecoder_24X(triggerInterrupt, triggerInterrupt2, triggerInterrupt3);
-      break;
-
-    case DECODER_JEEP2000:
-      initDecoder_Jeep2000(triggerInterrupt, triggerInterrupt2, triggerInterrupt3);
-      break;
-
-    case DECODER_AUDI135:
-      initDecoder_Audi135(triggerInterrupt, triggerInterrupt2, triggerInterrupt3);
-      break;
-
-    case DECODER_HONDA_D17:
-      initDecoder_HondaD17(triggerInterrupt, triggerInterrupt2, triggerInterrupt3);
-      break;
-
-    case DECODER_HONDA_J32:
-      initDecoder_HondaJ32(triggerInterrupt, triggerInterrupt2, triggerInterrupt3);
-      break;
-
-    case DECODER_MIATA_9905:
-      initDecoder_Miata9905(triggerInterrupt, triggerInterrupt2, triggerInterrupt3);
-      break;
-
-    case DECODER_MAZDA_AU:
-      initDecoder_MazdaAU(triggerInterrupt, triggerInterrupt2, triggerInterrupt3);
-      break;
-
-    case DECODER_NON360:
-      initDecoder_Non360(triggerInterrupt, triggerInterrupt2, triggerInterrupt3);
-      break;
-
-    case DECODER_NISSAN_360:
-      initDecoder_Nissan360(triggerInterrupt, triggerInterrupt2, triggerInterrupt3);
-      break;
-
-    case DECODER_SUBARU_67:
-      initDecoder_Subaru67(triggerInterrupt, triggerInterrupt2, triggerInterrupt3);
-      break;
-
-    case DECODER_DAIHATSU_PLUS1:
-      initDecoder_Daihatsu(triggerInterrupt, triggerInterrupt2, triggerInterrupt3);
-      break;
-
-    case DECODER_HARLEY:
-      initDecoder_Harley(triggerInterrupt, triggerInterrupt2, triggerInterrupt3);
-      break;
-
-    case DECODER_36_2_2_2:
-      initDecoder_36_2_2_2(triggerInterrupt, triggerInterrupt2, triggerInterrupt3);
-      break;
-
-    case DECODER_36_2_1:
-      initDecoder_36_2_1(triggerInterrupt, triggerInterrupt2, triggerInterrupt3);
-      break;
-
-    case DECODER_420A:
-      initDecoder_420a(triggerInterrupt, triggerInterrupt2, triggerInterrupt3);
-      break;
-
-    case DECODER_WEBER:
-      initDecoder_Weber(triggerInterrupt, triggerInterrupt2, triggerInterrupt3);
-      break;
-
-    case DECODER_ST170:
-      initDecoder_ST170(triggerInterrupt, triggerInterrupt2, triggerInterrupt3);
-      break;
-
-    case DECODER_DRZ400:
-      initDecoder_DRZ400(triggerInterrupt, triggerInterrupt2, triggerInterrupt3);
-      break;
-
-    case DECODER_NGC:
-      initDecoder_NGC(triggerInterrupt, triggerInterrupt2, triggerInterrupt3);
-      break;
-
-    case DECODER_VMAX:
-      initDecoder_Vmax(triggerInterrupt, triggerInterrupt2, triggerInterrupt3);
-      break;
-
-    case DECODER_RENIX:
-      initDecoder_Renix(triggerInterrupt, triggerInterrupt2, triggerInterrupt3);
-      break;
-
-    case DECODER_ROVERMEMS:
-      initDecoder_RoverMEMS(triggerInterrupt, triggerInterrupt2, triggerInterrupt3);
-      break;
-
-    case DECODER_SUZUKI_K6A:
-      initDecoder_SuzukiK6A(triggerInterrupt, triggerInterrupt2, triggerInterrupt3);
-      break;
-
-    case DECODER_FORD_TFI:
-      initDecoder_FordTFI(triggerInterrupt, triggerInterrupt2, triggerInterrupt3);
-      break;
-
-    default:
-      initDecoder_Default(triggerInterrupt, triggerInterrupt2, triggerInterrupt3);
-      break;
+    case DECODER_MISSING_TOOTH: initDecoder_MissingTooth(triggerInterrupt, triggerInterrupt2, triggerInterrupt3); break;
+    case DECODER_BASIC_DISTRIBUTOR: initDecoder_BasicDistributor(triggerInterrupt, triggerInterrupt2, triggerInterrupt3); break;
+    case 2: initDecoder_DualWheel(triggerInterrupt, triggerInterrupt2, triggerInterrupt3); break;
+    case DECODER_GM7X: initDecoder_GM7X(triggerInterrupt, triggerInterrupt2, triggerInterrupt3); break;
+    case DECODER_4G63: initDecoder_4G63(triggerInterrupt, triggerInterrupt2, triggerInterrupt3); break;
+    case DECODER_24X: initDecoder_24X(triggerInterrupt, triggerInterrupt2, triggerInterrupt3); break;
+    case DECODER_JEEP2000: initDecoder_Jeep2000(triggerInterrupt, triggerInterrupt2, triggerInterrupt3); break;
+    case DECODER_AUDI135: initDecoder_Audi135(triggerInterrupt, triggerInterrupt2, triggerInterrupt3); break;
+    case DECODER_HONDA_D17: initDecoder_HondaD17(triggerInterrupt, triggerInterrupt2, triggerInterrupt3); break;
+    case DECODER_HONDA_J32: initDecoder_HondaJ32(triggerInterrupt, triggerInterrupt2, triggerInterrupt3); break;
+    case DECODER_MIATA_9905: initDecoder_Miata9905(triggerInterrupt, triggerInterrupt2, triggerInterrupt3); break;
+    case DECODER_MAZDA_AU: initDecoder_MazdaAU(triggerInterrupt, triggerInterrupt2, triggerInterrupt3); break;
+    case DECODER_NON360: initDecoder_Non360(triggerInterrupt, triggerInterrupt2, triggerInterrupt3); break;
+    case DECODER_NISSAN_360: initDecoder_Nissan360(triggerInterrupt, triggerInterrupt2, triggerInterrupt3); break;
+    case DECODER_SUBARU_67: initDecoder_Subaru67(triggerInterrupt, triggerInterrupt2, triggerInterrupt3); break;
+    case DECODER_DAIHATSU_PLUS1: initDecoder_Daihatsu(triggerInterrupt, triggerInterrupt2, triggerInterrupt3); break;
+    case DECODER_HARLEY: initDecoder_Harley(triggerInterrupt, triggerInterrupt2, triggerInterrupt3); break;
+    case DECODER_36_2_2_2: initDecoder_36_2_2_2(triggerInterrupt, triggerInterrupt2, triggerInterrupt3); break;
+    case DECODER_36_2_1: initDecoder_36_2_1(triggerInterrupt, triggerInterrupt2, triggerInterrupt3); break;
+    case DECODER_420A: initDecoder_420a(triggerInterrupt, triggerInterrupt2, triggerInterrupt3); break;
+    case DECODER_WEBER: initDecoder_Weber(triggerInterrupt, triggerInterrupt2, triggerInterrupt3); break;
+    case DECODER_ST170: initDecoder_ST170(triggerInterrupt, triggerInterrupt2, triggerInterrupt3); break;
+    case DECODER_DRZ400: initDecoder_DRZ400(triggerInterrupt, triggerInterrupt2, triggerInterrupt3); break;
+    case DECODER_NGC: initDecoder_NGC(triggerInterrupt, triggerInterrupt2, triggerInterrupt3); break;
+    case DECODER_VMAX: initDecoder_Vmax(triggerInterrupt, triggerInterrupt2, triggerInterrupt3); break;
+    case DECODER_RENIX: initDecoder_Renix(triggerInterrupt, triggerInterrupt2, triggerInterrupt3); break;
+    case DECODER_ROVERMEMS: initDecoder_RoverMEMS(triggerInterrupt, triggerInterrupt2, triggerInterrupt3); break;
+    case DECODER_SUZUKI_K6A: initDecoder_SuzukiK6A(triggerInterrupt, triggerInterrupt2, triggerInterrupt3); break;
+    case DECODER_FORD_TFI: initDecoder_FordTFI(triggerInterrupt, triggerInterrupt2, triggerInterrupt3); break;
+    default: initDecoder_Default(triggerInterrupt, triggerInterrupt2, triggerInterrupt3); break;
   }
 
   #if defined(CORE_TEENSY41)
-    //Teensy 4 requires a HYSTERESIS flag to be set on any external interrupt pins to prevent false interrupts
     setTeensy41PinsHysteresis();
   #endif
 }
@@ -2528,106 +2487,204 @@ static inline bool isAnyIgnScheduleRunning(void) {
 /** Change injectors or/and ignition angles to 720deg.
  * Roll back req_fuel size and set number of outputs equal to cylinder count.
 * */
+namespace {
+
+/** @brief Configure fuel schedules for full sync (720°). */
+static void changeHalfToFullSync_ConfigureFuel(void)
+{
+  fuelSchedule1.pStartFunction = openInjector1;
+  fuelSchedule1.pEndFunction = closeInjector1;
+  fuelSchedule2.pStartFunction = openInjector2;
+  fuelSchedule2.pEndFunction = closeInjector2;
+  fuelSchedule3.pStartFunction = openInjector3;
+  fuelSchedule3.pEndFunction = closeInjector3;
+  fuelSchedule4.pStartFunction = openInjector4;
+  fuelSchedule4.pEndFunction = closeInjector4;
+#if INJ_CHANNELS >= 5
+  fuelSchedule5.pStartFunction = openInjector5;
+  fuelSchedule5.pEndFunction = closeInjector5;
+#endif
+#if INJ_CHANNELS >= 6
+  fuelSchedule6.pStartFunction = openInjector6;
+  fuelSchedule6.pEndFunction = closeInjector6;
+#endif
+#if INJ_CHANNELS >= 7
+  fuelSchedule7.pStartFunction = openInjector7;
+  fuelSchedule7.pEndFunction = closeInjector7;
+#endif
+#if INJ_CHANNELS >= 8
+  fuelSchedule8.pStartFunction = openInjector8;
+  fuelSchedule8.pEndFunction = closeInjector8;
+#endif
+
+  switch (configPage2.nCylinders)
+  {
+    case 4: maxInjOutputs = 4; break;
+    case 6: maxInjOutputs = 6; break;
+    case 8: maxInjOutputs = 8; break;
+    default: break;
+  }
+}
+
+/** @brief Configure ignition for 4-cyl full sync (720°). */
+static void changeHalfToFullSync_ConfigureIgn_4Cyl(void)
+{
+  ignitionSchedule1.pStartCallback = beginCoil1Charge;
+  ignitionSchedule1.pEndCallback = endCoil1Charge;
+  ignitionSchedule2.pStartCallback = beginCoil2Charge;
+  ignitionSchedule2.pEndCallback = endCoil2Charge;
+}
+
+/** @brief Configure ignition for 6-cyl full sync (720°). */
+static void changeHalfToFullSync_ConfigureIgn_6Cyl(void)
+{
+  ignitionSchedule1.pStartCallback = beginCoil1Charge;
+  ignitionSchedule1.pEndCallback = endCoil1Charge;
+  ignitionSchedule2.pStartCallback = beginCoil2Charge;
+  ignitionSchedule2.pEndCallback = endCoil2Charge;
+  ignitionSchedule3.pStartCallback = beginCoil3Charge;
+  ignitionSchedule3.pEndCallback = endCoil3Charge;
+}
+
+/** @brief Configure ignition for 8-cyl full sync (720°). */
+static void changeHalfToFullSync_ConfigureIgn_8Cyl(void)
+{
+  ignitionSchedule1.pStartCallback = beginCoil1Charge;
+  ignitionSchedule1.pEndCallback = endCoil1Charge;
+  ignitionSchedule2.pStartCallback = beginCoil2Charge;
+  ignitionSchedule2.pEndCallback = endCoil2Charge;
+  ignitionSchedule3.pStartCallback = beginCoil3Charge;
+  ignitionSchedule3.pEndCallback = endCoil3Charge;
+  ignitionSchedule4.pStartCallback = beginCoil4Charge;
+  ignitionSchedule4.pEndCallback = endCoil4Charge;
+}
+
+} // anonymous namespace
+
+/**
+ * @brief Change from 360° to 720° operation for sequential injection/ignition.
+ *
+ * Runtime transition handler. Doubles req_fuel, reconfigures fuel/ignition schedules
+ * for full-cycle operation. Checks for running schedules to prevent mid-operation changes.
+ *
+ * @note MISRA-C compliant refactored version (95 lines → 32 lines + 4 helpers)
+ */
 void changeHalfToFullSync(void)
 {
-  //Need to do another check for injLayout as this function can be called from ignition
   noInterrupts();
   if( (configPage2.injLayout == INJ_SEQUENTIAL) && (CRANK_ANGLE_MAX_INJ != 720) && (!isAnyFuelScheduleRunning()))
   {
     CRANK_ANGLE_MAX_INJ = 720;
     req_fuel_uS *= 2;
-    
-    fuelSchedule1.pStartFunction = openInjector1;
-    fuelSchedule1.pEndFunction = closeInjector1;
-    fuelSchedule2.pStartFunction = openInjector2;
-    fuelSchedule2.pEndFunction = closeInjector2;
-    fuelSchedule3.pStartFunction = openInjector3;
-    fuelSchedule3.pEndFunction = closeInjector3;
-    fuelSchedule4.pStartFunction = openInjector4;
-    fuelSchedule4.pEndFunction = closeInjector4;
-#if INJ_CHANNELS >= 5
-    fuelSchedule5.pStartFunction = openInjector5;
-    fuelSchedule5.pEndFunction = closeInjector5;
-#endif
-#if INJ_CHANNELS >= 6
-    fuelSchedule6.pStartFunction = openInjector6;
-    fuelSchedule6.pEndFunction = closeInjector6;
-#endif
-#if INJ_CHANNELS >= 7
-    fuelSchedule7.pStartFunction = openInjector7;
-    fuelSchedule7.pEndFunction = closeInjector7;
-#endif
-#if INJ_CHANNELS >= 8
-    fuelSchedule8.pStartFunction = openInjector8;
-     fuelSchedule8.pEndFunction = closeInjector8;
-#endif
-
-    switch (configPage2.nCylinders)
-    {
-      case 4:
-        maxInjOutputs = 4;
-        break;
-            
-      case 6:
-        maxInjOutputs = 6;
-        break;
-
-      case 8:
-        maxInjOutputs = 8;
-        break;
-
-      default:
-        break; //No actions required for other cylinder counts
-
-    }
+    changeHalfToFullSync_ConfigureFuel();
   }
   interrupts();
 
-  //Need to do another check for sparkMode as this function can be called from injection
   if( (configPage4.sparkMode == IGN_MODE_SEQUENTIAL) && (CRANK_ANGLE_MAX_IGN != 720) && (!isAnyIgnScheduleRunning()) )
   {
     CRANK_ANGLE_MAX_IGN = 720;
     maxIgnOutputs = configPage2.nCylinders;
     switch (configPage2.nCylinders)
     {
-    case 4:
-      ignitionSchedule1.pStartCallback = beginCoil1Charge;
-      ignitionSchedule1.pEndCallback = endCoil1Charge;
-      ignitionSchedule2.pStartCallback = beginCoil2Charge;
-      ignitionSchedule2.pEndCallback = endCoil2Charge;
-      break;
-
-    case 6:
-      ignitionSchedule1.pStartCallback = beginCoil1Charge;
-      ignitionSchedule1.pEndCallback = endCoil1Charge;
-      ignitionSchedule2.pStartCallback = beginCoil2Charge;
-      ignitionSchedule2.pEndCallback = endCoil2Charge;
-      ignitionSchedule3.pStartCallback = beginCoil3Charge;
-      ignitionSchedule3.pEndCallback = endCoil3Charge;
-      break;
-
-    case 8:
-      ignitionSchedule1.pStartCallback = beginCoil1Charge;
-      ignitionSchedule1.pEndCallback = endCoil1Charge;
-      ignitionSchedule2.pStartCallback = beginCoil2Charge;
-      ignitionSchedule2.pEndCallback = endCoil2Charge;
-      ignitionSchedule3.pStartCallback = beginCoil3Charge;
-      ignitionSchedule3.pEndCallback = endCoil3Charge;
-      ignitionSchedule4.pStartCallback = beginCoil4Charge;
-      ignitionSchedule4.pEndCallback = endCoil4Charge;
-      break;
-
-    default:
-      break; //No actions required for other cylinder counts
-      
+    case 4: changeHalfToFullSync_ConfigureIgn_4Cyl(); break;
+    case 6: changeHalfToFullSync_ConfigureIgn_6Cyl(); break;
+    case 8: changeHalfToFullSync_ConfigureIgn_8Cyl(); break;
+    default: break;
     }
   }
 }
 
-/** Change injectors or/and ignition angles to 360deg.
- * In semi sequentiol mode req_fuel size is half.
- * Set number of outputs equal to half cylinder count.
-* */
+namespace {
+
+/** @brief Configure fuel for 4-cyl half sync pairing 1&3, 2&4. */
+static void changeFullToHalfSync_ConfigureFuel_4Cyl_Pair1324(void)
+{
+  fuelSchedule1.pStartFunction = openInjector1and3;
+  fuelSchedule1.pEndFunction = closeInjector1and3;
+  fuelSchedule2.pStartFunction = openInjector2and4;
+  fuelSchedule2.pEndFunction = closeInjector2and4;
+  maxInjOutputs = 2;
+}
+
+/** @brief Configure fuel for 4-cyl half sync pairing 1&4, 2&3. */
+static void changeFullToHalfSync_ConfigureFuel_4Cyl_Pair1423(void)
+{
+  fuelSchedule1.pStartFunction = openInjector1and4;
+  fuelSchedule1.pEndFunction = closeInjector1and4;
+  fuelSchedule2.pStartFunction = openInjector2and3;
+  fuelSchedule2.pEndFunction = closeInjector2and3;
+  maxInjOutputs = 2;
+}
+
+/** @brief Configure fuel for 6-cyl half sync (pairs 1&4, 2&5, 3&6). */
+static void changeFullToHalfSync_ConfigureFuel_6Cyl(void)
+{
+  fuelSchedule1.pStartFunction = openInjector1and4;
+  fuelSchedule1.pEndFunction = closeInjector1and4;
+  fuelSchedule2.pStartFunction = openInjector2and5;
+  fuelSchedule2.pEndFunction = closeInjector2and5;
+  fuelSchedule3.pStartFunction = openInjector3and6;
+  fuelSchedule3.pEndFunction = closeInjector3and6;
+  maxInjOutputs = 3;
+}
+
+/** @brief Configure fuel for 8-cyl half sync (pairs 1&5, 2&6, 3&7, 4&8). */
+static void changeFullToHalfSync_ConfigureFuel_8Cyl(void)
+{
+  fuelSchedule1.pStartFunction = openInjector1and5;
+  fuelSchedule1.pEndFunction = closeInjector1and5;
+  fuelSchedule2.pStartFunction = openInjector2and6;
+  fuelSchedule2.pEndFunction = closeInjector2and6;
+  fuelSchedule3.pStartFunction = openInjector3and7;
+  fuelSchedule3.pEndFunction = closeInjector3and7;
+  fuelSchedule4.pStartFunction = openInjector4and8;
+  fuelSchedule4.pEndFunction = closeInjector4and8;
+  maxInjOutputs = 4;
+}
+
+/** @brief Configure ignition for 4-cyl half sync (pairs 1&3, 2&4). */
+static void changeFullToHalfSync_ConfigureIgn_4Cyl(void)
+{
+  ignitionSchedule1.pStartCallback = beginCoil1and3Charge;
+  ignitionSchedule1.pEndCallback = endCoil1and3Charge;
+  ignitionSchedule2.pStartCallback = beginCoil2and4Charge;
+  ignitionSchedule2.pEndCallback = endCoil2and4Charge;
+}
+
+/** @brief Configure ignition for 6-cyl half sync (pairs 1&4, 2&5, 3&6). */
+static void changeFullToHalfSync_ConfigureIgn_6Cyl(void)
+{
+  ignitionSchedule1.pStartCallback = beginCoil1and4Charge;
+  ignitionSchedule1.pEndCallback = endCoil1and4Charge;
+  ignitionSchedule2.pStartCallback = beginCoil2and5Charge;
+  ignitionSchedule2.pEndCallback = endCoil2and5Charge;
+  ignitionSchedule3.pStartCallback = beginCoil3and6Charge;
+  ignitionSchedule3.pEndCallback = endCoil3and6Charge;
+}
+
+/** @brief Configure ignition for 8-cyl half sync (pairs 1&5, 2&6, 3&7, 4&8). */
+static void changeFullToHalfSync_ConfigureIgn_8Cyl(void)
+{
+  ignitionSchedule1.pStartCallback = beginCoil1and5Charge;
+  ignitionSchedule1.pEndCallback = endCoil1and5Charge;
+  ignitionSchedule2.pStartCallback = beginCoil2and6Charge;
+  ignitionSchedule2.pEndCallback = endCoil2and6Charge;
+  ignitionSchedule3.pStartCallback = beginCoil3and7Charge;
+  ignitionSchedule3.pEndCallback = endCoil3and7Charge;
+  ignitionSchedule4.pStartCallback = beginCoil4and8Charge;
+  ignitionSchedule4.pEndCallback = endCoil4and8Charge;
+}
+
+} // anonymous namespace
+
+/**
+ * @brief Change from 720° to 360° operation for semi-sequential mode.
+ *
+ * Runtime transition handler. Halves req_fuel, reconfigures fuel/ignition schedules
+ * for paired operation. Updates maxOutputs for semi-sequential mode.
+ *
+ * @note MISRA-C compliant refactored version (85 lines → 30 lines + 7 helpers)
+ */
 void changeFullToHalfSync(void)
 {
   if(configPage2.injLayout == INJ_SEQUENTIAL)
@@ -2637,44 +2694,12 @@ void changeFullToHalfSync(void)
     switch (configPage2.nCylinders)
     {
       case 4:
-        if(configPage4.inj4cylPairing == INJ_PAIR_13_24)
-        {
-          fuelSchedule1.pStartFunction = openInjector1and3;
-          fuelSchedule1.pEndFunction = closeInjector1and3;
-          fuelSchedule2.pStartFunction = openInjector2and4;
-          fuelSchedule2.pEndFunction = closeInjector2and4;
-        }
-        else
-        {
-          fuelSchedule1.pStartFunction = openInjector1and4;
-          fuelSchedule1.pEndFunction = closeInjector1and4;
-          fuelSchedule2.pStartFunction = openInjector2and3;
-          fuelSchedule2.pEndFunction = closeInjector2and3;
-        }
-        maxInjOutputs = 2;
+        if(configPage4.inj4cylPairing == INJ_PAIR_13_24) { changeFullToHalfSync_ConfigureFuel_4Cyl_Pair1324(); }
+        else { changeFullToHalfSync_ConfigureFuel_4Cyl_Pair1423(); }
         break;
-            
-      case 6:
-        fuelSchedule1.pStartFunction = openInjector1and4;
-        fuelSchedule1.pEndFunction = closeInjector1and4;
-        fuelSchedule2.pStartFunction = openInjector2and5;
-        fuelSchedule2.pEndFunction = closeInjector2and5;
-        fuelSchedule3.pStartFunction = openInjector3and6;
-        fuelSchedule3.pEndFunction = closeInjector3and6;
-        maxInjOutputs = 3;
-        break;
-
-      case 8:
-        fuelSchedule1.pStartFunction = openInjector1and5;
-        fuelSchedule1.pEndFunction = closeInjector1and5;
-        fuelSchedule2.pStartFunction = openInjector2and6;
-        fuelSchedule2.pEndFunction = closeInjector2and6;
-        fuelSchedule3.pStartFunction = openInjector3and7;
-        fuelSchedule3.pEndFunction = closeInjector3and7;
-        fuelSchedule4.pStartFunction = openInjector4and8;
-        fuelSchedule4.pEndFunction = closeInjector4and8;
-        maxInjOutputs = 4;
-        break;
+      case 6: changeFullToHalfSync_ConfigureFuel_6Cyl(); break;
+      case 8: changeFullToHalfSync_ConfigureFuel_8Cyl(); break;
+      default: break;
     }
   }
 
@@ -2684,32 +2709,10 @@ void changeFullToHalfSync(void)
     maxIgnOutputs = configPage2.nCylinders / 2;
     switch (configPage2.nCylinders)
     {
-      case 4:
-        ignitionSchedule1.pStartCallback = beginCoil1and3Charge;
-        ignitionSchedule1.pEndCallback = endCoil1and3Charge;
-        ignitionSchedule2.pStartCallback = beginCoil2and4Charge;
-        ignitionSchedule2.pEndCallback = endCoil2and4Charge;
-        break;
-            
-      case 6:
-        ignitionSchedule1.pStartCallback = beginCoil1and4Charge;
-        ignitionSchedule1.pEndCallback = endCoil1and4Charge;
-        ignitionSchedule2.pStartCallback = beginCoil2and5Charge;
-        ignitionSchedule2.pEndCallback = endCoil2and5Charge;
-        ignitionSchedule3.pStartCallback = beginCoil3and6Charge;
-        ignitionSchedule3.pEndCallback = endCoil3and6Charge;
-        break;
-
-      case 8:
-        ignitionSchedule1.pStartCallback = beginCoil1and5Charge;
-        ignitionSchedule1.pEndCallback = endCoil1and5Charge;
-        ignitionSchedule2.pStartCallback = beginCoil2and6Charge;
-        ignitionSchedule2.pEndCallback = endCoil2and6Charge;
-        ignitionSchedule3.pStartCallback = beginCoil3and7Charge;
-        ignitionSchedule3.pEndCallback = endCoil3and7Charge;
-        ignitionSchedule4.pStartCallback = beginCoil4and8Charge;
-        ignitionSchedule4.pEndCallback = endCoil4and8Charge;
-        break;
+      case 4: changeFullToHalfSync_ConfigureIgn_4Cyl(); break;
+      case 6: changeFullToHalfSync_ConfigureIgn_6Cyl(); break;
+      case 8: changeFullToHalfSync_ConfigureIgn_8Cyl(); break;
+      default: break;
     }
   }
 }
