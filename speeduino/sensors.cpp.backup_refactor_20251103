@@ -3,62 +3,8 @@ Speeduino - Simple engine management for the Arduino Mega 2560 platform
 Copyright (C) Josh Stewart
 A full copy of the license may be found in the projects root directory
 */
-
-/**
- * @file sensors.cpp
- * @brief Sensor reading functions with filtering, calibration and timing control
- *
- * @details Implements all sensor reading strategies for engine management:
- *
- * **Sensors Supported:**
- * - **MAP (Manifold Absolute Pressure):** Multiple sampling algorithms
- *   - Instantaneous: Direct real-time reading
- *   - Cycle Average: Average over 2 revolutions (720°)
- *   - Cycle Minimum: Minimum value over 2 revolutions
- *   - Event Average: Average over single ignition event
- * - **EMAP (Exhaust MAP):** For turbocharged engines
- * - **TPS (Throttle Position Sensor):** 0-100% with calibration
- * - **CLT (Coolant Temperature):** NTC thermistor with lookup table
- * - **IAT (Intake Air Temperature):** NTC thermistor with lookup table
- * - **O2 (Oxygen Sensor):** Narrowband and wideband support
- * - **Baro (Barometric Pressure):** Altitude compensation
- * - **Battery Voltage:** With offset calibration
- * - **VSS (Vehicle Speed Sensor):** Pulse-based or CAN/serial
- * - **Flex Fuel:** Ethanol content sensor (frequency-based)
- * - **Knock Sensor:** Analog or digital knock detection
- * - **Fuel/Oil Pressure:** Analog pressure sensors
- *
- * **Key Features:**
- * - Configurable low-pass filtering (per-sensor filter constants)
- * - NTC thermistor calibration tables (32-point lookup)
- * - MAP sampling algorithms optimized for different engine conditions
- * - Interrupt-driven ADC on AVR platforms (ANALOG_ISR mode)
- * - Atomic operations for multi-threaded safety
- * - Hardware abstraction (AVR/STM32/Teensy support)
- * - Auxiliary analog/digital inputs (16 channels via CAN/serial)
- *
- * **MAP Sampling Algorithms:**
- * 1. **Instantaneous:** Best for steady-state, low latency
- * 2. **Cycle Average:** Best for smoothing pulsations (ITBs, cams)
- * 3. **Cycle Minimum:** Best for peak detection (vacuum spikes)
- * 4. **Event Average:** Best for synchronized sampling per cylinder
- *
- * **Filter Implementation:**
- * - Low-pass filter: `filtered = (alpha * new) + ((255-alpha) * old) / 255`
- * - Configurable alpha per sensor (0=no filter, 255=max filter)
- * - Trade-off: Lower alpha = faster response, more noise
- *
- * @note All functions follow MISRA-C:2012 guidelines
- * @note MAP algorithms use atomic operations for ISR safety
- * @note Sensor calibration tables stored in EEPROM
- * @note VSS uses circular buffer for speed calculation
- *
- * @author Speeduino Team
- * @date 2025-11-03
- * @version 2.0 (MISRA-C compliant with comprehensive Doxygen)
- *
- * @copyright Copyright (c) 2025 Speeduino
- * @license GPL-3.0
+/** @file
+ * Read sensors with appropriate timing / scheduling.
  */
 
 #include "sensors.h"
@@ -77,29 +23,9 @@ A full copy of the license may be found in the projects root directory
 #include "sensors_map_structs.h"
 #include "units.h"
 
-//=============================================================================
-// MODULE STATE AND CONSTANTS
-//=============================================================================
-
-/** @brief MISRA-C: Maximum valid ADC filter value (sanity check threshold) */
-static constexpr uint8_t ADC_FILTER_MAX_VALID = 240U;
-
-/** @brief MISRA-C: ADC range for 10-bit conversion (0-1023) */
-static constexpr uint16_t ADC_10BIT_MAX = 1023U;
-
-/** @brief MISRA-C: Number of VSS samples in circular buffer */
-static constexpr uint8_t VSS_SAMPLES_COUNT = VSS_SAMPLES;
-
-/** @brief MISRA-C: Gear detection hysteresis (prevents gear hunting) */
-static constexpr uint16_t VSS_GEAR_HYSTERESIS_VALUE = VSS_GEAR_HYSTERESIS;
-
-/** @brief Status flags for sensor subsystem */
 uint8_t statusSensors = 0;
 
-/** @brief VSS pulse timing circular buffer */
 static volatile uint32_t vssTimes[VSS_SAMPLES] = {0};
-
-/** @brief Current index in VSS circular buffer */
 static volatile uint8_t vssIndex = 0U;
 
 volatile uint8_t flexCounter = 0U;
@@ -139,26 +65,17 @@ table2D_u16_u8_32 o2CalibrationTable(&o2Calibration_bins, &o2Calibration_values)
  * @param rangeMax Maximum of the output range
  * @return int16_t 
  */
-TESTABLE_INLINE_STATIC int16_t fastMap10Bit(uint16_t value, int16_t rangeMin, int16_t rangeMax)
+TESTABLE_INLINE_STATIC int16_t fastMap10Bit(uint16_t value, int16_t rangeMin, int16_t rangeMax) 
 {
-  // MISRA-C: Perform range calculation with overflow protection
-  // Result = rangeMin + (value * (rangeMax - rangeMin)) / 1024
   uint16_t range = rangeMax-rangeMin; // Must be positive (assuming rangeMax>=rangeMin)
   uint16_t fromStartOfRange = (uint16_t)rshift<10>((uint32_t)value * range);
   return rangeMin + (int16_t)fromStartOfRange;
 }
 
-/**
- * @brief Read analog pin with double-read for stability
- * @param pin Arduino analog pin number
- * @return ADC value in range [0, 1023]
- * @note Reads twice: first read primes ADC, second read is actual value
- * @note Clamps result to zero minimum to prevent rollover
- */
-static inline uint16_t readAnalogPin(uint8_t pin)
+//
+static inline uint16_t readAnalogPin(uint8_t pin) 
 {
-  // Why do we read twice? First read primes the ADC multiplexer,
-  // second read gives stable value (hardware quirk on some platforms)
+  // Why do we read twice? Who knows.....
   analogRead(pin);
   // According to the docs, analogRead result should be in range 0-1023
   // Clip the result to zero minimum to prevent rollover just in case
@@ -318,18 +235,17 @@ void initialiseADC(void)
   } //For loop iterating through aux in lines
   
 
-  //Sanity checks to ensure none of the filter values are set above ADC_FILTER_MAX_VALID (240)
-  //(240 threshold catches invalid 0xFF default on new/unprogrammed EEPROM)
-  //If an invalid value is detected, it's reset to the default value and burned to EEPROM.
-  //Each sensor has its own default value optimized for response vs noise trade-off
-  if(configPage4.ADCFILTER_TPS  > ADC_FILTER_MAX_VALID) { configPage4.ADCFILTER_TPS   = ADCFILTER_TPS_DEFAULT;   writeConfig(ignSetPage); }
-  if(configPage4.ADCFILTER_CLT  > ADC_FILTER_MAX_VALID) { configPage4.ADCFILTER_CLT   = ADCFILTER_CLT_DEFAULT;   writeConfig(ignSetPage); }
-  if(configPage4.ADCFILTER_IAT  > ADC_FILTER_MAX_VALID) { configPage4.ADCFILTER_IAT   = ADCFILTER_IAT_DEFAULT;   writeConfig(ignSetPage); }
-  if(configPage4.ADCFILTER_O2   > ADC_FILTER_MAX_VALID) { configPage4.ADCFILTER_O2    = ADCFILTER_O2_DEFAULT;    writeConfig(ignSetPage); }
-  if(configPage4.ADCFILTER_BAT  > ADC_FILTER_MAX_VALID) { configPage4.ADCFILTER_BAT   = ADCFILTER_BAT_DEFAULT;   writeConfig(ignSetPage); }
-  if(configPage4.ADCFILTER_MAP  > ADC_FILTER_MAX_VALID) { configPage4.ADCFILTER_MAP   = ADCFILTER_MAP_DEFAULT;   writeConfig(ignSetPage); }
-  if(configPage4.ADCFILTER_BARO > ADC_FILTER_MAX_VALID) { configPage4.ADCFILTER_BARO  = ADCFILTER_BARO_DEFAULT;  writeConfig(ignSetPage); }
-  if(configPage4.FILTER_FLEX    > ADC_FILTER_MAX_VALID) { configPage4.FILTER_FLEX     = FILTER_FLEX_DEFAULT;     writeConfig(ignSetPage); }
+  //Sanity checks to ensure none of the filter values are set above 240 (Which would include the 255 value which is the default on a new arduino)
+  //If an invalid value is detected, it's reset to the default the value and burned to EEPROM. 
+  //Each sensor has it's own default value
+  if(configPage4.ADCFILTER_TPS  > 240U) { configPage4.ADCFILTER_TPS   = ADCFILTER_TPS_DEFAULT;   writeConfig(ignSetPage); }
+  if(configPage4.ADCFILTER_CLT  > 240U) { configPage4.ADCFILTER_CLT   = ADCFILTER_CLT_DEFAULT;   writeConfig(ignSetPage); }
+  if(configPage4.ADCFILTER_IAT  > 240U) { configPage4.ADCFILTER_IAT   = ADCFILTER_IAT_DEFAULT;   writeConfig(ignSetPage); }
+  if(configPage4.ADCFILTER_O2   > 240U) { configPage4.ADCFILTER_O2    = ADCFILTER_O2_DEFAULT;    writeConfig(ignSetPage); }
+  if(configPage4.ADCFILTER_BAT  > 240U) { configPage4.ADCFILTER_BAT   = ADCFILTER_BAT_DEFAULT;   writeConfig(ignSetPage); }
+  if(configPage4.ADCFILTER_MAP  > 240U) { configPage4.ADCFILTER_MAP   = ADCFILTER_MAP_DEFAULT;   writeConfig(ignSetPage); }
+  if(configPage4.ADCFILTER_BARO > 240U) { configPage4.ADCFILTER_BARO  = ADCFILTER_BARO_DEFAULT;  writeConfig(ignSetPage); }
+  if(configPage4.FILTER_FLEX    > 240U) { configPage4.FILTER_FLEX     = FILTER_FLEX_DEFAULT;     writeConfig(ignSetPage); }
 
   flexStartTime = micros();
 
