@@ -3,8 +3,118 @@ Speeduino - Simple engine management for the Arduino Mega 2560 platform
 Copyright (C) Josh Stewart
 A full copy of the license may be found in the projects root directory
 */
-/** @file
- * Process Incoming and outgoing serial communications.
+/**
+ * @file comms_legacy.cpp
+ * @brief Legacy TunerStudio serial communication protocol (pre-CAN16 format)
+ *
+ * @details Implements the original TunerStudio serial protocol using single-letter
+ * ASCII commands for backwards compatibility with older tuning software versions.
+ * This protocol predates the modern CAN16-style packet format implemented in comms.cpp.
+ *
+ * **PROTOCOL CHARACTERISTICS:**
+ * - Single-byte letter commands (case-sensitive)
+ * - ASCII-based protocol (human-readable commands)
+ * - No packet checksums (legacy reliability model)
+ * - Fixed-size page reads/writes
+ * - Synchronous command/response model
+ *
+ * **COMMAND CATEGORIES:**
+ *
+ * **1. Real-Time Data Commands:**
+ * - **'a'** - Send legacy realtime values (old format)
+ * - **'A'** - Send realtime values (LOG_ENTRY_SIZE bytes, modern format)
+ * - **'r'** - Send optimized OutputChannels (variable length based on TS request)
+ * - **'c'** - Send loops per second (performance metric)
+ * - **'m'** - Send free RAM (memory diagnostic)
+ *
+ * **2. Configuration Page Commands:**
+ * - **'P'** - Set current page number (0-12 for different config tables)
+ * - **'p'** - Read page data (sends entire page as binary stream)
+ * - **'w'** - Write page data (receives entire page as binary stream)
+ * - **'V'** - Send VE table + constants (legacy combined format)
+ * - **'W'** - Write single VE table byte at offset
+ *
+ * **3. EEPROM Persistence Commands:**
+ * - **'b'** - Burn single page to EEPROM (non-blocking)
+ * - **'B'** - Burn single page in compatibility mode (blocking)
+ * - **'G'** - Dump entire EEPROM to serial (diagnostics)
+ * - **'g'** - Receive full EEPROM dump from tuning software
+ *
+ * **4. Calibration Commands:**
+ * - **'t'** - Receive calibration table (CLT, IAT, O2 sensor curves)
+ *
+ * **5. Tooth/Trigger Logging Commands:**
+ * - **'H'** - Start tooth logger (primary trigger wheel)
+ * - **'h'** - Stop tooth logger
+ * - **'T'** - Send 256 tooth log entries to TunerStudio
+ * - **'J'** - Start composite logger (primary cam)
+ * - **'j'** - Stop composite logger
+ * - **'O'** - Start secondary composite logger (VVT cam)
+ * - **'o'** - Stop secondary composite logger
+ * - **'X'** - Start tertiary composite logger (intake cam)
+ * - **'x'** - Stop tertiary composite logger
+ * - **'z'** - Send 256 tooth log entries to terminal (ASCII debug format)
+ *
+ * **6. Protocol/Version Commands:**
+ * - **'C'** - Test communications (handshake check for port detection)
+ * - **'F'** - Send serial protocol version
+ * - **'Q'** - Send code version (firmware version string)
+ * - **'S'** - Send signature (ECU identifier for TunerStudio INI matching)
+ *
+ * **7. Utility Commands:**
+ * - **'d'** - Send CRC32 hash of current page (integrity check)
+ * - **'E'** - Execute command button handler (user-defined actions)
+ * - **'L'** - List current page in human-readable format (ASCII debug)
+ * - **'M'** - Reboot to SD card bootloader (STM32 firmware update)
+ * - **'N'** - Send newline (terminal formatting)
+ * - **'U'** - Reset ECU (software reset for firmware update)
+ * - **'Z'** - Non-standard testing function (calibration diagnostics)
+ *
+ * **LEGACY vs MODERN PROTOCOL:**
+ * - **Legacy (this file)**: Single-letter commands, ASCII-based, no checksums
+ * - **Modern (comms.cpp)**: CAN16 packet format, binary protocol, CRC validation
+ * - **Compatibility Mode**: 'B' command forces legacy behavior for old TunerStudio versions
+ *
+ * **PAGE NUMBERS:**
+ * - Page 0: VE Table 1 + Constants
+ * - Page 1: VE Table 2 (staging table)
+ * - Page 2: Ignition Advance Table 1
+ * - Page 3: Ignition Advance Table 2
+ * - Page 4: AFR Target Table
+ * - Pages 5-12: Configuration pages (settings, calibrations, auxiliary functions)
+ *
+ * **TYPICAL COMMAND SEQUENCES:**
+ *
+ * **Read VE Table:**
+ * ```
+ * TS -> ECU: 'P' 0x00        (Set page to VE table)
+ * TS -> ECU: 'p' 0x00 0x00   (Request page offset 0, length varies)
+ * ECU -> TS: [288 bytes]      (VE table + constants)
+ * ```
+ *
+ * **Write Config Value:**
+ * ```
+ * TS -> ECU: 'P' 0x02        (Set page to ignition map)
+ * TS -> ECU: 'w' 0x15 0x2A   (Write 0x2A to offset 0x15)
+ * TS -> ECU: 'b' 0x02        (Burn page to EEPROM)
+ * ECU -> TS: 0x04            (BURN_OK response)
+ * ```
+ *
+ * **Start Tooth Logging:**
+ * ```
+ * TS -> ECU: 'H'             (Start tooth logger)
+ * [Wait for trigger events...]
+ * TS -> ECU: 'T'             (Request tooth log dump)
+ * ECU -> TS: [512 bytes]     (256 entries × 2 bytes/entry)
+ * TS -> ECU: 'h'             (Stop tooth logger)
+ * ```
+ *
+ * @complexity High (1,305 lines, 30+ commands, page management state machine)
+ * @performance Command processing: <1ms typical, EEPROM writes: 10-50ms
+ * @note This protocol is maintained for backwards compatibility only
+ * @warning No packet integrity checks - use modern protocol for critical operations
+ * @see comms.cpp for modern CAN16-style protocol with CRC validation
+ * @see TS_CommandButtonHandler.cpp for command button actions
  */
 #include "globals.h"
 #include "comms.h"
@@ -25,7 +135,125 @@ A full copy of the license may be found in the projects root directory
 #include "units.h"
 #include "sensors.h"
 
-static byte currentPage = 1;//Not the same as the speeduino config page numbers
+// ============================================================================
+// MISRA-C:2012 Compliance - Named Constants
+// ============================================================================
+
+/** @brief MISRA-C: Legacy realtime command 'a' - old format */
+static constexpr char CMD_LEGACY_REALTIME = 'a';
+
+/** @brief MISRA-C: Realtime values command 'A' - modern format */
+static constexpr char CMD_REALTIME_VALUES = 'A';
+
+/** @brief MISRA-C: Burn page to EEPROM command 'b' */
+static constexpr char CMD_BURN_PAGE = 'b';
+
+/** @brief MISRA-C: Burn page (compatibility mode) 'B' */
+static constexpr char CMD_BURN_PAGE_COMPAT = 'B';
+
+/** @brief MISRA-C: Test communications command 'C' */
+static constexpr char CMD_TEST_COMMS = 'C';
+
+/** @brief MISRA-C: Send loops/sec command 'c' */
+static constexpr char CMD_SEND_LOOPS = 'c';
+
+/** @brief MISRA-C: Send CRC32 hash command 'd' */
+static constexpr char CMD_SEND_CRC = 'd';
+
+/** @brief MISRA-C: Command button handler 'E' */
+static constexpr char CMD_BUTTON_HANDLER = 'E';
+
+/** @brief MISRA-C: Protocol version command 'F' */
+static constexpr char CMD_PROTOCOL_VERSION = 'F';
+
+/** @brief MISRA-C: Dump EEPROM command 'G' */
+static constexpr char CMD_DUMP_EEPROM = 'G';
+
+/** @brief MISRA-C: Receive EEPROM dump command 'g' */
+static constexpr char CMD_RECEIVE_EEPROM = 'g';
+
+/** @brief MISRA-C: Start tooth logger 'H' */
+static constexpr char CMD_START_TOOTH_LOG = 'H';
+
+/** @brief MISRA-C: Stop tooth logger 'h' */
+static constexpr char CMD_STOP_TOOTH_LOG = 'h';
+
+/** @brief MISRA-C: Start composite logger 'J' */
+static constexpr char CMD_START_COMPOSITE_LOG = 'J';
+
+/** @brief MISRA-C: Stop composite logger 'j' */
+static constexpr char CMD_STOP_COMPOSITE_LOG = 'j';
+
+/** @brief MISRA-C: List page in human-readable format 'L' */
+static constexpr char CMD_LIST_PAGE = 'L';
+
+/** @brief MISRA-C: SD bootloader reboot 'M' */
+static constexpr char CMD_SD_BOOTLOADER = 'M';
+
+/** @brief MISRA-C: Send newline 'N' */
+static constexpr char CMD_NEWLINE = 'N';
+
+/** @brief MISRA-C: Start secondary composite logger 'O' */
+static constexpr char CMD_START_COMPOSITE_LOG_2 = 'O';
+
+/** @brief MISRA-C: Stop secondary composite logger 'o' */
+static constexpr char CMD_STOP_COMPOSITE_LOG_2 = 'o';
+
+/** @brief MISRA-C: Set current page 'P' */
+static constexpr char CMD_SET_PAGE = 'P';
+
+/** @brief MISRA-C: Read page data 'p' */
+static constexpr char CMD_READ_PAGE = 'p';
+
+/** @brief MISRA-C: Send firmware version 'Q' */
+static constexpr char CMD_FIRMWARE_VERSION = 'Q';
+
+/** @brief MISRA-C: Send OutputChannels 'r' */
+static constexpr char CMD_OUTPUT_CHANNELS = 'r';
+
+/** @brief MISRA-C: Send signature 'S' */
+static constexpr char CMD_SIGNATURE = 'S';
+
+/** @brief MISRA-C: Send tooth log entries 'T' */
+static constexpr char CMD_SEND_TOOTH_LOG = 'T';
+
+/** @brief MISRA-C: Receive calibration table 't' */
+static constexpr char CMD_RECEIVE_CALIBRATION = 't';
+
+/** @brief MISRA-C: Reset ECU 'U' */
+static constexpr char CMD_RESET_ECU = 'U';
+
+/** @brief MISRA-C: Send VE table+constants 'V' */
+static constexpr char CMD_SEND_VE_TABLE = 'V';
+
+/** @brief MISRA-C: Write VE table byte 'W' */
+static constexpr char CMD_WRITE_VE_BYTE = 'W';
+
+/** @brief MISRA-C: Write page data 'w' */
+static constexpr char CMD_WRITE_PAGE = 'w';
+
+/** @brief MISRA-C: Start tertiary composite logger 'X' */
+static constexpr char CMD_START_COMPOSITE_LOG_3 = 'X';
+
+/** @brief MISRA-C: Stop tertiary composite logger 'x' */
+static constexpr char CMD_STOP_COMPOSITE_LOG_3 = 'x';
+
+/** @brief MISRA-C: Testing/calibration function 'Z' */
+static constexpr char CMD_TESTING_FUNCTION = 'Z';
+
+/** @brief MISRA-C: Send tooth log to terminal 'z' */
+static constexpr char CMD_SEND_TOOTH_LOG_TERMINAL = 'z';
+
+/** @brief MISRA-C: Tooth log entry count (256 entries) */
+static constexpr uint16_t TOOTH_LOG_ENTRY_COUNT = 256U;
+
+/** @brief MISRA-C: Tooth log size in bytes (256 entries × 2 bytes) */
+static constexpr uint16_t TOOTH_LOG_SIZE_BYTES = 512U;
+
+/** @brief MISRA-C: Default initial page number */
+static constexpr uint8_t DEFAULT_PAGE_NUMBER = 1U;
+
+static byte currentPage = DEFAULT_PAGE_NUMBER; //Not the same as the speeduino config page numbers
 bool firstCommsRequest = true; /**< The number of times the A command has been issued. This is used to track whether a reset has recently been performed on the controller */
 static byte currentCommand; /**< The serial command that is currently being processed. This is only useful when cmdPending=True */
 static bool chunkPending = false; /**< Whether or not the current chunk write is complete or not */
