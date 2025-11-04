@@ -571,61 +571,8 @@ Can be either data for a new command or a continuation of data for command that 
 
 Commands are single byte (letter symbol) commands.
 */
-/** @brief Main serial receive dispatcher - Refactored from 82 to 35 lines
- *
- * Following REQUISITOS_TECNICOS.md standards:
- * - Complexity: C=4 (reduced from C=11)
- * - Nesting: N=2 (reduced from N=4)
- * - Single Responsibility: Orchestrates receive state machine
- * - All business logic moved to dedicated helper functions
- *
- * **STATE MACHINE:**
- * ```
- * SERIAL_INACTIVE ──┬──> Legacy command? ──> SERIAL_COMMAND_INPROGRESS_LEGACY
- *                   │
- *                   └──> Modern command? ──> SERIAL_RECEIVE_INPROGRESS
- *                                              │
- *                                              ├──> Receiving payload bytes
- *                                              │
- *                                              └──> CRC validation ──> processSerialCommand()
- *                                                    │
- *                                                    └──> CRC error ──> SERIAL_RC_CRC_ERR
- *
- * Timeout at any point ──> SERIAL_RC_TIMEOUT
- * ```
- *
- * @complexity Low (C=4, N=2)
- * @note Original 82 lines reduced to 35 lines via helper extraction
- */
-void serialReceive(void)
-{
-  // Handle existing legacy command in progress
-  if (serialStatusFlag == SERIAL_COMMAND_INPROGRESS_LEGACY) {
-    legacySerialCommand();
-    return;
-  }
 
-  // Check for new command
-  if ((primarySerial.available() != 0) && (serialStatusFlag == SERIAL_INACTIVE)) {
-    // Check if it's a legacy command
-    if (handleLegacyCommandCheck()) {
-      return; // Legacy command dispatched
-    }
-
-    // Modern command - read length header
-    (void)handleNewCommandReceive();
-  }
-
-  // Receive payload bytes (non-blocking)
-  if (serialStatusFlag == SERIAL_RECEIVE_INPROGRESS) {
-    handleSerialPayloadReceive();
-  }
-
-  // Check for timeout
-  if (isRxTimeout()) {
-    handleSerialTimeout();
-  }
-}
+// Note: serialReceive() moved to after anonymous namespace (line ~1400) to access helpers
 
 void serialTransmit(void)
 {
@@ -1387,6 +1334,66 @@ static void padCompositeLogBuffer(void) {
 }
 
 } // anonymous namespace
+
+// ============================================================================
+// PUBLIC FUNCTIONS (using anonymous namespace helpers)
+// ============================================================================
+
+/** @brief Main serial receive dispatcher - Refactored from 82 to 35 lines
+ *
+ * Following REQUISITOS_TECNICOS.md standards:
+ * - Complexity: C=4 (reduced from C=11)
+ * - Nesting: N=2 (reduced from N=4)
+ * - Single Responsibility: Orchestrates receive state machine
+ * - All business logic moved to dedicated helper functions
+ *
+ * **STATE MACHINE:**
+ * ```
+ * SERIAL_INACTIVE ──┬──> Legacy command? ──> SERIAL_COMMAND_INPROGRESS_LEGACY
+ *                   │
+ *                   └──> Modern command? ──> SERIAL_RECEIVE_INPROGRESS
+ *                                              │
+ *                                              ├──> Receiving payload bytes
+ *                                              │
+ *                                              └──> CRC validation ──> processSerialCommand()
+ *                                                    │
+ *                                                    └──> CRC error ──> SERIAL_RC_CRC_ERR
+ *
+ * Timeout at any point ──> SERIAL_RC_TIMEOUT
+ * ```
+ *
+ * @complexity Low (C=4, N=2)
+ * @note Original 82 lines reduced to 35 lines via helper extraction
+ */
+void serialReceive(void)
+{
+  // Handle existing legacy command in progress
+  if (serialStatusFlag == SERIAL_COMMAND_INPROGRESS_LEGACY) {
+    legacySerialCommand();
+    return;
+  }
+
+  // Check for new command
+  if ((primarySerial.available() != 0) && (serialStatusFlag == SERIAL_INACTIVE)) {
+    // Check if it's a legacy command
+    if (handleLegacyCommandCheck()) {
+      return; // Legacy command dispatched
+    }
+
+    // Modern command - read length header
+    (void)handleNewCommandReceive();
+  }
+
+  // Receive payload bytes (non-blocking)
+  if (serialStatusFlag == SERIAL_RECEIVE_INPROGRESS) {
+    handleSerialPayloadReceive();
+  }
+
+  // Check for timeout
+  if (isRxTimeout()) {
+    handleSerialTimeout();
+  }
+}
 
 /** @brief Simplified command dispatcher - Reduced from 489 to 52 lines
  *

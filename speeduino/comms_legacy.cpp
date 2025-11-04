@@ -492,22 +492,46 @@ static void handleCommand_d(void) {
       }
 }
 
-/** @brief Handler for 'g' command
- *  @complexity Estimate: 12 lines
+/** @brief Handler for 'g' command - Receive EEPROM dump from user
+ *  @complexity Medium (C=5, N=4)
+ *  @note Receives raw EEPROM values via serial and writes to EEPROM
  */
 static void handleCommand_g(void) {
-// Receive a dump of raw EEPROM values from the user
-    {
-      serialStatusFlag = SERIAL_COMMAND_INPROGRESS_LEGACY;
-      //Format is similar to the above command. 2 bytes for the EEPROM size that is about to be transmitted, a comma and then a raw dump of the EEPROM values
-      while( (primarySerial.available() < 3) && (!isRxTimeout()) ) { delay(1); }
-      if(primarySerial.available() >= 3)
-      {
-        uint16_t eepromSize = word(primarySerial.read(), primarySerial.read());
-        if(eepromSize != getEEPROMSize())
-        {
-          //Client is trying to send the wrong EEPROM size. Don't let it 
-          primarySerial.println(F("ERR; Incorrect EEPROM size"));
+  serialStatusFlag = SERIAL_COMMAND_INPROGRESS_LEGACY;
+
+  // Guard: Wait for size header (2 bytes + comma = 3 bytes)
+  while ((primarySerial.available() < 3) && (!isRxTimeout())) { delay(1); }
+
+  if (primarySerial.available() < 3) {
+    serialStatusFlag = SERIAL_INACTIVE;
+    return;
+  }
+
+  // Read EEPROM size from packet
+  uint16_t eepromSize = word(primarySerial.read(), primarySerial.read());
+
+  // Guard: Validate EEPROM size
+  if (eepromSize != getEEPROMSize()) {
+    primarySerial.println(F("ERR; Incorrect EEPROM size"));
+    serialStatusFlag = SERIAL_INACTIVE;
+    return;
+  }
+
+  // Receive and write EEPROM bytes
+  for (uint16_t x = 0; x < eepromSize; x++) {
+    // Wait for next byte (with timeout)
+    while ((primarySerial.available() == 0) && (!isRxTimeout())) { delay(1); }
+
+    if (primarySerial.available()) {
+      EEPROMWriteRaw(x, primarySerial.read());
+    } else {
+      // Timeout - abort write
+      serialStatusFlag = SERIAL_INACTIVE;
+      return;
+    }
+  }
+
+  serialStatusFlag = SERIAL_INACTIVE;
 }
 
 /** @brief Handler for 'h' command
