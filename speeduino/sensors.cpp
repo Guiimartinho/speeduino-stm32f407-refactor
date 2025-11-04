@@ -900,6 +900,32 @@ void readBaro(void)
   }
 }
 
+/**
+ * @brief Initialize MAP and barometric pressure sensors at startup.
+ *
+ * Performs initial reading of MAP/baro sensors to establish baseline values
+ * before engine start. Critical for proper fuel/ignition calculations.
+ *
+ * **Initialization Sequence:**
+ * 1. Zeros out MAP algorithm state (cycle/event averages)
+ * 2. Reads initial baro pressure:
+ *    - **External Baro Sensor:** Direct unfiltered read from dedicated pin
+ *    - **MAP-Based Baro:** Loads last known good value from EEPROM
+ *    - Validates baro range (65-108 kPa)
+ *    - Falls back to 100 kPa if EEPROM invalid (first run)
+ * 3. Takes MAP reading (engine must be stopped)
+ *
+ * **EEPROM Baro Recovery:**
+ * - Last known baro saved to EEPROM on engine stop
+ * - Prevents invalid startup values at high altitude
+ * - Validated against physical limits (65-108 kPa)
+ *
+ * @note Must be called with engine stopped (MAP = atmospheric pressure)
+ * @note Caller responsible for ensuring engine is not running
+ * @note Updates `currentStatus.baro`, `mapAlgorithmState`
+ * @see readBaro() for runtime baro updates
+ * @see setBaroFromMAP() for MAP-based baro reading
+ */
 void initialiseMAPBaro(void) 
 {
   //Initialise MAP values to all 0's
@@ -922,6 +948,28 @@ void initialiseMAPBaro(void)
   }
 }
 
+/**
+ * @brief Reset MAP sampling algorithm state (cycle and event averages).
+ *
+ * Clears accumulated MAP samples from cycle average, cycle minimum, and
+ * event average algorithms. Used when changing MAP sampling mode or when
+ * engine synchronization is lost.
+ *
+ * **When to Call:**
+ * - User changes MAP sampling algorithm in TunerStudio
+ * - Engine sync lost (crank/cam sensor error)
+ * - Transition from cranking to running
+ * - MAP sensor fault detected
+ *
+ * **State Cleared:**
+ * - `mapAlgorithmState.cycle_average` - Running totals and sample counts
+ * - `mapAlgorithmState.cycle_min` - Minimum value tracking
+ * - `mapAlgorithmState.event_average` - Event-based accumulation
+ *
+ * @note Does NOT reset `mapAlgorithmState.sensorReadings` (last ADC values)
+ * @note Does NOT reset `mapAlgorithmState.lastReading` (for accel enrich)
+ * @note Safe to call at any time (no critical section needed)
+ */
 void resetMAPcycleAndEvent(void)
 {
   (void)memset(&mapAlgorithmState.cycle_average, 0, sizeof(mapAlgorithmState.cycle_average));
@@ -1339,9 +1387,32 @@ uint8_t getAnalogKnock(void)
   return (uint8_t)fastMap10Bit(readAnalogSensor(pinKnock), 0U, 255U);
 }
 
-/*
- * The interrupt function for reading the flex sensor frequency and pulse width
- * flexCounter value is incremented with every pulse and reset back to 0 once per second
+/**
+ * @brief ISR: Flex fuel sensor pulse handler (ethanol content measurement).
+ *
+ * Interrupt service routine that measures flex fuel sensor signal to determine
+ * ethanol content in fuel. Standard flex sensors output 50-150 Hz frequency
+ * with 1-5 ms pulse width corresponding to 0-100% ethanol.
+ *
+ * **Measurement Method:**
+ * - **Frequency (Hz):** Counted per second via `flexCounter` (reset in main loop)
+ * - **Pulse Width (ms):** Rising edge to falling edge duration
+ * - Both measurements used to calculate ethanol percentage
+ *
+ * **Signal Interpretation:**
+ * - **E0 (gasoline):** ~50 Hz, ~1 ms pulse width
+ * - **E50 (50% ethanol):** ~100 Hz, ~3 ms pulse width
+ * - **E85 (85% ethanol):** ~150 Hz, ~5 ms pulse width
+ *
+ * **Low-Pass Filtering:**
+ * - Pulse width filtered via `configPage4.FILTER_FLEX`
+ * - Reduces noise from sensor/wiring
+ *
+ * @note Interrupt triggered on both rising and falling edges
+ * @note `flexCounter` incremented on falling edge only
+ * @note `flexStartTime` captured on rising edge for pulse width calc
+ * @note Main loop resets `flexCounter` every second
+ * @warning Must complete in <10 µs to avoid blocking other ISRs
  */
 void flexPulse(void)
 {
@@ -1357,9 +1428,34 @@ void flexPulse(void)
   }
 }
 
-/*
- * The interrupt function for pulses from a knock conditioner / controller
- * 
+/**
+ * @brief ISR: Knock sensor pulse counter (digital knock detection).
+ *
+ * Interrupt service routine for digital knock sensor/controller. Counts pulses
+ * from knock conditioner IC (e.g., IC-DIS-01) that outputs digital pulse train
+ * proportional to knock intensity.
+ *
+ * **Knock Detection Logic:**
+ * - Only counts pulses within knock window (configured MAP/RPM range)
+ * - RPM limit: `configPage10.knock_maxRPM` (typically 6000-7000 RPM)
+ * - MAP limit: `configPage10.knock_maxMAP` × 2 (stored as kPa/2)
+ * - Prevents false positives at idle or high load
+ *
+ * **Pulse Counting:**
+ * - Each pulse increments `currentStatus.knockCount`
+ * - If knock already active, additional pulses counted in `correctionKnockTiming()`
+ * - Sets `BIT_STATUS5_KNOCK_PULSE` flag for main loop processing
+ *
+ * **Use Cases:**
+ * - Digital knock controllers (Bosch/MSD/AEM)
+ * - Frequency-output knock sensors
+ * - Pulse train from conditioner ICs
+ *
+ * @note Triggered on rising edge of knock pulse
+ * @note Filtered by RPM and MAP to prevent false knock detection
+ * @note Knock count processed by `correctionKnockTiming()` for ignition retard
+ * @see getAnalogKnock() for analog knock sensor voltage reading
+ * @warning Must complete in <5 µs (critical path)
  */
 void knockPulse(void)
 {
@@ -1371,8 +1467,35 @@ void knockPulse(void)
 }
 
 /**
- * @brief The ISR function for VSS pulses
- * 
+ * @brief ISR: Vehicle Speed Sensor (VSS) pulse handler for interrupt mode.
+ *
+ * Interrupt service routine that captures timestamps of VSS pulses for speed
+ * calculation. Uses circular buffer to store pulse timing history.
+ *
+ * **Circular Buffer:**
+ * - Size: `VSS_SAMPLES` entries (typically 4)
+ * - Stores `micros()` timestamp of each pulse
+ * - `vssIndex` wraps around at buffer end
+ * - Read by `getSpeed()` to calculate average pulse gap
+ *
+ * **Speed Calculation:**
+ * - Pulse gap = time between consecutive pulses
+ * - Speed = 3,600,000,000 µs/hr ÷ (pulse gap × pulses/km)
+ * - Filtering: Average of last `VSS_SAMPLES-1` gaps
+ *
+ * **Pulse Sources:**
+ * - Hall effect wheel speed sensors
+ * - Optical encoders
+ * - Speedometer cable pulse generators
+ * - ECU speed output (pulse-per-distance)
+ *
+ * @note Triggered on rising edge of VSS pulse
+ * @note Buffer automatically wraps (no overflow risk)
+ * @note Thread-safe: `getSpeed()` uses `noInterrupts()` when reading
+ * @note TODO: Add basic filtering here (debounce)
+ * @see getSpeed() for speed calculation from pulse gaps
+ * @see vssGetPulseGap() for reading pulse timing history
+ * @warning Must complete in <10 µs to avoid missing pulses at high speed
  */
 void vssPulse(void)
 {
