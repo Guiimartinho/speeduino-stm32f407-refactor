@@ -1,94 +1,13 @@
-/**
- * @file logger.cpp
- * @brief Real-time data logging and telemetry export for TunerStudio and secondary serial
- *
- * @details Implements data logging interfaces for external monitoring and tuning tools:
- *
- * **Purpose:**
- * - Serialize currentStatus structure for transmission over serial/CAN
- * - Support TunerStudio realtime data display (gauges, datalogs, etc.)
- * - Provide tooth/trigger logging for decoder diagnostics
- * - Export human-readable values for SD card logging
- * - Support legacy secondary serial protocol (OBD adapters, etc.)
- *
- * **Logging Formats Implemented:**
- *
- * 1. **TunerStudio Format** - getTSLogEntry()
- *    - Byte-indexed access (0-138+)
- *    - Multi-byte fields split into low/high bytes
- *    - Values have offsets/scaling expected by TunerStudio
- *    - NOT human-readable (e.g., temp in ADC counts + offset)
- *
- * 2. **Human-Readable Format** - getReadableLogEntry()
- *    - Index-based access (0-98+) - NOT byte position
- *    - Single entry per field (no byte splitting)
- *    - Values in engineering units (kPa, °C, RPM, etc.)
- *    - For SD card CSV logging, serial monitors
- *
- * 3. **Floating-Point Format** - getReadableFloatLogEntry()
- *    - Same as readable but with FPU precision
- *    - Battery voltage: 12.6V (not 126)
- *    - Pulse width: 3.45ms (not 3450µs)
- *    - O2: 14.7 AFR (not 147)
- *    - Only on platforms with FPU (STM32F4, Teensy 3.x+)
- *
- * 4. **Legacy Secondary Serial** - getLegacySecondarySerialLogEntry()
- *    - Compatible with older Speeduino tools
- *    - 123 byte format
- *    - Used for OBD-II adapters, Bluetooth modules
- *
- * **Tooth Logger (Trigger Diagnostics):**
- * - Captures trigger wheel edge timestamps for decoder analysis
- * - 4 modes supported:
- *   - Standard: Primary + Secondary triggers
- *   - Composite: Primary + Secondary (combined pattern)
- *   - Composite Tertiary: Primary + Tertiary (3-wheel systems)
- *   - Composite Cams: Secondary + Tertiary (cam-only logging)
- * - Replaces normal trigger ISRs with logging ISRs
- * - Used to diagnose missing teeth, noise, incorrect wheel patterns
- *
- * **Performance Optimizations:**
- * - is2ByteEntry(): Boundless binary search (O(log n) vs O(n) linear)
- * - Static constexpr arrays in PROGMEM (Flash, not RAM)
- * - Switch-case for compiler optimization (jump table)
- * - Inline lowByte/highByte macros (no function call overhead)
- *
- * **Data Flow:**
- * ```
- * [Sensors] → currentStatus → getTSLogEntry() → Serial → TunerStudio
- *                           ↓
- *                     getReadableLogEntry() → SD Card / Serial Monitor
- * ```
- *
- * @note All get*LogEntry() functions are called frequently (10-100Hz)
- * @note Keep functions FAST - no heavy computation allowed
- * @note Tooth logger ISRs are TIME-CRITICAL (µs precision required)
- * @note MISRA-C:2012 compliant with named constants
- *
- * @author Speeduino Team
- * @date 2025-11-03
- * @version 2.0 (MISRA-C compliant with comprehensive Doxygen)
- *
- * @copyright Copyright (c) 2025 Speeduino
- * @license GPL-3.0
- */
-
 #include "globals.h"
 #include "logger.h"
 #include "decoders.h"
 #include "init.h"
 #include "maths.h"
 #include "utilities.h"
-#include BOARD_H
+#include BOARD_H 
 #include "units.h"
 
-//=============================================================================
-// TUNERSTUDIO LOG ENTRY (Byte-indexed format)
-//=============================================================================
-
-/**
- * @brief Returns byte-field from currentStatus for TunerStudio protocol
- *
+/** 
  * Returns a numbered byte-field (partial field in case of multi-byte fields) from "current status" structure in the format expected by TunerStudio
  * Notes on fields:
  * - Numbered field will be fields from @ref currentStatus, but not at all in the internal order of strct (e.g. field RPM value, number 14 will be
@@ -273,13 +192,7 @@ byte getTSLogEntry(uint16_t byteNum)
   return statusValue;
 }
 
-//=============================================================================
-// HUMAN-READABLE LOG ENTRY (Index-based format)
-//=============================================================================
-
-/**
- * @brief Returns human-readable log entry value in engineering units
- *
+/** 
  * Similar to the @ref getTSLogEntry function, however this returns a full, unadjusted (ie human readable) log entry value.
  * See logger.h for the field names and order
  * @param logIndex - The log index required. Note that this is NOT the byte number, but the index in the log
@@ -411,13 +324,7 @@ int16_t getReadableLogEntry(uint16_t logIndex)
   return statusValue;
 }
 
-//=============================================================================
-// FLOATING-POINT LOG ENTRY (FPU-optimized format)
-//=============================================================================
-
-/**
- * @brief Returns floating-point log entry with decimal precision (FPU platforms only)
- *
+/** 
  * An expansion to the @ref getReadableLogEntry function for systems that have an FPU. It will provide a floating point value for any parameter that this is appropriate for, otherwise will return the result of @ref getReadableLogEntry.
  * See logger.h for the field names and order
  * @param logIndex - The log index required. Note that this is NOT the byte number, but the index in the log
@@ -448,27 +355,6 @@ float getReadableFloatLogEntry(uint16_t logIndex)
 }
 #endif
 
-//=============================================================================
-// LEGACY SECONDARY SERIAL FORMAT (Backward compatibility)
-//=============================================================================
-
-/**
- * @brief Returns log entry in legacy secondary serial format
- *
- * @param byteNum Byte index in legacy format (0-122)
- * @return Byte value formatted for legacy protocol
- *
- * @details Used for compatibility with older Speeduino tools:
- * - OBD-II Bluetooth adapters
- * - Legacy dataloggers
- * - Third-party monitoring software
- *
- * @note 123-byte format (different from TunerStudio format)
- * @note Some fields have different byte positions vs getTSLogEntry()
- *
- * @complexity 3 (large switch-case, but O(1) with jump table)
- * @misra Compliant: Default case prevents undefined behavior
- */
 uint8_t getLegacySecondarySerialLogEntry(uint16_t byteNum)
 {
   uint8_t statusValue = 0;
@@ -609,14 +495,8 @@ uint8_t getLegacySecondarySerialLogEntry(uint16_t byteNum)
   return statusValue;
 }
 
-//=============================================================================
-// LOG FIELD TYPE DETECTION (Binary search optimization)
-//=============================================================================
-
-/**
- * @brief Determines if log field is single-byte or two-byte using binary search
- *
- * Searches the log 2 byte array to determine whether a given index is a regular single byte or a 2 byte field.
+/** 
+ * Searches the log 2 byte array to determine whether a given index is a regular single byte or a 2 byte field
  * Uses a boundless binary search for improved performance, but requires the fsIntIndex to remain in order
  * 
  * @param key - Index in the log array to check
@@ -644,31 +524,6 @@ bool is2ByteEntry(uint8_t key)
   return key == pgm_read_byte(&fsIntIndex[bot]);
 }
 
-//=============================================================================
-// TOOTH LOGGER (Trigger wheel diagnostics)
-//=============================================================================
-
-/**
- * @brief Start tooth logger for primary+secondary trigger diagnostics
- *
- * @details Replaces normal trigger ISRs with logging versions that capture:
- * - Timestamp of each trigger edge
- * - Edge type (rising/falling)
- * - Trigger source (primary/secondary)
- *
- * Used for:
- * - Diagnosing missing teeth
- * - Verifying trigger wheel pattern
- * - Detecting electrical noise
- * - Confirming decoder operation
- *
- * @note Disables normal spark/fuel operation during logging
- * @note Limited buffer size - only captures ~1-2 engine revolutions
- * @note Results viewed in TunerStudio → Tools → Tooth Logger
- *
- * @complexity 2 (ISR detach/attach operations)
- * @misra Compliant: Proper ISR handling
- */
 void startToothLogger(void)
 {
   currentStatus.toothLogEnabled = true;
@@ -685,18 +540,9 @@ void startToothLogger(void)
     detachInterrupt( digitalPinToInterrupt(pinTrigger2) );
     attachInterrupt( digitalPinToInterrupt(pinTrigger2), loggerSecondaryISR, CHANGE );  
   }
-
+  
 }
 
-/**
- * @brief Stop tooth logger and restore normal trigger ISRs
- *
- * @details Reconnects standard trigger handlers to resume normal operation.
- * Engine will restart spark/fuel scheduling after this call.
- *
- * @complexity 2 (ISR detach/attach operations)
- * @misra Compliant: Proper ISR handling
- */
 void stopToothLogger(void)
 {
   currentStatus.toothLogEnabled = false;
@@ -712,15 +558,6 @@ void stopToothLogger(void)
   }
 }
 
-/**
- * @brief Start composite trigger logger (combined primary+secondary pattern)
- *
- * @details For decoders that use composite trigger patterns (e.g., 36-1+1, GM 7X).
- * Logs both wheels as single combined pattern for pattern analysis.
- *
- * @complexity 2 (ISR detach/attach operations)
- * @misra Compliant: Proper ISR handling
- */
 void startCompositeLogger(void)
 {
   currentStatus.compositeTriggerUsed = 2U;
@@ -739,12 +576,6 @@ void startCompositeLogger(void)
   }
 }
 
-/**
- * @brief Stop composite trigger logger and restore normal ISRs
- *
- * @complexity 2 (ISR detach/attach operations)
- * @misra Compliant: Proper ISR handling
- */
 void stopCompositeLogger(void)
 {
   currentStatus.compositeTriggerUsed = 0U;
@@ -760,15 +591,6 @@ void stopCompositeLogger(void)
   }
 }
 
-/**
- * @brief Start composite logger with tertiary trigger (3-wheel systems)
- *
- * @details For engines with 3 trigger inputs (e.g., some Toyota, Nissan VQ).
- * Logs primary + tertiary trigger patterns.
- *
- * @complexity 2 (ISR detach/attach operations)
- * @misra Compliant: Proper ISR handling
- */
 void startCompositeLoggerTertiary(void)
 {
   currentStatus.compositeTriggerUsed = 3U;
@@ -784,12 +606,6 @@ void startCompositeLoggerTertiary(void)
   attachInterrupt( digitalPinToInterrupt(pinTrigger3), loggerTertiaryISR, CHANGE );
 }
 
-/**
- * @brief Stop tertiary composite logger and restore normal ISRs
- *
- * @complexity 2 (ISR detach/attach operations)
- * @misra Compliant: Proper ISR handling
- */
 void stopCompositeLoggerTertiary(void)
 {
   currentStatus.compositeTriggerUsed = 0;
@@ -802,15 +618,7 @@ void stopCompositeLoggerTertiary(void)
   attachInterrupt( digitalPinToInterrupt(pinTrigger3), triggerTertiaryHandler, tertiaryTriggerEdge );
 }
 
-/**
- * @brief Start composite logger for camshaft position sensors only
- *
- * @details Logs secondary + tertiary triggers (camshaft sensors).
- * Used when diagnosing cam sync issues without crank trigger.
- *
- * @complexity 2 (ISR detach/attach operations)
- * @misra Compliant: Proper ISR handling
- */
+
 void startCompositeLoggerCams(void)
 {
   currentStatus.compositeTriggerUsed = 4;
@@ -829,12 +637,6 @@ void startCompositeLoggerCams(void)
   attachInterrupt( digitalPinToInterrupt(pinTrigger3), loggerTertiaryISR, CHANGE );
 }
 
-/**
- * @brief Stop camshaft composite logger and restore normal ISRs
- *
- * @complexity 2 (ISR detach/attach operations)
- * @misra Compliant: Proper ISR handling
- */
 void stopCompositeLoggerCams(void)
 {
   currentStatus.compositeTriggerUsed = false;
