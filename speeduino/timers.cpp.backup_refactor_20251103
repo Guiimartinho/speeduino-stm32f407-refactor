@@ -2,69 +2,16 @@
  * SCG-ECU 2.0 - STM32F407 Timer Management
  * Based on Speeduino project
  * Copyright (C) Josh Stewart
+ *
+ * Timers are used for having actions performed repeatedly at a fixed interval (eg. every 100ms)
+ * They should not be confused with Schedulers, which are for performing an action once at a given
+ * point of time in the future.
+ *
+ * Timers are typically low resolution (compared to Schedulers), with maximum frequency currently
+ * being approximately every 10ms.
+ *
+ * STM32F407 uses TIM11 for 1ms system interrupt (oneMSInterval callback)
  */
-
-/**
- * @file timers.cpp
- * @brief Low-frequency periodic timer system for ECU housekeeping tasks
- *
- * @details Implements time-based interrupt system for non-critical periodic operations:
- *
- * **Timer vs Scheduler:**
- * - **Timers:** Repeating low-frequency tasks (1Hz to 200Hz), this file
- * - **Schedulers:** One-shot high-precision events (µs accuracy), scheduler.cpp
- *
- * **Timer Frequencies Implemented:**
- * - **1000Hz (1ms):**   Base ISR, loop counters, overdwell protection
- * - **200Hz (5ms):**    Fast sensor polling (future use)
- * - **50Hz (20ms):**    Medium-speed sensor updates
- * - **30Hz (33ms):**    Hardware test output pulses
- * - **15Hz (66ms):**    General periodic tasks
- * - **10Hz (100ms):**   RPM rate of change (rpmDOT), injector priming
- * - **4Hz (250ms):**    LED heartbeat, slow updates
- * - **1Hz (1000ms):**   Dwell limit update, fuel pump, flex sensor, fan control
- *
- * **Key Features:**
- * - Overdwell protection (prevents coil damage from excessive dwell time)
- * - Tachometer output with sweep-on-startup animation
- * - Hardware test mode (pulsed injector/ignition outputs)
- * - Flex fuel sensor frequency reading (ethanol percentage)
- * - Fuel temperature calculation from flex sensor pulse width
- * - Run-time tracking (ASE, closed-loop O2 warmup timing)
- * - Fuel pump priming control
- * - Cooling fan control
- *
- * **Hardware Support:**
- * - **STM32F407:** Uses TIM11 for 1ms interrupt (configured in board_stm32_official.cpp)
- * - **AVR (Mega2560):** Uses Timer2 with TCNT2 preload for 1ms interrupt
- * - **Other platforms:** Must implement oneMSInterval() callback
- *
- * **Critical Safety Features:**
- * - **Overdwell Check:** Kills ignition if coil charge time exceeds dwellLimit
- *   - Runs every 1ms to prevent coil damage
- *   - Disabled during cranking with locked timing (configPage4.ignCranklock)
- *   - Checks all active ignition channels (1-8 depending on IGN_CHANNELS)
- * - **Watchdog-style counters:** Track system health via loopsPerSecond
- *
- * **ISR Context:**
- * - oneMSInterval() runs in interrupt context (CRITICAL SECTION)
- * - Must be fast and non-blocking
- * - All loop counters declared volatile for ISR safety
- * - Sets TIMER_mask bits for main loop to poll (not direct execution)
- *
- * @note This is a low-resolution timer system (1ms granularity)
- * @note For µs-precision timing, use scheduler.cpp instead
- * @note All timing counters are volatile (ISR-safe)
- * @note MISRA-C:2012 compliant with named constants
- *
- * @author Speeduino Team
- * @date 2025-11-03
- * @version 2.0 (MISRA-C compliant with comprehensive Doxygen)
- *
- * @copyright Copyright (c) 2025 Speeduino / SCG-ECU
- * @license GPL-3.0
- */
-
 #include "timers.h"
 #include "globals.h"
 #include "sensors.h"
@@ -76,98 +23,24 @@
 #include "comms.h"
 #include "maths.h"
 
-//=============================================================================
-// TIMER CONSTANTS (MISRA-C: Named constants instead of magic numbers)
-//=============================================================================
-
-/** @brief MISRA-C: Loop counter threshold for 200Hz (5ms interval) */
-static constexpr uint8_t LOOP_5MS_THRESHOLD = 5U;
-
-/** @brief MISRA-C: Loop counter threshold for 50Hz (20ms interval) */
-static constexpr uint8_t LOOP_20MS_THRESHOLD = 20U;
-
-/** @brief MISRA-C: Loop counter threshold for 30Hz (33ms interval) */
-static constexpr uint8_t LOOP_33MS_THRESHOLD = 33U;
-
-/** @brief MISRA-C: Loop counter threshold for 15Hz (66ms interval) */
-static constexpr uint8_t LOOP_66MS_THRESHOLD = 66U;
-
-/** @brief MISRA-C: Loop counter threshold for 10Hz (100ms interval) */
-static constexpr uint8_t LOOP_100MS_THRESHOLD = 100U;
-
-/** @brief MISRA-C: Loop counter threshold for 4Hz (250ms interval) */
-static constexpr uint8_t LOOP_250MS_THRESHOLD = 250U;
-
-/** @brief MISRA-C: Loop counter threshold for 1Hz (1000ms interval) */
-static constexpr uint16_t LOOP_1000MS_THRESHOLD = 1000U;
-
-/** @brief MISRA-C: Multiply factor for rpmDOT (10 samples/sec * 1 sec = RPM/sec) */
-static constexpr uint8_t RPM_DOT_MULTIPLIER = 10U;
-
-/** @brief MISRA-C: Maximum runSecs value to prevent overflow (caps at 255 seconds) */
-static constexpr uint8_t MAX_RUN_SECS = (UINT8_MAX - 1U);
-
-//=============================================================================
-// TIMER STATE (volatile for ISR safety)
-//=============================================================================
-
-/** @brief Last RPM value for rpmDOT calculation (RPM rate of change) */
-volatile uint16_t lastRPM_100ms;
-
-/** @brief Loop counter for 200Hz tasks (increments every 1ms, resets at 5) */
+volatile uint16_t lastRPM_100ms; // For rpmDOT calculation
 volatile byte loop5ms;
-
-/** @brief Loop counter for 50Hz tasks (increments every 1ms, resets at 20) */
 volatile byte loop20ms;
-
-/** @brief Loop counter for 30Hz tasks (increments every 1ms, resets at 33) */
 volatile byte loop33ms;
-
-/** @brief Loop counter for 15Hz tasks (increments every 1ms, resets at 66) */
 volatile byte loop66ms;
-
-/** @brief Loop counter for 10Hz tasks (increments every 1ms, resets at 100) */
 volatile byte loop100ms;
-
-/** @brief Loop counter for 4Hz tasks (increments every 1ms, resets at 250) */
 volatile byte loop250ms;
-
-/** @brief Loop counter for 1Hz tasks (increments every 1ms, resets at 1000) */
 volatile int loopSec;
 
-/** @brief Maximum dwell time in microseconds (prevents coil damage) */
 volatile unsigned int dwellLimit_uS;
 
-/** @brief Time (ms_counter value) when tacho pulse should end */
-volatile uint8_t tachoEndTime;
-
-/** @brief Tachometer output state machine flag */
+volatile uint8_t tachoEndTime; // Time (ms) when tacho pulse needs to end
 volatile TachoOutputStatus tachoOutputFlag;
-
-/** @brief Tachometer sweep increment per millisecond */
 volatile uint16_t tachoSweepIncr;
-
-/** @brief Tachometer sweep accumulator for fractional Hz calculation */
 volatile uint16_t tachoSweepAccum;
-
-/** @brief Test mode: Pulse counter for injector output testing */
 volatile uint8_t testInjectorPulseCount = 0;
-
-/** @brief Test mode: Pulse counter for ignition output testing */
 volatile uint8_t testIgnitionPulseCount = 0;
 
-/**
- * @brief Initialize all timer system variables to safe defaults
- *
- * @details Resets all loop counters, RPM tracking, and tachometer state.
- * Called once during ECU boot in setup() before interrupts are enabled.
- *
- * @note Must be called before enabling timer interrupts
- * @note Sets all volatile counters to zero for clean startup
- *
- * @complexity 1 (trivial initialization)
- * @misra Compliant: Simple assignments only
- */
 void initialiseTimers(void)
 {
   lastRPM_100ms = 0;
@@ -181,33 +54,10 @@ void initialiseTimers(void)
   tachoOutputFlag = TACHO_INACTIVE;
 }
 
-/**
- * @brief Check and terminate ignition coil if dwell time exceeded (overdwell protection)
- *
- * @param schedule Reference to ignition schedule to check
- * @param targetOverdwellTime Timestamp before which dwell should NOT have started
- *
- * @details Safety feature to prevent coil damage from excessive dwell time.
- * If coil has been charging longer than dwellLimit, forcibly terminate it.
- *
- * Algorithm:
- * 1. Check if schedule is currently RUNNING (coil charging)
- * 2. If startTime < targetOverdwellTime, coil has been on too long
- * 3. Execute endCallback to kill coil charge
- * 4. Mark schedule as OFF
- *
- * @note targetOverdwellTime = (current_micros - dwellLimit_uS)
- * @note Called every 1ms for each active ignition channel
- * @note Runs in ISR context - must be fast!
- *
- * @complexity 2 (simple conditional with callback)
- * @misra Compliant: Guard clause pattern
- */
 static inline void applyOverDwellCheck(IgnitionSchedule &schedule, uint32_t targetOverdwellTime) {
-  //Check first whether each spark output is currently on. Only check its dwell time if it is
-  if ((schedule.Status == RUNNING) && (schedule.startTime < targetOverdwellTime)) {
-    schedule.pEndCallback();
-    schedule.Status = OFF;
+  //Check first whether each spark output is currently on. Only check it's dwell time if it is
+  if ((schedule.Status == RUNNING) && (schedule.startTime < targetOverdwellTime)) { 
+    schedule.pEndCallback(); schedule.Status = OFF; 
   }
 }
 
@@ -308,22 +158,22 @@ void oneMSInterval(void)
     }
   }
 
-  //200Hz loop (every 5ms)
-  if(loop5ms == LOOP_5MS_THRESHOLD)
+  //200Hz loop
+  if(loop5ms == 5)
   {
     loop5ms = 0; //Reset counter
     BIT_SET(TIMER_mask, BIT_TIMER_200HZ);
   }
 
-  //50Hz loop (every 20ms)
-  if(loop20ms == LOOP_20MS_THRESHOLD)
+  //50Hz loop
+  if(loop20ms == 20)
   {
     loop20ms = 0; //Reset counter
     BIT_SET(TIMER_mask, BIT_TIMER_50HZ);
   }
 
-  //30Hz loop (every 33ms)
-  if (loop33ms == LOOP_33MS_THRESHOLD)
+  //30Hz loop
+  if (loop33ms == 33)
   {
     loop33ms = 0;
 
@@ -356,23 +206,20 @@ void oneMSInterval(void)
     BIT_SET(TIMER_mask, BIT_TIMER_30HZ);
   }
 
-  //15Hz loop (every 66ms)
-  if (loop66ms == LOOP_66MS_THRESHOLD)
+  //15Hz loop
+  if (loop66ms == 66)
   {
     loop66ms = 0;
     BIT_SET(TIMER_mask, BIT_TIMER_15HZ);
   }
 
-  //10Hz loop (every 100ms)
-  if (loop100ms == LOOP_100MS_THRESHOLD)
+  //10Hz loop
+  if (loop100ms == 100)
   {
     loop100ms = 0; //Reset counter
     BIT_SET(TIMER_mask, BIT_TIMER_10HZ);
 
-    // Calculate RPM rate of change (RPM per second)
-    // Delta = (currentRPM - lastRPM) measured over 100ms interval
-    // Multiply by 10 to get rate per second (10 samples/sec)
-    currentStatus.rpmDOT = (currentStatus.RPM - lastRPM_100ms) * RPM_DOT_MULTIPLIER;
+    currentStatus.rpmDOT = (currentStatus.RPM - lastRPM_100ms) * 10; //This is the RPM per second that the engine has accelerated/decelerated in the last loop
     lastRPM_100ms = currentStatus.RPM; //Record the current RPM for next calc
 
     if ( BIT_CHECK(currentStatus.engine, BIT_ENGINE_RUN) ) { runSecsX10++; }
@@ -386,18 +233,18 @@ void oneMSInterval(void)
     seclx10++;
   }
 
-  //4Hz loop (every 250ms)
-  if (loop250ms == LOOP_250MS_THRESHOLD)
+  //4Hz loop
+  if (loop250ms == 250)
   {
     loop250ms = 0; //Reset Counter
     BIT_SET(TIMER_mask, BIT_TIMER_4HZ);
-    #if defined(CORE_STM32) //Debug: Toggle LED to show code is running (heartbeat)
+    #if defined(CORE_STM32) //debug purpose, only visual for running code
       digitalWrite(LED_BUILTIN, !digitalRead(LED_BUILTIN));
     #endif
   }
 
-  //1Hz loop (every 1000ms = 1 second)
-  if (loopSec == LOOP_1000MS_THRESHOLD)
+  //1Hz loop
+  if (loopSec == 1000)
   {
     loopSec = 0; //Reset counter.
     BIT_SET(TIMER_mask, BIT_TIMER_1HZ);
@@ -410,9 +257,7 @@ void oneMSInterval(void)
     //If the engine is running or cranking, we need to update the run time counter.
     if (BIT_CHECK(currentStatus.engine, BIT_ENGINE_RUN))
     { //NOTE - There is a potential for a ~1sec gap between engine crank starting and the runSec number being incremented. This may delay ASE!
-      // Cap at MAX_RUN_SECS (254) to prevent overflow which would reset ASE
-      // and break closed-loop fueling (O2 sensor needs warmup time tracking)
-      if (currentStatus.runSecs <= MAX_RUN_SECS)
+      if (currentStatus.runSecs <= (UINT8_MAX-1U)) //Ensure we cap out at 255 and don't overflow. (which would reset ASE and cause problems with the closed loop fuelling (Which has to wait for the O2 to warmup))
         { currentStatus.runSecs++; } //Increment our run counter by 1 second.
     }
     //**************************************************************************************************************************************************
