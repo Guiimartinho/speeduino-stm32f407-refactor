@@ -224,194 +224,115 @@ static inline uint16_t readMAPSensor(uint8_t pin) {
 
 /** Init all ADC conversions by setting resolutions, etc.
  */
-// ============================================================================
-// REFACTORED: initialiseADC() - Phase Extraction Pattern (FASE C3)
-// Complexity reduced: 25+ -> 6
-// Lines reduced: 111 -> 33 (70% reduction)
-// Nesting reduced: 5 levels -> 2 levels
-// Pattern: Platform extraction + helper functions
-// ============================================================================
-
-namespace {
-
-/**
- * @brief Configure ADC hardware for AVR platform with interrupt-driven sampling.
- */
-static inline void configureADC_AVR_ISR(void)
-{
-#if defined(CORE_AVR) && defined(ANALOG_ISR)
-  noInterrupts();
-  ADCSRB = 0x00;
-  ADMUX = ADMUX_DEFAULT_CONFIG;
-
-  #ifndef ADFR
-    #define ADFR 5
-  #endif
-  BIT_SET(ADCSRA,ADFR);
-  BIT_SET(ADCSRA,ADIE);
-  BIT_CLEAR(ADCSRA,ADIF);
-
-  BIT_SET(ADCSRA,ADPS2);
-  BIT_SET(ADCSRA,ADPS1);
-  BIT_SET(ADCSRA,ADPS0);
-  BIT_SET(ADCSRA,ADEN);
-
-  interrupts();
-  BIT_SET(ADCSRA,ADSC);
-#endif
-}
-
-/**
- * @brief Configure ADC hardware for AVR platform with polling mode (1MHz).
- */
-static inline void configureADC_AVR_Polling(void)
-{
-#if defined(CORE_AVR) && !defined(ANALOG_ISR)
-  BIT_SET(ADCSRA,ADPS2);
-  BIT_CLEAR(ADCSRA,ADPS1);
-  BIT_CLEAR(ADCSRA,ADPS0);
-#endif
-}
-
-/**
- * @brief Configure ADC hardware for STM32 platform (10-bit resolution).
- */
-static inline void configureADC_STM32(void)
-{
-#if defined(ARDUINO_ARCH_STM32)
-  analogReadResolution(10);
-#endif
-}
-
-/**
- * @brief Check if external CAN input is enabled for channel.
- */
-static inline bool isExternalCANInputEnabled(uint8_t channel)
-{
-  return (((configPage9.caninput_sel[channel]&12U) == 4U)
-       && ((configPage9.enable_secondarySerial == 1U)
-        || ((configPage9.enable_intcan == 1U) && (configPage9.intcan_available == 1U))));
-}
-
-/**
- * @brief Check if analog local pin is enabled for channel.
- */
-static inline bool isAnalogLocalPinEnabled(uint8_t channel)
-{
-  return ((((configPage9.enable_secondarySerial == 1U) || ((configPage9.enable_intcan == 1U) && (configPage9.intcan_available == 1U)))
-            && (configPage9.caninput_sel[channel]&12U) == 8U)
-       || (((configPage9.enable_secondarySerial == 0U) && ((configPage9.enable_intcan == 1U) && (configPage9.intcan_available == 0U)))
-            && (configPage9.caninput_sel[channel]&3U) == 2U)
-       || (((configPage9.enable_secondarySerial == 0U) && (configPage9.enable_intcan == 0U))
-            && ((configPage9.caninput_sel[channel]&3U) == 2U)));
-}
-
-/**
- * @brief Check if digital local pin is enabled for channel.
- */
-static inline bool isDigitalLocalPinEnabled(uint8_t channel)
-{
-  return ((((configPage9.enable_secondarySerial == 1U) || ((configPage9.enable_intcan == 1U) && (configPage9.intcan_available == 1U)))
-            && (configPage9.caninput_sel[channel]&12U) == 12U)
-       || (((configPage9.enable_secondarySerial == 0U) && ((configPage9.enable_intcan == 1U) && (configPage9.intcan_available == 0U)))
-            && (configPage9.caninput_sel[channel]&3U) == 3U)
-       || (((configPage9.enable_secondarySerial == 0U) && (configPage9.enable_intcan == 0U))
-            && ((configPage9.caninput_sel[channel]&3U) == 3U)));
-}
-
-/**
- * @brief Configure analog local pin for auxiliary input.
- */
-static inline void configureAnalogLocalPin(uint8_t channel)
-{
-  uint8_t pinNumber = pinTranslateAnalog(configPage9.Auxinpina[channel]&63U);
-  if (pinIsUsed(pinNumber)) {
-    BIT_SET(currentStatus.engineProtectStatus, PROTECT_IO_ERROR);
-  }
-  else {
-    pinMode(pinNumber, INPUT);
-    BIT_SET(statusSensors, BIT_SENSORS_AUX_ENBL);
-  }
-}
-
-/**
- * @brief Configure digital local pin for auxiliary input.
- */
-static inline void configureDigitalLocalPin(uint8_t channel)
-{
-  uint8_t pinNumber = (configPage9.Auxinpinb[channel]&63U) + 1U;
-  if (pinIsUsed(pinNumber)) {
-    BIT_SET(currentStatus.engineProtectStatus, PROTECT_IO_ERROR);
-  }
-  else {
-    pinMode(pinNumber, INPUT);
-    BIT_SET(statusSensors, BIT_SENSORS_AUX_ENBL);
-  }
-}
-
-/**
- * @brief Initialize all auxiliary CAN input channels.
- */
-static inline void initialiseAuxInputChannels(void)
-{
-  BIT_CLEAR(statusSensors, BIT_SENSORS_AUX_ENBL);
-
-  for (uint8_t AuxinChan = 0U; AuxinChan < 16U; AuxinChan++)
-  {
-    currentStatus.current_caninchannel = AuxinChan;
-
-    if (isExternalCANInputEnabled(AuxinChan)) {
-      BIT_SET(statusSensors, BIT_SENSORS_AUX_ENBL);
-    }
-    else if (isAnalogLocalPinEnabled(AuxinChan)) {
-      configureAnalogLocalPin(AuxinChan);
-    }
-    else if (isDigitalLocalPinEnabled(AuxinChan)) {
-      configureDigitalLocalPin(AuxinChan);
-    }
-    else {
-      // Do nothing (MISRA compliance)
-    }
-  }
-}
-
-/**
- * @brief Validate and reset ADC filter values if corrupted/invalid.
- */
-static inline void validateADCFilters(void)
-{
-  if (configPage4.ADCFILTER_TPS  > ADC_FILTER_MAX_VALID) { configPage4.ADCFILTER_TPS   = ADCFILTER_TPS_DEFAULT;   writeConfig(ignSetPage); }
-  if (configPage4.ADCFILTER_CLT  > ADC_FILTER_MAX_VALID) { configPage4.ADCFILTER_CLT   = ADCFILTER_CLT_DEFAULT;   writeConfig(ignSetPage); }
-  if (configPage4.ADCFILTER_IAT  > ADC_FILTER_MAX_VALID) { configPage4.ADCFILTER_IAT   = ADCFILTER_IAT_DEFAULT;   writeConfig(ignSetPage); }
-  if (configPage4.ADCFILTER_O2   > ADC_FILTER_MAX_VALID) { configPage4.ADCFILTER_O2    = ADCFILTER_O2_DEFAULT;    writeConfig(ignSetPage); }
-  if (configPage4.ADCFILTER_BAT  > ADC_FILTER_MAX_VALID) { configPage4.ADCFILTER_BAT   = ADCFILTER_BAT_DEFAULT;   writeConfig(ignSetPage); }
-  if (configPage4.ADCFILTER_MAP  > ADC_FILTER_MAX_VALID) { configPage4.ADCFILTER_MAP   = ADCFILTER_MAP_DEFAULT;   writeConfig(ignSetPage); }
-  if (configPage4.ADCFILTER_BARO > ADC_FILTER_MAX_VALID) { configPage4.ADCFILTER_BARO  = ADCFILTER_BARO_DEFAULT;  writeConfig(ignSetPage); }
-  if (configPage4.FILTER_FLEX    > ADC_FILTER_MAX_VALID) { configPage4.FILTER_FLEX     = FILTER_FLEX_DEFAULT;     writeConfig(ignSetPage); }
-}
-
-} // anonymous namespace
-
-/**
- * @brief Initialize ADC hardware and configure auxiliary input channels.
- *
- * Configures platform-specific ADC hardware (AVR ISR/polling or STM32),
- * initializes auxiliary CAN input channels, validates ADC filter settings,
- * and resets sensor state.
- *
- * @note MISRA-C compliant refactored version (111 lines → 33 lines + 9 helpers)
- * @complexity C:6, N:2 (down from C:25+, N:5)
- */
 void initialiseADC(void)
 {
-  configureADC_AVR_ISR();
-  configureADC_AVR_Polling();
-  configureADC_STM32();
+#ifdef CORE_AVR
 
-  initialiseAuxInputChannels();
-  validateADCFilters();
+  #if defined(ANALOG_ISR)
+    noInterrupts(); //Interrupts should be turned off when playing with any of these registers
+
+    ADCSRB = 0x00; //ADC Auto Trigger Source is in Free Running mode
+
+    ADMUX = ADMUX_DEFAULT_CONFIG;  //Select AVCC as reference, ADC Right Adjust Result, Starting at channel 0
+
+    //All of the below is the longhand version of: ADCSRA = 0xEE;
+    #ifndef ADFR
+      #define ADFR 5 //Looks like this is now defined. Retain this for compatibility with earlier versions of Arduino IDE that did not have this.
+    #endif
+    BIT_SET(ADCSRA,ADFR); //Set free running mode
+    BIT_SET(ADCSRA,ADIE); //Set ADC interrupt enabled
+    BIT_CLEAR(ADCSRA,ADIF); //Clear interrupt flag
+
+    // Set ADC clock to 125KHz (Prescaler = 128)
+    BIT_SET(ADCSRA,ADPS2);
+    BIT_SET(ADCSRA,ADPS1);
+    BIT_SET(ADCSRA,ADPS0);
+
+    BIT_SET(ADCSRA,ADEN); //Enable ADC
+
+    interrupts();
+    BIT_SET(ADCSRA,ADSC); //Start conversion
+
+  #else
+    //This sets the ADC (Analog to Digital Converter) to run at 1Mhz, greatly reducing analog read times (MAP/TPS) when using the standard analogRead() function
+    //1Mhz is the fastest speed permitted by the CPU without affecting accuracy
+    //Please see chapter 11 of 'Practical Arduino' (books.google.com.au/books?id=HsTxON1L6D4C&printsec=frontcover#v=onepage&q&f=false) for more detail
+     BIT_SET(ADCSRA,ADPS2);
+     BIT_CLEAR(ADCSRA,ADPS1);
+     BIT_CLEAR(ADCSRA,ADPS0);
+  #endif
+#elif defined(ARDUINO_ARCH_STM32) //STM32GENERIC core and ST STM32duino core, change analog read to 12 bit
+  analogReadResolution(10); //use 10bits for analog reading on STM32 boards
+#endif
+
+  //The following checks the aux inputs and initialises pins if required
+  BIT_CLEAR(statusSensors, BIT_SENSORS_AUX_ENBL);
+  for (uint8_t AuxinChan = 0U; AuxinChan <16U ; AuxinChan++)
+  {
+    currentStatus.current_caninchannel = AuxinChan;                   
+    if (((configPage9.caninput_sel[currentStatus.current_caninchannel]&12U) == 4U)
+    && ((configPage9.enable_secondarySerial == 1U) || ((configPage9.enable_intcan == 1U) && (configPage9.intcan_available == 1U))))
+    { //if current input channel is enabled as external input in caninput_selxb(bits 2:3) and secondary serial or internal canbus is enabled(and is mcu supported)                 
+      //currentStatus.canin[14] = 22;  Dev test use only!
+      BIT_SET(statusSensors, BIT_SENSORS_AUX_ENBL);
+    }
+    else if ((((configPage9.enable_secondarySerial == 1U) || ((configPage9.enable_intcan == 1U) && (configPage9.intcan_available == 1U))) && (configPage9.caninput_sel[currentStatus.current_caninchannel]&12U) == 8U)
+            || (((configPage9.enable_secondarySerial == 0U) && ( (configPage9.enable_intcan == 1U) && (configPage9.intcan_available == 0U) )) && (configPage9.caninput_sel[currentStatus.current_caninchannel]&3U) == 2U)  
+            || (((configPage9.enable_secondarySerial == 0U) && (configPage9.enable_intcan == 0U)) && ((configPage9.caninput_sel[currentStatus.current_caninchannel]&3U) == 2U)))  
+    {  //if current input channel is enabled as analog local pin check caninput_selxb(bits 2:3) with &12 and caninput_selxa(bits 0:1) with &3
+      uint8_t pinNumber = pinTranslateAnalog(configPage9.Auxinpina[currentStatus.current_caninchannel]&63U);
+      if( pinIsUsed(pinNumber) )
+      {
+        //Do nothing here as the pin is already in use.
+        BIT_SET(currentStatus.engineProtectStatus, PROTECT_IO_ERROR); //Tell user that there is problem by lighting up the I/O error indicator
+      }
+      else
+      {
+        //Channel is active and analog
+        pinMode( pinNumber, INPUT);
+        //currentStatus.canin[14] = 33;  Dev test use only!
+        BIT_SET(statusSensors, BIT_SENSORS_AUX_ENBL);
+      }  
+    }
+    else if ((((configPage9.enable_secondarySerial == 1U) || ((configPage9.enable_intcan == 1U) && (configPage9.intcan_available == 1U))) && (configPage9.caninput_sel[currentStatus.current_caninchannel]&12U) == 12U)
+            || (((configPage9.enable_secondarySerial == 0U) && ( (configPage9.enable_intcan == 1U) && (configPage9.intcan_available == 0U) )) && (configPage9.caninput_sel[currentStatus.current_caninchannel]&3U) == 3U)
+            || (((configPage9.enable_secondarySerial == 0U) && (configPage9.enable_intcan == 0U)) && ((configPage9.caninput_sel[currentStatus.current_caninchannel]&3U) == 3U)))
+    {  //if current input channel is enabled as digital local pin check caninput_selxb(bits 2:3) with &12 and caninput_selxa(bits 0:1) with &3
+       uint8_t pinNumber = (configPage9.Auxinpinb[currentStatus.current_caninchannel]&63U) + 1U;
+       if( pinIsUsed(pinNumber) )
+       {
+         //Do nothing here as the pin is already in use.
+        BIT_SET(currentStatus.engineProtectStatus, PROTECT_IO_ERROR); //Tell user that there is problem by lighting up the I/O error indicator
+       }
+       else
+       {
+         //Channel is active and digital
+         pinMode( pinNumber, INPUT);
+         //currentStatus.canin[14] = 44;  Dev test use only!
+         BIT_SET(statusSensors, BIT_SENSORS_AUX_ENBL);
+       }  
+    }
+    else {
+      //  Do nothing. Keep MISRA checker happy
+    }
+  } //For loop iterating through aux in lines
+  
+
+  //Sanity checks to ensure none of the filter values are set above ADC_FILTER_MAX_VALID (240)
+  //(240 threshold catches invalid 0xFF default on new/unprogrammed EEPROM)
+  //If an invalid value is detected, it's reset to the default value and burned to EEPROM.
+  //Each sensor has its own default value optimized for response vs noise trade-off
+  if(configPage4.ADCFILTER_TPS  > ADC_FILTER_MAX_VALID) { configPage4.ADCFILTER_TPS   = ADCFILTER_TPS_DEFAULT;   writeConfig(ignSetPage); }
+  if(configPage4.ADCFILTER_CLT  > ADC_FILTER_MAX_VALID) { configPage4.ADCFILTER_CLT   = ADCFILTER_CLT_DEFAULT;   writeConfig(ignSetPage); }
+  if(configPage4.ADCFILTER_IAT  > ADC_FILTER_MAX_VALID) { configPage4.ADCFILTER_IAT   = ADCFILTER_IAT_DEFAULT;   writeConfig(ignSetPage); }
+  if(configPage4.ADCFILTER_O2   > ADC_FILTER_MAX_VALID) { configPage4.ADCFILTER_O2    = ADCFILTER_O2_DEFAULT;    writeConfig(ignSetPage); }
+  if(configPage4.ADCFILTER_BAT  > ADC_FILTER_MAX_VALID) { configPage4.ADCFILTER_BAT   = ADCFILTER_BAT_DEFAULT;   writeConfig(ignSetPage); }
+  if(configPage4.ADCFILTER_MAP  > ADC_FILTER_MAX_VALID) { configPage4.ADCFILTER_MAP   = ADCFILTER_MAP_DEFAULT;   writeConfig(ignSetPage); }
+  if(configPage4.ADCFILTER_BARO > ADC_FILTER_MAX_VALID) { configPage4.ADCFILTER_BARO  = ADCFILTER_BARO_DEFAULT;  writeConfig(ignSetPage); }
+  if(configPage4.FILTER_FLEX    > ADC_FILTER_MAX_VALID) { configPage4.FILTER_FLEX     = FILTER_FLEX_DEFAULT;     writeConfig(ignSetPage); }
 
   flexStartTime = micros();
+
   vssIndex = 0;
 }
 
@@ -715,26 +636,6 @@ uint32_t getMAPDeltaTime(void) {
 
 // ========================================== TPS ==========================================
 
-/**
- * @brief Read Throttle Position Sensor (TPS) with calibration and filtering.
- *
- * Reads raw ADC value from TPS pin, applies low-pass filter, and converts
- * to 0-200% range (200 = 100% physical throttle opening, allowing for overshoot).
- * Supports both normal and reversed wiring configurations.
- *
- * **Calibration:**
- * - `configPage2.tpsMin`: ADC value at closed throttle (0%)
- * - `configPage2.tpsMax`: ADC value at wide-open throttle (100%)
- * - If `tpsMin > tpsMax`: wiring is reversed, values are inverted automatically
- *
- * **Closed Throttle Position Sensor (CTPS):**
- * - Optional digital switch that activates at idle
- * - Polarity configurable (ground-switched or 5V-activated)
- *
- * @param useFilter If true, applies low-pass filter (use false for startup flood clear)
- * @note Updates `currentStatus.TPS`, `currentStatus.tpsADC`, `currentStatus.CTPSActive`
- * @note Filter constant: `configPage4.ADCFILTER_TPS`
- */
 void readTPS(bool useFilter)
 {
   currentStatus.TPSlast = currentStatus.TPS;
@@ -774,26 +675,6 @@ void readTPS(bool useFilter)
   else { currentStatus.CTPSActive = 0; }
 }
 
-/**
- * @brief Read Coolant Temperature (CLT) sensor with NTC calibration.
- *
- * Reads raw ADC value from CLT pin, applies optional filtering, and converts
- * to temperature using 32-point NTC thermistor calibration table stored in EEPROM.
- *
- * **Calibration Table:**
- * - X-axis: Raw ADC values (0-1023)
- * - Y-axis: Temperature values (offset by +40 to allow negative temps)
- * - 32 calibration points for accurate non-linear NTC response
- *
- * **Temperature Range:**
- * - Storage: 0-255 (represents -40°C to +215°C)
- * - Output: Offset removed (actual temperature in °C)
- *
- * @param useFilter If true, applies low-pass filter (use false for immediate priming)
- * @note Updates `currentStatus.coolant`, `currentStatus.cltADC`
- * @note Filter constant: `configPage4.ADCFILTER_CLT`
- * @note Calibration table: `cltCalibrationTable` (32 points)
- */
 void readCLT(bool useFilter)
 {
   uint16_t tempReading = readAnalogSensor(pinCLT);
@@ -804,26 +685,6 @@ void readCLT(bool useFilter)
   currentStatus.coolant = temperatureRemoveOffset(table2D_getValue(&cltCalibrationTable, currentStatus.cltADC)); //Temperature calibration values are stored as positive bytes. We subtract 40 from them to allow for negative temperatures
 }
 
-/**
- * @brief Read Intake Air Temperature (IAT) sensor with NTC calibration.
- *
- * Reads raw ADC value from IAT pin, applies low-pass filter, and converts
- * to temperature using 32-point NTC thermistor calibration table stored in EEPROM.
- *
- * **Calibration Table:**
- * - Same format as CLT (32-point NTC curve)
- * - X-axis: Raw ADC values (0-1023)
- * - Y-axis: Temperature values (offset by +40°C)
- *
- * **Usage:**
- * - Density altitude calculations
- * - Charge temperature corrections
- * - Intercooler efficiency monitoring
- *
- * @note Updates `currentStatus.IAT`, `currentStatus.iatADC`
- * @note Filter constant: `configPage4.ADCFILTER_IAT`
- * @note Always filtered (no bypass parameter like CLT/TPS)
- */
 void readIAT(void)
 {
   currentStatus.iatADC = LOW_PASS_FILTER(readAnalogSensor(pinIAT), configPage4.ADCFILTER_IAT, currentStatus.iatADC);
@@ -867,25 +728,6 @@ static inline void setBaroFromMAP(void)
   }
 }
 
-/**
- * @brief Read barometric pressure sensor (or derive from MAP when engine stopped).
- *
- * Operates in two modes:
- * 1. **External Baro Sensor** (`configPage6.useExtBaro != 0`):
- *    - Reads dedicated baro sensor pin with low-pass filter
- * 2. **MAP-Based Baro** (no external sensor):
- *    - When engine is stopped (RPM=0 for >1 second), uses MAP reading as baro
- *    - Saves valid reading to EEPROM for next startup
- *
- * **Valid Range:**
- * - Minimum: 65 kPa (altitude ~3500m above sea level)
- * - Maximum: 108 kPa (Siberian High record pressure)
- * - Invalid readings are rejected to prevent corruption
- *
- * @note Updates `currentStatus.baro`, `currentStatus.baroADC` (if external sensor)
- * @note Filter constant: `configPage4.ADCFILTER_BARO` (very weak filter)
- * @note EEPROM save protected by `BIT_SENSORS_BARO_SAVED` flag
- */
 void readBaro(void)
 {
   if ( configPage6.useExtBaro != 0U  ) 
@@ -931,27 +773,6 @@ void resetMAPcycleAndEvent(void)
 
 // ========================================== O2 ==========================================
 
-/**
- * @brief Read primary oxygen (O2) sensor with calibration table.
- *
- * Reads raw ADC value from O2 sensor pin, applies low-pass filter, and converts
- * to lambda/AFR using 32-point calibration table. Only operates if sensor type
- * is configured (prevents dangerous readings from uncalibrated sensors).
- *
- * **Sensor Types Supported:**
- * - Narrowband (0-1V, 0.1-0.9V usable)
- * - Wideband (0-5V linear with lambda)
- * - Bosch LSU 4.2, 4.9, ADV (via controller)
- *
- * **Calibration Table:**
- * - X-axis: Raw ADC values (0-1023)
- * - Y-axis: Lambda × 100 or AFR × 10 (depending on display mode)
- * - 32 calibration points for accurate sensor curve
- *
- * @note Updates `currentStatus.O2`, `currentStatus.O2ADC`
- * @note Filter constant: `configPage4.ADCFILTER_O2`
- * @note Sets both to 0 if `configPage6.egoType == 0` (sensor disabled)
- */
 void readO2(void)
 {
   //An O2 read is only performed if an O2 sensor type is selected. This is to prevent potentially dangerous use of the O2 readings prior to proper setup/calibration
@@ -965,25 +786,9 @@ void readO2(void)
     currentStatus.O2ADC = 0U;
     currentStatus.O2 = 0U;
   }
-
+  
 }
 
-/**
- * @brief Read secondary oxygen (O2_2) sensor with calibration table.
- *
- * Reads raw ADC value from second O2 sensor pin, applies low-pass filter,
- * and converts using same calibration table as primary O2 sensor.
- *
- * **Use Cases:**
- * - Dual-bank V-engines (one sensor per bank)
- * - Pre/post-catalyst monitoring
- * - Backup sensor for redundancy
- *
- * @note Updates `currentStatus.O2_2`, `currentStatus.O2_2ADC`
- * @note Filter constant: `configPage4.ADCFILTER_O2`
- * @note Uses same calibration table as primary O2 sensor
- * @note Currently always enabled when called (no disable check like O2)
- */
 void readO2_2(void)
 {
   //Second O2 currently disabled as its not being used
@@ -992,27 +797,6 @@ void readO2_2(void)
   currentStatus.O2_2 = table2D_getValue(&o2CalibrationTable, currentStatus.O2_2ADC);
 }
 
-/**
- * @brief Read battery voltage with offset calibration and USB detection.
- *
- * Reads raw ADC value from battery sense pin, applies calibration offset,
- * and detects power source transitions (USB → 12V battery).
- *
- * **Voltage Range:**
- * - ADC input: 0-1023 (10-bit)
- * - Output range: 0.0V to 24.5V (stored as × 10, e.g., 125 = 12.5V)
- * - Calibration: ±12.7V offset (`configPage4.batVoltCorrect`)
- *
- * **USB → Battery Transition Detection:**
- * - If voltage jumps from <5.5V to >7.0V with engine stopped:
- *   - Re-primes fuel pump
- *   - Re-homes stepper motor IAC (if configured)
- *   - Prevents stale initial conditions
- *
- * @note Updates `currentStatus.battery10` (voltage × 10)
- * @note Filter constant: `configPage4.ADCFILTER_BAT`
- * @note Triggers fuel pump prime + IAC homing on USB→12V transition
- */
 void readBat(void)
 {
   int16_t tempReading = fastMap10Bit(readAnalogSensor(pinBat), 0, 245); //Get the current raw Battery value. Permissible values are from 0v to 24.5v (245)
@@ -1045,25 +829,11 @@ void readBat(void)
 }
 
 /**
- * @brief Get time gap between VSS pulses from circular buffer history.
- *
- * Reads pulse timing data from interrupt-driven circular buffer to calculate
- * time between consecutive VSS pulses. Used for speed calculation in interrupt mode.
- *
- * **Circular Buffer:**
- * - Size: `VSS_SAMPLES` entries (typically 4)
- * - Updated by `vssPulse()` ISR on each pulse
- * - `vssIndex` points to most recent entry
- *
- * **History Indexing:**
- * - `historyIndex = 0`: Latest pulse gap (most recent)
- * - `historyIndex = 1`: Second most recent gap
- * - `historyIndex = N`: (N+1)th most recent gap
- *
- * @param historyIndex Index into history buffer (0 = latest, 1 = previous, etc.)
- * @return Time gap in microseconds between pulses at [historyIndex] and [historyIndex-1]
- * @note Uses `noInterrupts()`/`interrupts()` for thread safety with VSS ISR
- * @note Wraps around circular buffer automatically
+ * @brief Returns the VSS pulse gap for a given history point
+ * 
+ * @param historyIndex The gap number that is wanted. EG:
+ * historyIndex = 0 = Latest entry
+ * historyIndex = 1 = 2nd entry entry
  */
 uint32_t vssGetPulseGap(uint8_t historyIndex)
 {
@@ -1080,177 +850,74 @@ uint32_t vssGetPulseGap(uint8_t historyIndex)
   return tempGap;
 }
 
-// ============================================================================
-// REFACTORED: getSpeed() - Mode Extraction Pattern (FASE C3)
-// Complexity reduced: 10 -> 4
-// Lines reduced: 43 -> 21 (51% reduction)
-// Nesting reduced: 3 levels -> 2 levels
-// Pattern: Extract mode-specific logic into dedicated helpers
-// ============================================================================
-
-namespace {
-
-/**
- * @brief Calculate VSS from CAN/Serial auxiliary input channel.
- * @param config VSS configuration from configPage2
- * @param currentVss Current VSS value for filtering
- * @return Filtered speed in km/h
- */
-static inline uint16_t getSpeedFromCANSerial(const config2 &config, uint16_t currentVss)
-{
-  uint16_t rawSpeed = (config.vssPulsesPerKm == 0U)
-    ? currentStatus.canin[config.vssAuxCh]
-    : (currentStatus.canin[config.vssAuxCh] / config.vssPulsesPerKm);
-
-  return LOW_PASS_FILTER(rawSpeed, config.vssSmoothing, currentVss);
-}
-
-/**
- * @brief Calculate VSS from interrupt-driven pulse timing.
- * @param config VSS configuration from configPage2
- * @param currentVss Current VSS value for filtering and fallback
- * @return Filtered speed in km/h (or 0 if stopped)
- */
-static inline uint16_t getSpeedFromInterruptDriven(const config2 &config, uint16_t currentVss)
-{
-  // Check if car has stopped (no pulse in last second)
-  if ((micros() - vssTimes[vssIndex]) > MICROS_PER_SEC) {
-    return 0U;
-  }
-
-  // Calculate average pulse time from circular buffer
-  uint32_t vssTotalTime = 0U;
-  for (uint8_t x = 0U; x < (VSS_SAMPLES - 1U); x++) {
-    vssTotalTime += vssGetPulseGap(x);
-  }
-  uint32_t avgPulseTime = vssTotalTime / ((uint32_t)VSS_SAMPLES - 1UL);
-
-  // Convert pulse time to km/h
-  uint16_t calculatedSpeed = MICROS_PER_HOUR / (avgPulseTime * config.vssPulsesPerKm);
-
-  // Safety check: reject impossible speeds (hardware issue indicator)
-  if (calculatedSpeed > 1000U) {
-    return currentVss; // Fallback to last known good value
-  }
-
-  return LOW_PASS_FILTER(calculatedSpeed, config.vssSmoothing, currentVss);
-}
-
-} // anonymous namespace (getSpeed helpers)
-
-/**
- * @brief Read vehicle speed sensor (VSS) using configured mode.
- *
- * Supports three operating modes:
- * - Mode 0: Disabled
- * - Mode 1: CAN/Serial via auxiliary input channel
- * - Mode >1: Interrupt-driven pulse counting
- *
- * @return Current vehicle speed in km/h (0 if disabled or stopped)
- * @note Uses circular buffer for interrupt mode (VSS_SAMPLES entries)
- * @note Applies configurable low-pass filter for smoothing
- * @complexity C:4, N:2 (down from C:10, N:3)
- */
 uint16_t getSpeed(void)
 {
-  uint16_t tempSpeed = 0U;
+  uint16_t tempSpeed = 0;
+  // Get VSS from CAN, Serial or Analog by using Aux input channels.
+  if(configPage2.vssMode == 1U)
+  {
+    // Direct reading from Aux channel
+    if (configPage2.vssPulsesPerKm == 0U)
+    {
+      tempSpeed = currentStatus.canin[configPage2.vssAuxCh];
+    }
+    // Adjust the reading by dividing it by set amount.
+    else
+    {
+      tempSpeed = (currentStatus.canin[configPage2.vssAuxCh] / configPage2.vssPulsesPerKm);
+    }
+    tempSpeed = LOW_PASS_FILTER(tempSpeed, configPage2.vssSmoothing, currentStatus.vss); //Apply speed smoothing factor
+  }
+  // Interrupt driven mode
+  else if(configPage2.vssMode > 1U)
+  {
+    uint32_t pulseTime = 0U;
+    uint32_t vssTotalTime = 0U;
 
-  if (configPage2.vssMode == 1U) {
-    tempSpeed = getSpeedFromCANSerial(configPage2, currentStatus.vss);
-  }
-  else if (configPage2.vssMode > 1U) {
-    tempSpeed = getSpeedFromInterruptDriven(configPage2, currentStatus.vss);
-  }
-  else {
-    // Mode 0: VSS disabled, return 0
-  }
+    //Add up the time between the teeth. Note that the total number of gaps is equal to the number of samples minus 1
+    for(uint8_t x = 0U; x<(VSS_SAMPLES-1U); x++)
+    {
+      vssTotalTime += vssGetPulseGap(x);
+    }
 
+    pulseTime = vssTotalTime / ((uint32_t)VSS_SAMPLES - 1UL);
+    if ( (micros() - vssTimes[vssIndex]) > MICROS_PER_SEC ) { tempSpeed = 0; } // Check that the car hasn't come to a stop. Is true if last pulse was more than 1 second ago
+    else 
+    {
+      tempSpeed = MICROS_PER_HOUR / (pulseTime * configPage2.vssPulsesPerKm); //Convert the pulse gap into km/h
+      tempSpeed = LOW_PASS_FILTER(tempSpeed, configPage2.vssSmoothing, currentStatus.vss); //Apply speed smoothing factor
+    }
+    if(tempSpeed > 1000U) { tempSpeed = currentStatus.vss; } //Safety check. This usually occurs when there is a hardware issue
+  } else {
+    // Do nothing
+  }
   return tempSpeed;
 }
 
-// ============================================================================
-// REFACTORED: getGear() - Table-Driven Pattern (FASE C3)
-// Complexity reduced: 10 -> 3
-// Lines reduced: 23 -> 20 (13% reduction)
-// Pattern: Replace if-else chain with loop over gear ratio table
-// Benefit: Easy to extend for 7+ gears without increasing complexity
-// ============================================================================
-
-namespace {
-
-/**
- * @brief Check if value is within range ± hysteresis.
- * @param value Value to check
- * @param target Target value (center of range)
- * @param hysteresis Tolerance (±)
- * @return true if value is in range [target-hysteresis, target+hysteresis]
- */
-static inline bool isWithinHysteresis(uint16_t value, uint16_t target, uint16_t hysteresis)
-{
-  return (value > (target - hysteresis)) && (value < (target + hysteresis));
-}
-
-} // anonymous namespace (getGear helpers)
-
-/**
- * @brief Calculate current transmission gear based on VSS/RPM ratio.
- *
- * Uses configurable gear ratios (pulses per 1000 RPM) with hysteresis
- * to prevent gear hunting. Supports up to 6 forward gears.
- *
- * @return Detected gear (1-6), or 0 if unknown/stopped
- * @note Returns last known gear if current ratio doesn't match any defined gear
- * @note Requires non-zero VSS to operate
- * @complexity C:3, N:2 (down from C:10, N:2)
- */
 byte getGear(void)
 {
-  if (currentStatus.vss == 0U) {
-    return 0U; // Vehicle stopped, gear unknown
-  }
+  byte tempGear = 0U; //Unknown gear
+  if(currentStatus.vss > 0U)
+  {
+    //If the speed is non-zero, default to the last calculated gear
+    tempGear = currentStatus.gear;
 
-  // Calculate pulses per 1000 RPM (×10 for TunerStudio ratio format)
-  uint16_t pulsesPer1000rpm = udiv_32_16(currentStatus.vss * 10000UL, currentStatus.RPM);
-
-  // Gear ratio lookup table (maps to configPage2 vssRatio1-6)
-  const uint16_t gearRatios[6] = {
-    configPage2.vssRatio1, configPage2.vssRatio2, configPage2.vssRatio3,
-    configPage2.vssRatio4, configPage2.vssRatio5, configPage2.vssRatio6
-  };
-
-  // Check each gear ratio with hysteresis
-  for (uint8_t gear = 0U; gear < 6U; gear++) {
-    if (isWithinHysteresis(pulsesPer1000rpm, gearRatios[gear], VSS_GEAR_HYSTERESIS_VALUE)) {
-      return gear + 1U; // Gears are 1-indexed (1st, 2nd, etc.)
+    uint16_t pulsesPer1000rpm = udiv_32_16(currentStatus.vss * 10000UL, currentStatus.RPM); //Gives the current pulses per 1000RPM, multiplied by 10 (10x is the multiplication factor for the ratios in TS)
+    //Begin gear detection
+    if( (pulsesPer1000rpm > (configPage2.vssRatio1 - VSS_GEAR_HYSTERESIS)) && (pulsesPer1000rpm < (configPage2.vssRatio1 + VSS_GEAR_HYSTERESIS)) ) { tempGear = 1; }
+    else if( (pulsesPer1000rpm > (configPage2.vssRatio2 - VSS_GEAR_HYSTERESIS)) && (pulsesPer1000rpm < (configPage2.vssRatio2 + VSS_GEAR_HYSTERESIS)) ) { tempGear = 2; }
+    else if( (pulsesPer1000rpm > (configPage2.vssRatio3 - VSS_GEAR_HYSTERESIS)) && (pulsesPer1000rpm < (configPage2.vssRatio3 + VSS_GEAR_HYSTERESIS)) ) { tempGear = 3; }
+    else if( (pulsesPer1000rpm > (configPage2.vssRatio4 - VSS_GEAR_HYSTERESIS)) && (pulsesPer1000rpm < (configPage2.vssRatio4 + VSS_GEAR_HYSTERESIS)) ) { tempGear = 4; }
+    else if( (pulsesPer1000rpm > (configPage2.vssRatio5 - VSS_GEAR_HYSTERESIS)) && (pulsesPer1000rpm < (configPage2.vssRatio5 + VSS_GEAR_HYSTERESIS)) ) { tempGear = 5; }
+    else if( (pulsesPer1000rpm > (configPage2.vssRatio6 - VSS_GEAR_HYSTERESIS)) && (pulsesPer1000rpm < (configPage2.vssRatio6 + VSS_GEAR_HYSTERESIS)) ) { tempGear = 6; }
+    else {
+      // Do nothing 
     }
   }
-
-  // No match found: retain last detected gear to prevent hunting
-  return currentStatus.gear;
+  
+  return tempGear;
 }
 
-/**
- * @brief Read analog fuel pressure sensor with calibration and filtering.
- *
- * Reads raw ADC value from fuel pressure sensor pin, applies linear calibration,
- * low-pass filter, and range clamping. Only operates if sensor is enabled in config.
- *
- * **Calibration:**
- * - `configPage10.fuelPressureMin`: Pressure at 0V (e.g., 0 psi)
- * - `configPage10.fuelPressureMax`: Pressure at 5V (e.g., 100 psi)
- * - Linear interpolation between min/max
- *
- * **Use Cases:**
- * - Returnless fuel systems (pressure monitoring)
- * - High-pressure direct injection
- * - Fuel pump health monitoring
- * - Diagnostics and datalogging
- *
- * @return Fuel pressure in PSI (0-255), or 0 if sensor disabled
- * @note Updates `currentStatus.fuelPressure`
- * @note Filter constant: `ADCFILTER_PSI_DEFAULT`
- * @note Enabled by `configPage10.fuelPressureEnable`
- */
 byte getFuelPressure(void)
 {
   int16_t tempFuelPressure = 0;
@@ -1266,28 +933,6 @@ byte getFuelPressure(void)
   return (byte)tempFuelPressure;
 }
 
-/**
- * @brief Read analog oil pressure sensor with calibration and filtering.
- *
- * Reads raw ADC value from oil pressure sensor pin, applies linear calibration,
- * low-pass filter, and range clamping. Only operates if sensor is enabled in config.
- *
- * **Calibration:**
- * - `configPage10.oilPressureMin`: Pressure at 0V (e.g., 0 psi)
- * - `configPage10.oilPressureMax`: Pressure at 5V (e.g., 100 psi)
- * - Linear interpolation between min/max
- *
- * **Use Cases:**
- * - Engine protection (low oil pressure cutoff)
- * - Oil system health monitoring
- * - Variable valve timing diagnostics
- * - Datalogging and warning lights
- *
- * @return Oil pressure in PSI (0-255), or 0 if sensor disabled
- * @note Updates `currentStatus.oilPressure`
- * @note Filter constant: `ADCFILTER_PSI_DEFAULT`
- * @note Enabled by `configPage10.oilPressureEnable`
- */
 byte getOilPressure(void)
 {
   int16_t tempOilPressure = 0;
@@ -1305,28 +950,6 @@ byte getOilPressure(void)
   return (byte)tempOilPressure;
 }
 
-/**
- * @brief Read analog knock sensor voltage level.
- *
- * Reads raw ADC value from analog knock sensor pin and maps to 0-255 range.
- * Used for analog knock controllers/conditioners that output variable voltage
- * proportional to knock intensity.
- *
- * **Pin Selection:**
- * - User configures analog pin number in TunerStudio
- * - `configPage10.knock_pin >= 47`: Analog pins (A0 = position 47)
- * - Pin is translated via `pinTranslateAnalog()` to physical pin number
- * - Default: A15 if invalid pin selected
- *
- * **Knock Detection Modes:**
- * - **Analog Mode (this function):** Variable voltage (0-5V → 0-255)
- * - **Digital Mode (`knockPulse()` ISR):** Pulse counting per event
- *
- * @return Knock sensor voltage mapped to 0-255 (0 = 0V, 255 = 5V)
- * @note No filtering applied (raw instantaneous reading)
- * @note Used in combination with `correctionKnockTiming()` for ignition retard
- * @see knockPulse() for digital knock sensor interrupt handler
- */
 uint8_t getAnalogKnock(void)
 {
   uint8_t pinKnock = A15; //Default value in case the user has not selected an analog pin in TunerStudio
@@ -1383,61 +1006,12 @@ void vssPulse(void)
   vssTimes[vssIndex] = micros();
 }
 
-/**
- * @brief Read auxiliary analog input channel (local pin mode).
- *
- * Reads raw ADC value from specified analog pin. Used for auxiliary inputs
- * configured as "Analog Local" in TunerStudio (vs CAN/Serial external sources).
- *
- * **Auxiliary Input System:**
- * - 16 channels total (`currentStatus.canin[0..15]`)
- * - Three input modes per channel:
- *   1. **External CAN/Serial:** Data from external device
- *   2. **Analog Local:** Direct ADC read (this function)
- *   3. **Digital Local:** GPIO read (`readAuxdigital()`)
- *
- * **Use Cases:**
- * - Custom analog sensors (pressure, temp, position)
- * - Auxiliary voltage monitoring
- * - User-defined inputs for tables/corrections
- * - Expansion beyond built-in sensor suite
- *
- * @param analogPin Arduino analog pin number (e.g., A0, A1, etc.)
- * @return Raw ADC value (0-1023 for 10-bit ADC)
- * @note No filtering applied (use external filtering if needed)
- * @note Pin configuration done by `initialiseADC()` during startup
- * @see readAuxdigital() for digital auxiliary inputs
- */
+// Read the Aux analog value for pin set by analogPin 
 uint16_t readAuxanalog(uint8_t analogPin)
 {
   return readAnalogSensor(analogPin); // readAnalogSensor is inlined within this CPP file.
-}
+} 
 
-/**
- * @brief Read auxiliary digital input channel (local pin mode).
- *
- * Reads digital state (HIGH/LOW) from specified GPIO pin. Used for auxiliary inputs
- * configured as "Digital Local" in TunerStudio (vs CAN/Serial external sources).
- *
- * **Auxiliary Input System:**
- * - 16 channels total (`currentStatus.canin[0..15]`)
- * - Three input modes per channel:
- *   1. **External CAN/Serial:** Data from external device
- *   2. **Analog Local:** ADC read (`readAuxanalog()`)
- *   3. **Digital Local:** GPIO read (this function)
- *
- * **Use Cases:**
- * - Binary sensors (switches, clutch, brake)
- * - Wheel speed sensors (frequency-to-voltage converter)
- * - Launch control switches
- * - User-defined digital flags
- *
- * @param digitalPin Arduino digital pin number
- * @return Digital state: 0 (LOW/ground) or 1 (HIGH/5V)
- * @note No debouncing applied (use external RC filter if needed)
- * @note Pin configuration done by `initialiseADC()` during startup
- * @see readAuxanalog() for analog auxiliary inputs
- */
 uint16_t readAuxdigital(uint8_t digitalPin)
 {
   //read the Aux digital value for pin set by digitalPin 
