@@ -224,71 +224,43 @@ void initialiseCorrections(void)
 Calls all the other corrections functions and combines their results.
 This is the only function that should be called from anywhere outside the file
 */
-// ============================================================================
-// REFACTORED: correctionsFuel() - Phase Extraction Pattern (FASE C2)
-// Complexity reduced: 15+ -> 7
-// Lines reduced: 53 -> 38 (28% reduction)
-// Pattern: Phase grouping for orchestrator function
-// ============================================================================
-
-namespace {
-
-/**
- * @brief Phase 1: Apply primary enrichment corrections (WUE, ASE, Cranking, Accel).
- * @param sumCorrections Running correction multiplier (modified by reference)
- */
-static inline void applyPrimaryEnrichments(uint32_t& sumCorrections)
+uint16_t correctionsFuel(void)
 {
+  uint32_t sumCorrections = 100;
+  uint16_t result; //temporary variable to store the result of each corrections function
+
+  //The values returned by each of the correction functions are multiplied together and then divided back to give a single 0-255 value.
   currentStatus.wueCorrection = correctionWUE();
   if (currentStatus.wueCorrection != 100) { sumCorrections = div100(sumCorrections * currentStatus.wueCorrection); }
 
   currentStatus.ASEValue = correctionASE();
   if (currentStatus.ASEValue != 100) { sumCorrections = div100(sumCorrections * currentStatus.ASEValue); }
 
-  uint16_t cranking = correctionCranking();
-  if (cranking != 100) { sumCorrections = div100(sumCorrections * cranking); }
+  result = correctionCranking();
+  if (result != 100) { sumCorrections = div100(sumCorrections * result); }
 
   currentStatus.AEamount = correctionAccel();
-  if ((configPage2.aeApplyMode == AE_MODE_MULTIPLIER) || BIT_CHECK(currentStatus.engine, BIT_ENGINE_DCC)) {
-    if (currentStatus.AEamount != 100) { sumCorrections = div100(sumCorrections * currentStatus.AEamount); }
+  if ( (configPage2.aeApplyMode == AE_MODE_MULTIPLIER) || BIT_CHECK(currentStatus.engine, BIT_ENGINE_DCC) ) // multiply by the AE amount in case of multiplier AE mode or Decel
+  {
+    if (currentStatus.AEamount != 100) { sumCorrections = div100(sumCorrections * currentStatus.AEamount);}
   }
-}
 
-/**
- * @brief Phase 2: Apply flood clear and AFR closed-loop corrections.
- * @param sumCorrections Running correction multiplier (modified by reference)
- */
-static inline void applyFloodAndAFR(uint32_t& sumCorrections)
-{
-  uint16_t floodClear = correctionFloodClear();
-  if (floodClear != 100) { sumCorrections = div100(sumCorrections * floodClear); }
+  result = correctionFloodClear();
+  if (result != 100) { sumCorrections = div100(sumCorrections * result); }
 
   currentStatus.egoCorrection = correctionAFRClosedLoop();
   if (currentStatus.egoCorrection != 100) { sumCorrections = div100(sumCorrections * currentStatus.egoCorrection); }
-}
 
-/**
- * @brief Phase 3: Apply battery voltage and environmental corrections (IAT, Baro).
- * @param sumCorrections Running correction multiplier (modified by reference)
- */
-static inline void applyEnvironmentalCorrections(uint32_t& sumCorrections)
-{
+  //Voltage correction is applied to the injector opening time
   currentStatus.batCorrection = correctionBatVoltage();
-  inj_opentime_uS = configPage2.injOpen * currentStatus.batCorrection;
+  inj_opentime_uS = configPage2.injOpen * currentStatus.batCorrection; // Apply voltage correction to injector open time.
 
   currentStatus.iatCorrection = correctionIATDensity();
   if (currentStatus.iatCorrection != 100) { sumCorrections = div100(sumCorrections * currentStatus.iatCorrection); }
 
   currentStatus.baroCorrection = correctionBaro();
   if (currentStatus.baroCorrection != 100) { sumCorrections = div100(sumCorrections * currentStatus.baroCorrection); }
-}
 
-/**
- * @brief Phase 4: Apply fuel type and special mode corrections (Flex, FuelTemp, Launch).
- * @param sumCorrections Running correction multiplier (modified by reference)
- */
-static inline void applyFuelTypeCorrections(uint32_t& sumCorrections)
-{
   currentStatus.flexCorrection = correctionFlex();
   if (currentStatus.flexCorrection != 100) { sumCorrections = div100(sumCorrections * currentStatus.flexCorrection); }
 
@@ -297,46 +269,13 @@ static inline void applyFuelTypeCorrections(uint32_t& sumCorrections)
 
   currentStatus.launchCorrection = correctionLaunch();
   if (currentStatus.launchCorrection != 100) { sumCorrections = div100(sumCorrections * currentStatus.launchCorrection); }
-}
 
-/**
- * @brief Phase 5: Apply DFCO (Deceleration Fuel Cut-Off) taper correction.
- * @param sumCorrections Running correction multiplier (modified by reference)
- */
-static inline void applyDFCO(uint32_t& sumCorrections)
-{
   bitWrite(currentStatus.status1, BIT_STATUS1_DFCO, correctionDFCO());
-  byte dfcoTaper = correctionDFCOfuel();
-  if (dfcoTaper == 0) { sumCorrections = 0; }
-  else if (dfcoTaper != 100) { sumCorrections = div100(sumCorrections * dfcoTaper); }
-}
+  byte dfcoTaperCorrection = correctionDFCOfuel();
+  if (dfcoTaperCorrection == 0) { sumCorrections = 0; }
+  else if (dfcoTaperCorrection != 100) { sumCorrections = div100(sumCorrections * dfcoTaperCorrection); }
 
-} // anonymous namespace
-
-/**
- * @brief Dispatch calculations for all fuel related corrections.
- *
- * Orchestrates all fuel correction algorithms and combines their results via
- * multiplicative composition. Corrections are grouped into 5 phases for clarity.
- *
- * @return uint16_t Combined correction factor (100 = no change, >100 = enrichment, <100 = leaning)
- *
- * @note MISRA-C compliant refactored version (53 lines → 38 lines + 5 helpers)
- * @complexity C:7, N:1 (down from C:15+, N:3)
- */
-uint16_t correctionsFuel(void)
-{
-  uint32_t sumCorrections = 100;
-
-  applyPrimaryEnrichments(sumCorrections);
-  applyFloodAndAFR(sumCorrections);
-  applyEnvironmentalCorrections(sumCorrections);
-  applyFuelTypeCorrections(sumCorrections);
-  applyDFCO(sumCorrections);
-
-  // Final limit (max enrichment during cranking)
-  if (sumCorrections > 1500) { sumCorrections = 1500; }
-
+  if(sumCorrections > 1500) { sumCorrections = 1500; } //This is the maximum allowable increase during cranking
   return (uint16_t)sumCorrections;
 }
 
