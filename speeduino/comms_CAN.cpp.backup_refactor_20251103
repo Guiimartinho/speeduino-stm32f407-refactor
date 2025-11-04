@@ -4,90 +4,9 @@ Copyright (C) Josh Stewart
 A full copy of the license may be found in the projects root directory
 */
 
-/**
- * @file comms_CAN.cpp
- * @brief CAN bus communication for OEM instrument clusters and aftermarket dashes
- *
- * @details Implements CAN broadcasting protocols for displaying ECU data on:
- *
- * **OEM Instrument Clusters:**
- * - **BMW (E46/E39/E38):** DME protocol (RPM, coolant, TPS, CEL/EML lights, fuel consumption)
- * - **VAG (VW/Audi):** Stock instrument cluster protocol (RPM, VSS, custom IDs)
- *
- * **Aftermarket Dashboards:**
- * - **Haltech:** Multi-frequency broadcast (50Hz, 15Hz, 10Hz)
- *   - DATA1-5: Engine parameters (RPM, TPS, coolant, IAT, MAP, etc.)
- *   - LAMBDA: O2 sensor readings
- *   - TRIGGER: Sync status, errors
- *   - VSS: Vehicle speed
- *   - PW: Injector pulse width
- *
- * **Wideband O2 Sensor Input:**
- * - **RusEFI CAN Wideband:** Receives lambda from external WBO2 controller
- * - **AEM 30-0300 X-Series:** AEM UEGO gauge via CAN (0x180 ID)
- *
- * **Hardware Support:**
- * - **Teensy 3.5/3.6:** FlexCAN_T4 library (CAN0)
- * - **Teensy 4.1:** FlexCAN_T4 library (CAN1)
- * - **STM32:** Native CAN peripheral (not yet implemented in this file)
- *
- * **CAN Bus Basics:**
- * - **Standard CAN:** 11-bit identifier (0x000-0x7FF)
- * - **Extended CAN:** 29-bit identifier (0x00000000-0x1FFFFFFF)
- * - **Baud Rate:** 500 kbps (default for automotive)
- * - **Frame Format:** ID + DLC + Data[0-8] + CRC
- *
- * **Broadcast Frequencies:**
- * - 50Hz: Fast updates (Haltech DATA1-5)
- * - 30Hz: Medium (BMW DME1/2, VAG RPM/VSS)
- * - 15Hz: Slow (Haltech LAMBDA, TRIGGER, VSS)
- * - 10Hz: Very slow (BMW DME4, Haltech DATA4/5)
- *
- * **Message Flow:**
- * ```
- * [Sensors] → currentStatus → DashMessage() → CAN_write() → CAN Bus → Dashboard
- * [WBO2 Controller] → CAN Bus → CAN_read() → receiveCANwbo() → currentStatus.O2
- * ```
- *
- * **Protocol Selection:**
- * - Set in TunerStudio: Settings → CAN Bus → Broadcast Protocol
- * - configPage4.CANBroadcastProtocol values:
- *   - 0: OFF (no CAN broadcast)
- *   - 1: BMW
- *   - 2: VAG
- *   - 3: Haltech
- *   - Additional protocols may be added
- *
- * **CAN IDs Used:**
- * - BMW DME1: 0x316 (RPM, torque)
- * - BMW DME2: 0x329 (coolant, TPS, baro)
- * - BMW DME4: 0x545 (fuel consumption, CEL/EML)
- * - VAG RPM: Configurable (typically 0x280)
- * - VAG VSS: Configurable (typically 0x5A0)
- * - Haltech: 0x360-0x374 (multiple IDs)
- * - RusEFI WBO2 TX: 0xEF50000 (extended)
- * - RusEFI WBO2 RX: 0x190, 0x192
- * - AEM WBO2: 0x180
- *
- * **Performance Notes:**
- * - CAN broadcast runs in main loop at timer-driven intervals
- * - NOT in interrupt context (safe for complex calculations)
- * - WBO2 receive happens on CAN RX interrupt (fast path)
- * - FlexCAN library uses FIFO buffering for TX/RX
- *
- * @note Only compiled if NATIVE_CAN_AVAILABLE is defined
- * @note Teensy 3.5/3.6/4.1 have native CAN hardware
- * @note STM32F407 has CAN but uses different library (not yet in this file)
- * @note MISRA-C:2012 compliant with switch-case default handlers
- *
- * @author Speeduino Team
- * @date 2025-11-03
- * @version 2.0 (MISRA-C compliant with comprehensive Doxygen)
- *
- * @copyright Copyright (c) 2025 Speeduino
- * @license GPL-3.0
- */
-
+/*
+This is for handling the data broadcasted to various CAN dashes and instrument clusters.
+*/
 #include "globals.h"
 
 #if defined(NATIVE_CAN_AVAILABLE)
@@ -109,26 +28,7 @@ CAN_message_t outMsg;
 // Forward declare
 void DashMessage(uint16_t DashMessageID);
 
-//=============================================================================
-// CAN BUS INITIALIZATION
-//=============================================================================
 
-/**
- * @brief Initialize CAN bus hardware and configure baud rate
- *
- * @details Sets up FlexCAN peripheral on Teensy platforms:
- * - Teensy 3.5/3.6: Uses CAN0 (pins 3/4 or 29/30 selectable)
- * - Teensy 4.1: Uses CAN1 (pins 22/23)
- * - Baud rate: 500 kbps (automotive standard)
- * - FIFO: 256 RX messages, 16 TX messages
- *
- * @note Must be called AFTER setPinMapping() to avoid pin conflicts
- * @note Teensy FlexCAN issue: https://github.com/tonton81/FlexCAN_T4/issues/14
- * @note Sets configPage9.intcan_available = 1 (flags CAN as available)
- *
- * @complexity 1 (trivial initialization)
- * @misra Compliant: Conditional compilation with proper guards
- */
 void initCAN()
 {
   #if defined (NATIVE_CAN_AVAILABLE)
@@ -149,71 +49,16 @@ void initCAN()
   #endif
 }
 
-//=============================================================================
-// CAN READ/WRITE WRAPPERS
-//=============================================================================
-
-/**
- * @brief Read CAN message from RX FIFO into global inMsg buffer
- *
- * @return 1 if message was read successfully, 0 if FIFO was empty
- *
- * @note Non-blocking: Returns immediately if no message available
- * @note Message stored in global inMsg (CAN_message_t structure)
- * @note Called frequently in main loop to service RX FIFO
- *
- * @complexity 1 (trivial wrapper)
- * @misra Compliant: Simple function call
- */
 int CAN_read()
 {
   return Can0.read(inMsg);
 }
 
-/**
- * @brief Write CAN message from global outMsg buffer to TX FIFO
- *
- * @details Transmits message previously prepared in global outMsg buffer.
- * TX is buffered in hardware FIFO (16 messages deep on Teensy).
- *
- * @note Message to send must be in global outMsg (CAN_message_t structure)
- * @note Caller must set: outMsg.id, outMsg.len, outMsg.buf[], outMsg.flags
- * @note Non-blocking: Message queued to FIFO, sent by hardware later
- *
- * @complexity 1 (trivial wrapper)
- * @misra Compliant: Simple function call
- */
 void CAN_write()
 {
   Can0.write(outMsg);
 }
 
-//=============================================================================
-// CAN BROADCAST (Dashboard protocols)
-//=============================================================================
-
-/**
- * @brief Broadcast ECU data to CAN dashboard at specified frequency
- *
- * @param frequency Timer frequency calling this function (10Hz, 15Hz, 30Hz, 50Hz)
- *
- * @details Sends appropriate CAN messages based on configured protocol:
- * - **BMW:** 30Hz (DME1/2), 10Hz (DME4)
- * - **VAG:** 30Hz (RPM, VSS)
- * - **Haltech:** 50Hz (DATA1-5, PW), 15Hz (LAMBDA, TRIGGER, VSS), 10Hz (DATA4/5)
- *
- * Algorithm:
- * 1. Check configPage4.CANBroadcastProtocol for active protocol
- * 2. If frequency matches protocol requirement, call DashMessage() for each ID
- * 3. Write each message to CAN bus via Can0.write()
- *
- * @note Called from main loop at multiple frequencies via timer flags
- * @note Each protocol uses specific CAN IDs (see @file documentation)
- * @note Some protocols use standard 11-bit IDs, others use extended 29-bit
- *
- * @complexity 3 (nested switch-case, multiple frequencies)
- * @misra Compliant: Default case handles unknown protocols
- */
 void sendCANBroadcast(uint8_t frequency)
 {
   switch(configPage4.CANBroadcastProtocol)
@@ -284,43 +129,6 @@ void sendCANBroadcast(uint8_t frequency)
   }
 }
 
-//=============================================================================
-// CAN WIDEBAND O2 SENSOR INPUT
-//=============================================================================
-
-/**
- * @brief Receive lambda data from external CAN wideband O2 controller
- *
- * @details Supports two wideband protocols:
- *
- * **1. RusEFI CAN Wideband:**
- * - TX to WBO2: 0xEF50000 (battery voltage, heater enable)
- * - RX from WBO2: 0x190 (O2 primary), 0x192 (O2 secondary)
- * - Lambda format: uint16_t * 0.0001 (10000 = lambda 1.0)
- * - Converts lambda to AFR using stoich ratio
- *
- * **2. AEM 30-0300 X-Series UEGO:**
- * - RX from gauge: 0x180
- * - Lambda format: uint16_t * 0.0001 (10000 = lambda 1.0)
- * - Validity check: Bit 7 of buf[6]
- *
- * Algorithm:
- * 1. Check configPage2.canWBO for active protocol
- * 2. For RusEFI: Send battery voltage and heater enable every call
- * 3. If RX message ID matches, extract lambda value
- * 4. Validate lambda (check validity bit)
- * 5. Convert: AFR = (lambda * stoich) / 10000
- * 6. Clamp to uint8_t range (0-255) to prevent overflow
- * 7. Store in currentStatus.O2 or currentStatus.O2_2
- *
- * @note Called from main loop after CAN_read() returns message
- * @note Must check inMsg.id to determine if message is from WBO2
- * @note RusEFI requires periodic TX to keep heater active
- * @note AEM is RX-only (no TX required)
- *
- * @complexity 4 (nested conditionals, multi-byte unpacking, math)
- * @misra Compliant: Overflow protection with clamps and validity checks
- */
 void receiveCANwbo() 
 {
   if(configPage2.canWBO == CAN_WBO_RUSEFI) //RusEFI CAN Wideband supported: https://github.com/mck1117/wideband
@@ -373,45 +181,7 @@ void receiveCANwbo()
   }
 }
 
-//=============================================================================
-// DASH MESSAGE FORMATTER (Protocol-specific CAN packets)
-//=============================================================================
-
-/**
- * @brief Format CAN message for specific dashboard protocol and message ID
- *
- * @param DashMessageID CAN message ID defining which message to prepare
- *
- * @details Populates global outMsg buffer with protocol-specific data.
- * Handles byte packing, scaling, and bit field encoding for each protocol.
- *
- * **Supported Message IDs:**
- * - CAN_BMW_DME1 (0x316): RPM, torque
- * - CAN_BMW_DME2 (0x329): Coolant, TPS, baro
- * - CAN_BMW_DME4 (0x545): Fuel consumption, CEL/EML/overheat lights
- * - CAN_VAG_RPM: RPM for VW/Audi cluster
- * - CAN_VAG_VSS: Vehicle speed for VW/Audi cluster
- * - CAN_HALTECH_DATA1-5: Various engine parameters
- * - CAN_HALTECH_LAMBDA: O2 sensor readings
- * - CAN_HALTECH_TRIGGER: Sync status, error count
- * - CAN_HALTECH_VSS: Vehicle speed
- * - CAN_HALTECH_PW: Injector pulse width
- * - Additional protocols (Link, Megasquirt, OBD2, etc.)
- *
- * **Message Preparation:**
- * 1. Set outMsg.id = DashMessageID
- * 2. Set outMsg.len = number of data bytes (1-8)
- * 3. Populate outMsg.buf[0-7] with scaled/packed data
- * 4. Set outMsg.flags.extended if using 29-bit ID
- *
- * @note Does NOT transmit - caller must call Can0.write(outMsg)
- * @note Some values require scaling (e.g., RPM * 64 / 10 for BMW)
- * @note Some values require offset (e.g., coolant + 48 for BMW)
- * @note Bit fields used for status flags (engine running, clutch, brakes, etc.)
- *
- * @complexity 5 (massive switch-case with scaling/packing per protocol)
- * @misra Compliant: Default case prevents undefined behavior, overflow checks
- */
+// All supported definitions/protocols for CAN Dash broadcasts
 void DashMessage(uint16_t DashMessageID)
 {
   uint16_t temp_TPS;
