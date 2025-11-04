@@ -1,9 +1,70 @@
-/** @file
- * Speeduino Initialisation (called at Arduino setup()).
+/**
+ * @file init.cpp
+ * @brief ECU initialization and hardware configuration at startup
  *
- * MODULARIZATION NOTE:
- * - setPinMapping() function (1853 lines) has been modularized into board_config/
- * - Original code preserved in init.cpp.backup_original
+ * @details Performs complete system initialization when the ECU boots, configuring
+ * all hardware peripherals, sensors, actuators, interrupts, and trigger decoders.
+ * Called once from Arduino setup() before entering the main control loop.
+ *
+ * **MODULARIZATION NOTE:**
+ * - setPinMapping() function (1,853 lines) has been modularized into board_config/
+ * - Original monolithic code preserved in init.cpp.backup_original
+ * - Board-specific pin mappings now organized by platform (AVR, STM32, Teensy, etc.)
+ *
+ * **INITIALIZATION SEQUENCE:**
+ * 1. **Hardware Safety** - Shutdown all outputs (fuel, ignition, auxiliary)
+ * 2. **Configuration Loading** - Load tuning maps from EEPROM/SD card
+ * 3. **Sensor Setup** - Configure ADC inputs (MAP, TPS, CLT, IAT, O2, etc.)
+ * 4. **Fuel System** - Initialize injector timings, staging, cylinder layout
+ * 5. **Ignition System** - Configure spark outputs, coil dwell, per-tooth timing
+ * 6. **Trigger Decoder** - Attach interrupts for crank/cam wheel decoding (29 patterns supported)
+ * 7. **Auxiliary Systems** - Setup idle control, boost control, VVT, nitrous, etc.
+ * 8. **Communication** - Initialize serial ports (USB, Bluetooth, CAN bus)
+ * 9. **Timers** - Start 1ms ISR, scheduler loop, RPM calculation
+ *
+ * **TRIGGER DECODERS SUPPORTED (29 Patterns):**
+ * - Missing Tooth (36-1, 60-2, 36-2-2-2, 36-2-1, etc.)
+ * - Dual Wheel (crank + cam)
+ * - Basic Distributor (single pulse per revolution)
+ * - GM 7X/24X (General Motors)
+ * - 4G63 (Mitsubishi Eclipse/Evo)
+ * - Jeep 2000, Audi 135
+ * - Honda D17/J32
+ * - Miata 99-05, Mazda AU
+ * - Non-360, Nissan 360
+ * - Subaru 6/7
+ * - Daihatsu +1
+ * - Harley Davidson
+ * - 420a (Chrysler)
+ * - Weber-Marelli, Ford ST170
+ * - Suzuki DRZ400
+ * - Chrysler NGC (4/6/8 cyl)
+ * - Yamaha Vmax
+ * - Renix 44-2-2
+ * - Rover MEMS
+ * - Suzuki K6A
+ * - Ford TFI
+ *
+ * **CONFIGURATION FUNCTIONS:**
+ * - configureCylinderTimings() - Set injection/ignition angles per cylinder (1-12 cyl)
+ * - calculateFuelParameters() - Compute required fuel, squirts, staging
+ * - configureInjectionLayout() - Setup sequential/semi-sequential/simultaneous injection
+ * - configureIgnitionMode() - Setup wasted spark/single channel/sequential/rotary
+ * - setupTriggerPins() - Map decoder interrupt pins to MCU hardware
+ * - initialiseTriggers() - Attach ISRs and start edge detection
+ *
+ * **HARDWARE PLATFORMS:**
+ * - Arduino Mega 2560 (ATmega2560) - Reference platform
+ * - STM32F407VGT6 (ARM Cortex-M4) - High-performance target
+ * - Teensy 3.5/3.6/4.0/4.1 (ARM Cortex-M4/M7) - USB development
+ * - Arduino Due (SAM3X8E ARM Cortex-M3)
+ * - ESP32 (Xtensa dual-core)
+ *
+ * @complexity High (43 functions, 2,611 lines, 29 decoder initializers)
+ * @performance Called once at boot - execution time not critical (~50-200ms typical)
+ * @safety Critical - Ensures all outputs disabled before configuration begins
+ * @see board_config/board_config.cpp for platform-specific pin mappings
+ * @see decoders.cpp for trigger pattern interrupt service routines
  */
 #include "globals.h"
 #include "init.h"
@@ -40,6 +101,52 @@
 // This minimizes RAM usage at no performance cost
 #pragma GCC optimize ("Os")
 #endif
+
+// ============================================================================
+// MISRA-C:2012 Compliance - Named Constants
+// ============================================================================
+
+/** @brief MISRA-C: Crank angle for 4-stroke sequential operation (720 degrees = 2 revolutions) */
+static constexpr uint16_t CRANK_ANGLE_4STROKE_SEQUENTIAL = 720U;
+
+/** @brief MISRA-C: Crank angle for 2-stroke or standard operation (360 degrees = 1 revolution) */
+static constexpr uint16_t CRANK_ANGLE_2STROKE_OR_STANDARD = 360U;
+
+/** @brief MISRA-C: Required fuel multiplier for sequential injection (2x due to half duty cycle) */
+static constexpr uint8_t REQ_FUEL_SEQUENTIAL_MULTIPLIER = 2U;
+
+/** @brief MISRA-C: Even-fire V-twin angle (90 degrees) */
+static constexpr uint16_t V_TWIN_EVEN_FIRE_ANGLE = 90U;
+
+/** @brief MISRA-C: 4-cylinder even-fire spacing (90 degrees) */
+static constexpr uint16_t FOUR_CYL_EVEN_FIRE_ANGLE = 90U;
+
+/** @brief MISRA-C: Inline-3 cylinder firing angle (120 degrees) */
+static constexpr uint16_t INLINE_3_FIRING_ANGLE = 120U;
+
+/** @brief MISRA-C: Inline-6 cylinder firing angle (120 degrees) */
+static constexpr uint16_t INLINE_6_FIRING_ANGLE = 120U;
+
+/** @brief MISRA-C: V6 even-fire angle (60 degrees) */
+static constexpr uint16_t V6_EVEN_FIRE_ANGLE = 60U;
+
+/** @brief MISRA-C: V8 even-fire angle (90 degrees) */
+static constexpr uint16_t V8_EVEN_FIRE_ANGLE = 90U;
+
+/** @brief MISRA-C: V10 even-fire angle (72 degrees) */
+static constexpr uint16_t V10_EVEN_FIRE_ANGLE = 72U;
+
+/** @brief MISRA-C: Rotary engine trailing coil offset (4 degrees after leading) */
+static constexpr uint8_t ROTARY_TRAILING_OFFSET_DEGREES = 4U;
+
+/** @brief MISRA-C: Minimum injector dead time in microseconds */
+static constexpr uint16_t INJECTOR_MIN_DEADTIME_US = 100U;
+
+/** @brief MISRA-C: Maximum number of cylinders supported */
+static constexpr uint8_t MAX_CYLINDERS = 12U;
+
+/** @brief MISRA-C: Trigger interrupt not used/invalid */
+static constexpr uint8_t TRIGGER_INTERRUPT_INVALID = 0xFFU;
 
 /**
  * Configure cylinder-specific timing parameters based on engine configuration.
