@@ -1,0 +1,306 @@
+{
+  "file_info": {
+    "path": "speeduino/decoders.cpp",
+    "total_lines": 6682,
+    "active_lines": 3041,
+    "disabled_lines": 3641,
+    "disabled_percentage": 54.5,
+    "disabled_blocks": 14,
+    "total_functions": 68
+  },
+  "violations_summary": {
+    "CRITICAL": {
+      "count": 10,
+      "percentage": 14.7,
+      "criteria": "N >= 5"
+    },
+    "HIGH": {
+      "count": 2,
+      "percentage": 2.9,
+      "criteria": "Lines > 100 OR C > 15"
+    },
+    "MEDIUM": {
+      "count": 5,
+      "percentage": 7.4,
+      "criteria": "Lines > 50 OR C > 10 OR N = 4"
+    },
+    "LOW": {
+      "count": 10,
+      "percentage": 14.7,
+      "criteria": "Lines > 40 OR N = 3"
+    },
+    "NONE": {
+      "count": 41,
+      "percentage": 60.3,
+      "criteria": "Full compliance"
+    }
+  },
+  "disabled_blocks": [
+    {"line": 614, "description": "Missing Tooth - moved to implementations/missing_tooth.cpp"},
+    {"line": 1008, "description": "Dual Wheel - moved to implementations/dual_wheel.cpp"},
+    {"line": 1273, "description": "Basic Distributor - moved to implementations/basic_distributor.cpp"},
+    {"line": 1423, "description": "GM 7X - moved to implementations/gm_7x.cpp"},
+    {"line": 1674, "description": "4G63 - moved to implementations/four_g63.cpp"},
+    {"line": 2030, "description": "24X, Jeep2000, Audi135, HondaD17, HondaJ32 - moved to implementations/"},
+    {"line": 2675, "description": "Miata9905, MazdaAU, Non360, Nissan360, Subaru67 - moved to implementations/"},
+    {"line": 3744, "description": "Daihatsu, Harley - moved to implementations/"},
+    {"line": 4039, "description": "ThirtySixMinus222, ThirtySixMinus21, 420a, FordST170 - moved to implementations/"},
+    {"line": 4652, "description": "Weber - moved to implementations/"},
+    {"line": 4793, "description": "FordST170 - moved to implementations/"},
+    {"line": 4960, "description": "DRZ400, NGC, Vmax, Renix, RoverMEMS, SuzukiK6A - moved to implementations/"},
+    {"line": 5344, "description": "NGC (part 2), Vmax, Renix, RoverMEMS, SuzukiK6A - moved to implementations/"},
+    {"line": 6475, "description": "FordTFI - moved to implementations/"}
+  ],
+  "critical_violations": [
+    {
+      "name": "triggerPri_missingTooth",
+      "start_line": 652,
+      "end_line": 769,
+      "lines": 118,
+      "nesting": 8,
+      "complexity": 36,
+      "violations": ["N=8 (CRITICAL: >=5)", "C=36 (HIGH: >15)", "Lines=118 (HIGH: >100)"],
+      "priority": 1
+    },
+    {
+      "name": "triggerSec_NGC68",
+      "start_line": 5289,
+      "end_line": 5342,
+      "lines": 54,
+      "nesting": 8,
+      "complexity": 17,
+      "violations": ["N=8 (CRITICAL: >=5)", "C=17 (HIGH: >15)", "Lines=54"],
+      "priority": 1
+    },
+    {
+      "name": "triggerPri_NGC",
+      "start_line": 5130,
+      "end_line": 5233,
+      "lines": 104,
+      "nesting": 7,
+      "complexity": 25,
+      "violations": ["N=7 (CRITICAL: >=5)", "C=25 (HIGH: >15)", "Lines=104 (HIGH: >100)"],
+      "priority": 1
+    },
+    {
+      "name": "triggerSec_RoverMEMS",
+      "start_line": 5987,
+      "end_line": 6067,
+      "lines": 81,
+      "nesting": 6,
+      "complexity": 18,
+      "violations": ["N=6 (CRITICAL: >=5)", "C=18 (HIGH: >15)", "Lines=81"],
+      "priority": 2
+    },
+    {
+      "name": "triggerPri_Renix",
+      "start_line": 5665,
+      "end_line": 5737,
+      "lines": 73,
+      "nesting": 5,
+      "complexity": 17,
+      "violations": ["N=5 (CRITICAL: >=5)", "C=17 (HIGH: >15)", "Lines=73"],
+      "priority": 2
+    },
+    {
+      "name": "triggerSec_NGC4",
+      "start_line": 5237,
+      "end_line": 5285,
+      "lines": 49,
+      "nesting": 5,
+      "complexity": 17,
+      "violations": ["N=5 (CRITICAL: >=5)", "C=17 (HIGH: >15)", "Lines=49"],
+      "priority": 2
+    },
+    {
+      "name": "triggerSec_FordTFI",
+      "start_line": 6554,
+      "end_line": 6614,
+      "lines": 61,
+      "nesting": 5,
+      "complexity": 15,
+      "violations": ["N=5 (CRITICAL: >=5)", "C=15", "Lines=61"],
+      "priority": 2
+    },
+    {
+      "name": "triggerPri_RoverMEMS",
+      "start_line": 5867,
+      "end_line": 5924,
+      "lines": 58,
+      "nesting": 5,
+      "complexity": 12,
+      "violations": ["N=5 (CRITICAL: >=5)", "C=12", "Lines=58"],
+      "priority": 3
+    },
+    {
+      "name": "triggerPri_Vmax",
+      "start_line": 5490,
+      "end_line": 5547,
+      "lines": 58,
+      "nesting": 5,
+      "complexity": 11,
+      "violations": ["N=5 (CRITICAL: >=5)", "C=11", "Lines=58"],
+      "priority": 3
+    },
+    {
+      "name": "processSimpleSecTrigger",
+      "start_line": 947,
+      "end_line": 990,
+      "lines": 44,
+      "nesting": 5,
+      "complexity": 7,
+      "violations": ["N=5 (CRITICAL: >=5)", "Lines=44"],
+      "priority": 3
+    }
+  ],
+  "high_violations": [
+    {
+      "name": "triggerPri_SuzukiK6A",
+      "start_line": 6294,
+      "end_line": 6398,
+      "lines": 105,
+      "nesting": 4,
+      "complexity": 19,
+      "violations": ["N=4", "C=19 (HIGH: >15)", "Lines=105 (HIGH: >100)"]
+    },
+    {
+      "name": "triggerSetEndTeeth_RoverMEMS",
+      "start_line": 6089,
+      "end_line": 6148,
+      "lines": 60,
+      "nesting": 3,
+      "complexity": 28,
+      "violations": ["N=3", "C=28 (HIGH: >15)", "Lines=60"],
+      "note": "Exceptional complexity!"
+    }
+  ],
+  "medium_violations": [
+    {
+      "name": "triggerPri_DualWheel",
+      "start_line": 1032,
+      "end_line": 1073,
+      "lines": 42,
+      "nesting": 4,
+      "complexity": 11,
+      "violations": ["N=4", "C=11", "Lines=42"]
+    },
+    {
+      "name": "triggerPri_FordTFI",
+      "start_line": 6504,
+      "end_line": 6549,
+      "lines": 46,
+      "nesting": 4,
+      "complexity": 9,
+      "violations": ["N=4", "Lines=46"]
+    },
+    {
+      "name": "triggerSec_missingTooth",
+      "start_line": 773,
+      "end_line": 812,
+      "lines": 40,
+      "nesting": 4,
+      "complexity": 6,
+      "violations": ["N=4"]
+    },
+    {
+      "name": "getRPM_Vmax",
+      "start_line": 5557,
+      "end_line": 5583,
+      "lines": 27,
+      "nesting": 4,
+      "complexity": 5,
+      "violations": ["N=4"]
+    },
+    {
+      "name": "checkPerToothTiming",
+      "start_line": 545,
+      "end_line": 590,
+      "lines": 46,
+      "nesting": 3,
+      "complexity": 15,
+      "violations": ["N=3", "C=15", "Lines=46"]
+    }
+  ],
+  "low_violations": [
+    {"name": "loggerPrimaryISR", "start_line": 298, "end_line": 327, "lines": 30, "nesting": 3, "complexity": 10},
+    {"name": "apply4G63FilterConfig", "start_line": 1637, "end_line": 1672, "lines": 36, "nesting": 3, "complexity": 8},
+    {"name": "triggerRoverMEMSCommon", "start_line": 5927, "end_line": 5954, "lines": 28, "nesting": 3, "complexity": 8},
+    {"name": "triggerSec_DualWheel", "start_line": 1077, "end_line": 1107, "lines": 31, "nesting": 3, "complexity": 7},
+    {"name": "setEndTeethFromDistributorConfig", "start_line": 1241, "end_line": 1269, "lines": 29, "nesting": 3, "complexity": 6},
+    {"name": "triggerSec_FordST170", "start_line": 4853, "end_line": 4886, "lines": 34, "nesting": 3, "complexity": 5},
+    {"name": "getRPM_missingTooth", "start_line": 848, "end_line": 864, "lines": 17, "nesting": 3, "complexity": 3},
+    {"name": "getRPM_FordST170", "start_line": 4888, "end_line": 4904, "lines": 17, "nesting": 3, "complexity": 3},
+    {"name": "getRPM_DualWheel", "start_line": 1111, "end_line": 1126, "lines": 16, "nesting": 3, "complexity": 3},
+    {"name": "triggerSetup_SuzukiK6A", "start_line": 6157, "end_line": 6202, "lines": 46, "nesting": 1, "complexity": 2}
+  ],
+  "compliant_functions": [
+    {"name": "nullTriggerHandler", "start_line": 134, "end_line": 134, "lines": 1, "nesting": 0, "complexity": 1},
+    {"name": "nullGetRPM", "start_line": 135, "end_line": 135, "lines": 1, "nesting": 0, "complexity": 1},
+    {"name": "nullGetCrankAngle", "start_line": 136, "end_line": 136, "lines": 1, "nesting": 0, "complexity": 1},
+    {"name": "loggerSecondaryISR", "start_line": 332, "end_line": 352, "lines": 21, "nesting": 2, "complexity": 8},
+    {"name": "loggerTertiaryISR", "start_line": 357, "end_line": 379, "lines": 23, "nesting": 2, "complexity": 8},
+    {"name": "angleToTimeIntervalTooth", "start_line": 385, "end_line": 400, "lines": 16, "nesting": 2, "complexity": 2},
+    {"name": "timeToAngleIntervalTooth", "start_line": 403, "end_line": 420, "lines": 18, "nesting": 2, "complexity": 2},
+    {"name": "engineIsRunning", "start_line": 426, "end_line": 434, "lines": 9, "nesting": 2, "complexity": 2},
+    {"name": "resetDecoder", "start_line": 436, "end_line": 441, "lines": 6, "nesting": 1, "complexity": 1},
+    {"name": "UpdateRevolutionTimeFromTeeth", "start_line": 453, "end_line": 464, "lines": 12, "nesting": 1, "complexity": 6},
+    {"name": "setFilter", "start_line": 484, "end_line": 512, "lines": 29, "nesting": 2, "complexity": 9},
+    {"name": "__attribute__", "start_line": 594, "end_line": 606, "lines": 13, "nesting": 1, "complexity": 3},
+    {"name": "triggerThird_missingTooth", "start_line": 816, "end_line": 846, "lines": 31, "nesting": 2, "complexity": 5},
+    {"name": "getCrankAngle_missingTooth", "start_line": 866, "end_line": 892, "lines": 27, "nesting": 1, "complexity": 5},
+    {"name": "triggerSetEndTeeth_missingTooth", "start_line": 897, "end_line": 918, "lines": 22, "nesting": 1, "complexity": 9},
+    {"name": "triggerRecordVVT1Angle", "start_line": 993, "end_line": 1006, "lines": 14, "nesting": 2, "complexity": 5},
+    {"name": "getCrankAngle_DualWheel", "start_line": 1131, "end_line": 1160, "lines": 30, "nesting": 1, "complexity": 6},
+    {"name": "__attribute__", "start_line": 1162, "end_line": 1170, "lines": 9, "nesting": 1, "complexity": 1},
+    {"name": "triggerSetEndTeeth_DualWheel", "start_line": 1175, "end_line": 1197, "lines": 23, "nesting": 1, "complexity": 7},
+    {"name": "getCrankAngle_FordST170", "start_line": 4906, "end_line": 4932, "lines": 27, "nesting": 1, "complexity": 5},
+    {"name": "__attribute__", "start_line": 4934, "end_line": 4943, "lines": 10, "nesting": 1, "complexity": 1},
+    {"name": "triggerSetEndTeeth_FordST170", "start_line": 4945, "end_line": 4956, "lines": 12, "nesting": 1, "complexity": 3},
+    {"name": "triggerSetEndTeeth_NGC", "start_line": 5379, "end_line": 5397, "lines": 19, "nesting": 1, "complexity": 5},
+    {"name": "triggerSetup_Vmax", "start_line": 5405, "end_line": 5421, "lines": 17, "nesting": 1, "complexity": 2},
+    {"name": "triggerSec_Vmax", "start_line": 5550, "end_line": 5554, "lines": 5, "nesting": 1, "complexity": 1},
+    {"name": "getCrankAngle_Vmax", "start_line": 5586, "end_line": 5610, "lines": 25, "nesting": 1, "complexity": 3},
+    {"name": "triggerSetEndTeeth_Vmax", "start_line": 5612, "end_line": 5614, "lines": 3, "nesting": 1, "complexity": 1},
+    {"name": "triggerSetup_Renix", "start_line": 5629, "end_line": 5657, "lines": 29, "nesting": 2, "complexity": 3},
+    {"name": "__attribute__", "start_line": 5739, "end_line": 5749, "lines": 11, "nesting": 1, "complexity": 1},
+    {"name": "triggerSetEndTeeth_Renix", "start_line": 5751, "end_line": 5775, "lines": 25, "nesting": 1, "complexity": 7},
+    {"name": "triggerSetup_RoverMEMS", "start_line": 5795, "end_line": 5817, "lines": 23, "nesting": 1, "complexity": 2},
+    {"name": "getCrankAngle_RoverMEMS", "start_line": 5959, "end_line": 5985, "lines": 27, "nesting": 1, "complexity": 5},
+    {"name": "getRPM_RoverMEMS", "start_line": 6069, "end_line": 6086, "lines": 18, "nesting": 2, "complexity": 6},
+    {"name": "triggerSec_SuzukiK6A", "start_line": 6400, "end_line": 6403, "lines": 4, "nesting": 1, "complexity": 1},
+    {"name": "getRPM_SuzukiK6A", "start_line": 6405, "end_line": 6415, "lines": 11, "nesting": 1, "complexity": 2},
+    {"name": "getCrankAngle_SuzukiK6A", "start_line": 6417, "end_line": 6439, "lines": 23, "nesting": 2, "complexity": 4},
+    {"name": "__attribute__", "start_line": 6442, "end_line": 6457, "lines": 16, "nesting": 2, "complexity": 5},
+    {"name": "triggerSetEndTeeth_SuzukiK6A", "start_line": 6459, "end_line": 6464, "lines": 6, "nesting": 1, "complexity": 1},
+    {"name": "getRPM_FordTFI", "start_line": 6619, "end_line": 6635, "lines": 17, "nesting": 2, "complexity": 4},
+    {"name": "getCrankAngle_FordTFI", "start_line": 6640, "end_line": 6668, "lines": 29, "nesting": 1, "complexity": 5},
+    {"name": "triggerSetEndTeeth_FordTFI", "start_line": 6672, "end_line": 6680, "lines": 9, "nesting": 1, "complexity": 1}
+  ],
+  "statistics": {
+    "nesting_distribution": {
+      "N0": 3,
+      "N1": 28,
+      "N2": 10,
+      "N3": 14,
+      "N4": 5,
+      "N5": 6,
+      "N6": 1,
+      "N7": 1,
+      "N8": 2
+    },
+    "complexity_distribution": {
+      "C1_5": 41,
+      "C6_10": 15,
+      "C11_15": 7,
+      "C16_20": 4,
+      "C20_plus": 3
+    },
+    "lines_distribution": {
+      "under_20": 29,
+      "20_40": 21,
+      "41_50": 8,
+      "51_100": 8,
+      "over_100": 2
+    }
+  }
+}

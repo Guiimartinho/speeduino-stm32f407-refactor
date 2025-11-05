@@ -1,0 +1,548 @@
+================================================================================
+ANALISE DE FUNCOES ATIVAS - speeduino/decoders.cpp
+================================================================================
+
+RESUMO DO ARQUIVO:
+  Total de linhas:        6,682
+  Linhas desabilitadas:   3,641 (54.5%)
+  Linhas ativas:          3,041 (45.5%)
+  Blocos #if 0:           14
+  Funções ativas:         68
+
+RESUMO DE VIOLACOES MISRA:
+  CRITICAL (N>=5):                   10
+  HIGH (>100 lines ou C>15):         2
+  MEDIUM (>50 lines, C>10, ou N=4):  5
+  LOW (>40 lines ou N=3):            10
+  Sem violacoes:                     41
+
+================================================================================
+LISTA COMPLETA DE FUNCOES ATIVAS
+================================================================================
+
+1. nullTriggerHandler
+   Localizacao: Linhas 134-134
+   Metricas:    Lines=1, N=0, C=1
+   Status:      OK
+
+2. nullGetRPM
+   Localizacao: Linhas 135-135
+   Metricas:    Lines=1, N=0, C=1
+   Status:      OK
+
+3. nullGetCrankAngle
+   Localizacao: Linhas 136-136
+   Metricas:    Lines=1, N=0, C=1
+   Status:      OK
+
+4. loggerPrimaryISR
+   Localizacao: Linhas 298-327
+   Metricas:    Lines=30, N=3, C=10
+   Status:      VIOLACAO LOW
+   Violacoes:   N=3
+
+5. loggerSecondaryISR
+   Localizacao: Linhas 332-352
+   Metricas:    Lines=21, N=2, C=8
+   Status:      OK
+
+6. loggerTertiaryISR
+   Localizacao: Linhas 357-379
+   Metricas:    Lines=23, N=2, C=8
+   Status:      OK
+
+7. angleToTimeIntervalTooth
+   Localizacao: Linhas 385-400
+   Metricas:    Lines=16, N=2, C=2
+   Status:      OK
+
+8. timeToAngleIntervalTooth
+   Localizacao: Linhas 403-420
+   Metricas:    Lines=18, N=2, C=2
+   Status:      OK
+
+9. engineIsRunning
+   Localizacao: Linhas 426-434
+   Metricas:    Lines=9, N=2, C=2
+   Status:      OK
+
+10. resetDecoder
+   Localizacao: Linhas 436-441
+   Metricas:    Lines=6, N=1, C=1
+   Status:      OK
+
+11. UpdateRevolutionTimeFromTeeth
+   Localizacao: Linhas 453-464
+   Metricas:    Lines=12, N=1, C=6
+   Status:      OK
+
+12. setFilter
+   Localizacao: Linhas 484-512
+   Metricas:    Lines=29, N=2, C=9
+   Status:      OK
+
+13. checkPerToothTiming
+   Localizacao: Linhas 545-590
+   Metricas:    Lines=46, N=3, C=15
+   Status:      VIOLACAO MEDIUM
+   Violacoes:   N=3, C=15, Lines=46
+
+14. __attribute__
+   Localizacao: Linhas 594-606
+   Metricas:    Lines=13, N=1, C=3
+   Status:      OK
+
+15. triggerPri_missingTooth
+   Localizacao: Linhas 652-769
+   Metricas:    Lines=118, N=8, C=36
+   Status:      VIOLACAO CRITICAL
+   Violacoes:   N=8 (CRITICAL: >=5), C=36 (HIGH: >15), Lines=118 (HIGH: >100)
+
+16. triggerSec_missingTooth
+   Localizacao: Linhas 773-812
+   Metricas:    Lines=40, N=4, C=6
+   Status:      VIOLACAO MEDIUM
+   Violacoes:   N=4
+
+17. triggerThird_missingTooth
+   Localizacao: Linhas 816-846
+   Metricas:    Lines=31, N=2, C=5
+   Status:      OK
+
+18. getRPM_missingTooth
+   Localizacao: Linhas 848-864
+   Metricas:    Lines=17, N=3, C=3
+   Status:      VIOLACAO LOW
+   Violacoes:   N=3
+
+19. getCrankAngle_missingTooth
+   Localizacao: Linhas 866-892
+   Metricas:    Lines=27, N=1, C=5
+   Status:      OK
+
+20. triggerSetEndTeeth_missingTooth
+   Localizacao: Linhas 897-918
+   Metricas:    Lines=22, N=1, C=9
+   Status:      OK
+
+21. processSimpleSecTrigger
+   Localizacao: Linhas 947-990
+   Metricas:    Lines=44, N=5, C=7
+   Status:      VIOLACAO CRITICAL
+   Violacoes:   N=5 (CRITICAL: >=5), Lines=44
+
+22. triggerRecordVVT1Angle
+   Localizacao: Linhas 993-1006
+   Metricas:    Lines=14, N=2, C=5
+   Status:      OK
+
+23. triggerPri_DualWheel
+   Localizacao: Linhas 1032-1073
+   Metricas:    Lines=42, N=4, C=11
+   Status:      VIOLACAO MEDIUM
+   Violacoes:   N=4, C=11, Lines=42
+
+24. triggerSec_DualWheel
+   Localizacao: Linhas 1077-1107
+   Metricas:    Lines=31, N=3, C=7
+   Status:      VIOLACAO LOW
+   Violacoes:   N=3
+
+25. getRPM_DualWheel
+   Localizacao: Linhas 1111-1126
+   Metricas:    Lines=16, N=3, C=3
+   Status:      VIOLACAO LOW
+   Violacoes:   N=3
+
+26. getCrankAngle_DualWheel
+   Localizacao: Linhas 1131-1160
+   Metricas:    Lines=30, N=1, C=6
+   Status:      OK
+
+27. __attribute__
+   Localizacao: Linhas 1162-1170
+   Metricas:    Lines=9, N=1, C=1
+   Status:      OK
+
+28. triggerSetEndTeeth_DualWheel
+   Localizacao: Linhas 1175-1197
+   Metricas:    Lines=23, N=1, C=7
+   Status:      OK
+
+29. setEndTeethFromDistributorConfig
+   Localizacao: Linhas 1241-1269
+   Metricas:    Lines=29, N=3, C=6
+   Status:      VIOLACAO LOW
+   Violacoes:   N=3
+
+30. apply4G63FilterConfig
+   Localizacao: Linhas 1637-1672
+   Metricas:    Lines=36, N=3, C=8
+   Status:      VIOLACAO LOW
+   Violacoes:   N=3
+
+31. triggerSec_FordST170
+   Localizacao: Linhas 4853-4886
+   Metricas:    Lines=34, N=3, C=5
+   Status:      VIOLACAO LOW
+   Violacoes:   N=3
+
+32. getRPM_FordST170
+   Localizacao: Linhas 4888-4904
+   Metricas:    Lines=17, N=3, C=3
+   Status:      VIOLACAO LOW
+   Violacoes:   N=3
+
+33. getCrankAngle_FordST170
+   Localizacao: Linhas 4906-4932
+   Metricas:    Lines=27, N=1, C=5
+   Status:      OK
+
+34. __attribute__
+   Localizacao: Linhas 4934-4943
+   Metricas:    Lines=10, N=1, C=1
+   Status:      OK
+
+35. triggerSetEndTeeth_FordST170
+   Localizacao: Linhas 4945-4956
+   Metricas:    Lines=12, N=1, C=3
+   Status:      OK
+
+36. triggerPri_NGC
+   Localizacao: Linhas 5130-5233
+   Metricas:    Lines=104, N=7, C=25
+   Status:      VIOLACAO CRITICAL
+   Violacoes:   N=7 (CRITICAL: >=5), C=25 (HIGH: >15), Lines=104 (HIGH: >100)
+
+37. triggerSec_NGC4
+   Localizacao: Linhas 5237-5285
+   Metricas:    Lines=49, N=5, C=17
+   Status:      VIOLACAO CRITICAL
+   Violacoes:   N=5 (CRITICAL: >=5), C=17 (HIGH: >15), Lines=49
+
+38. triggerSec_NGC68
+   Localizacao: Linhas 5289-5342
+   Metricas:    Lines=54, N=8, C=17
+   Status:      VIOLACAO CRITICAL
+   Violacoes:   N=8 (CRITICAL: >=5), C=17 (HIGH: >15), Lines=54
+
+39. triggerSetEndTeeth_NGC
+   Localizacao: Linhas 5379-5397
+   Metricas:    Lines=19, N=1, C=5
+   Status:      OK
+
+40. triggerSetup_Vmax
+   Localizacao: Linhas 5405-5421
+   Metricas:    Lines=17, N=1, C=2
+   Status:      OK
+
+41. triggerPri_Vmax
+   Localizacao: Linhas 5490-5547
+   Metricas:    Lines=58, N=5, C=11
+   Status:      VIOLACAO CRITICAL
+   Violacoes:   N=5 (CRITICAL: >=5), C=11, Lines=58
+
+42. triggerSec_Vmax
+   Localizacao: Linhas 5550-5554
+   Metricas:    Lines=5, N=1, C=1
+   Status:      OK
+
+43. getRPM_Vmax
+   Localizacao: Linhas 5557-5583
+   Metricas:    Lines=27, N=4, C=5
+   Status:      VIOLACAO MEDIUM
+   Violacoes:   N=4
+
+44. getCrankAngle_Vmax
+   Localizacao: Linhas 5586-5610
+   Metricas:    Lines=25, N=1, C=3
+   Status:      OK
+
+45. triggerSetEndTeeth_Vmax
+   Localizacao: Linhas 5612-5614
+   Metricas:    Lines=3, N=1, C=1
+   Status:      OK
+
+46. triggerSetup_Renix
+   Localizacao: Linhas 5629-5657
+   Metricas:    Lines=29, N=2, C=3
+   Status:      OK
+
+47. triggerPri_Renix
+   Localizacao: Linhas 5665-5737
+   Metricas:    Lines=73, N=5, C=17
+   Status:      VIOLACAO CRITICAL
+   Violacoes:   N=5 (CRITICAL: >=5), C=17 (HIGH: >15), Lines=73
+
+48. __attribute__
+   Localizacao: Linhas 5739-5749
+   Metricas:    Lines=11, N=1, C=1
+   Status:      OK
+
+49. triggerSetEndTeeth_Renix
+   Localizacao: Linhas 5751-5775
+   Metricas:    Lines=25, N=1, C=7
+   Status:      OK
+
+50. triggerSetup_RoverMEMS
+   Localizacao: Linhas 5795-5817
+   Metricas:    Lines=23, N=1, C=2
+   Status:      OK
+
+51. triggerPri_RoverMEMS
+   Localizacao: Linhas 5867-5924
+   Metricas:    Lines=58, N=5, C=12
+   Status:      VIOLACAO CRITICAL
+   Violacoes:   N=5 (CRITICAL: >=5), C=12, Lines=58
+
+52. triggerRoverMEMSCommon
+   Localizacao: Linhas 5927-5954
+   Metricas:    Lines=28, N=3, C=8
+   Status:      VIOLACAO LOW
+   Violacoes:   N=3
+
+53. getCrankAngle_RoverMEMS
+   Localizacao: Linhas 5959-5985
+   Metricas:    Lines=27, N=1, C=5
+   Status:      OK
+
+54. triggerSec_RoverMEMS
+   Localizacao: Linhas 5987-6067
+   Metricas:    Lines=81, N=6, C=18
+   Status:      VIOLACAO CRITICAL
+   Violacoes:   N=6 (CRITICAL: >=5), C=18 (HIGH: >15), Lines=81
+
+55. getRPM_RoverMEMS
+   Localizacao: Linhas 6069-6086
+   Metricas:    Lines=18, N=2, C=6
+   Status:      OK
+
+56. triggerSetEndTeeth_RoverMEMS
+   Localizacao: Linhas 6089-6148
+   Metricas:    Lines=60, N=3, C=28
+   Status:      VIOLACAO HIGH
+   Violacoes:   N=3, C=28 (HIGH: >15), Lines=60
+
+57. triggerSetup_SuzukiK6A
+   Localizacao: Linhas 6157-6202
+   Metricas:    Lines=46, N=1, C=2
+   Status:      VIOLACAO LOW
+   Violacoes:   Lines=46
+
+58. triggerPri_SuzukiK6A
+   Localizacao: Linhas 6294-6398
+   Metricas:    Lines=105, N=4, C=19
+   Status:      VIOLACAO HIGH
+   Violacoes:   N=4, C=19 (HIGH: >15), Lines=105 (HIGH: >100)
+
+59. triggerSec_SuzukiK6A
+   Localizacao: Linhas 6400-6403
+   Metricas:    Lines=4, N=1, C=1
+   Status:      OK
+
+60. getRPM_SuzukiK6A
+   Localizacao: Linhas 6405-6415
+   Metricas:    Lines=11, N=1, C=2
+   Status:      OK
+
+61. getCrankAngle_SuzukiK6A
+   Localizacao: Linhas 6417-6439
+   Metricas:    Lines=23, N=2, C=4
+   Status:      OK
+
+62. __attribute__
+   Localizacao: Linhas 6442-6457
+   Metricas:    Lines=16, N=2, C=5
+   Status:      OK
+
+63. triggerSetEndTeeth_SuzukiK6A
+   Localizacao: Linhas 6459-6464
+   Metricas:    Lines=6, N=1, C=1
+   Status:      OK
+
+64. triggerPri_FordTFI
+   Localizacao: Linhas 6504-6549
+   Metricas:    Lines=46, N=4, C=9
+   Status:      VIOLACAO MEDIUM
+   Violacoes:   N=4, Lines=46
+
+65. triggerSec_FordTFI
+   Localizacao: Linhas 6554-6614
+   Metricas:    Lines=61, N=5, C=15
+   Status:      VIOLACAO CRITICAL
+   Violacoes:   N=5 (CRITICAL: >=5), C=15, Lines=61
+
+66. getRPM_FordTFI
+   Localizacao: Linhas 6619-6635
+   Metricas:    Lines=17, N=2, C=4
+   Status:      OK
+
+67. getCrankAngle_FordTFI
+   Localizacao: Linhas 6640-6668
+   Metricas:    Lines=29, N=1, C=5
+   Status:      OK
+
+68. triggerSetEndTeeth_FordTFI
+   Localizacao: Linhas 6672-6680
+   Metricas:    Lines=9, N=1, C=1
+   Status:      OK
+
+================================================================================
+VIOLACOES MISRA PRIORIZADAS PARA REFATORACAO
+================================================================================
+
+
+================================================================================
+CRITICAL - 10 funcoes
+================================================================================
+
+triggerPri_missingTooth
+  Localizacao: Linhas 652-769
+  Metricas:    Lines=118, N=8, C=36
+  Violacoes:   N=8 (CRITICAL: >=5), C=36 (HIGH: >15), Lines=118 (HIGH: >100)
+
+triggerSec_NGC68
+  Localizacao: Linhas 5289-5342
+  Metricas:    Lines=54, N=8, C=17
+  Violacoes:   N=8 (CRITICAL: >=5), C=17 (HIGH: >15), Lines=54
+
+triggerPri_NGC
+  Localizacao: Linhas 5130-5233
+  Metricas:    Lines=104, N=7, C=25
+  Violacoes:   N=7 (CRITICAL: >=5), C=25 (HIGH: >15), Lines=104 (HIGH: >100)
+
+triggerSec_RoverMEMS
+  Localizacao: Linhas 5987-6067
+  Metricas:    Lines=81, N=6, C=18
+  Violacoes:   N=6 (CRITICAL: >=5), C=18 (HIGH: >15), Lines=81
+
+triggerPri_Renix
+  Localizacao: Linhas 5665-5737
+  Metricas:    Lines=73, N=5, C=17
+  Violacoes:   N=5 (CRITICAL: >=5), C=17 (HIGH: >15), Lines=73
+
+triggerSec_NGC4
+  Localizacao: Linhas 5237-5285
+  Metricas:    Lines=49, N=5, C=17
+  Violacoes:   N=5 (CRITICAL: >=5), C=17 (HIGH: >15), Lines=49
+
+triggerSec_FordTFI
+  Localizacao: Linhas 6554-6614
+  Metricas:    Lines=61, N=5, C=15
+  Violacoes:   N=5 (CRITICAL: >=5), C=15, Lines=61
+
+triggerPri_RoverMEMS
+  Localizacao: Linhas 5867-5924
+  Metricas:    Lines=58, N=5, C=12
+  Violacoes:   N=5 (CRITICAL: >=5), C=12, Lines=58
+
+triggerPri_Vmax
+  Localizacao: Linhas 5490-5547
+  Metricas:    Lines=58, N=5, C=11
+  Violacoes:   N=5 (CRITICAL: >=5), C=11, Lines=58
+
+processSimpleSecTrigger
+  Localizacao: Linhas 947-990
+  Metricas:    Lines=44, N=5, C=7
+  Violacoes:   N=5 (CRITICAL: >=5), Lines=44
+
+================================================================================
+HIGH - 2 funcoes
+================================================================================
+
+triggerPri_SuzukiK6A
+  Localizacao: Linhas 6294-6398
+  Metricas:    Lines=105, N=4, C=19
+  Violacoes:   N=4, C=19 (HIGH: >15), Lines=105 (HIGH: >100)
+
+triggerSetEndTeeth_RoverMEMS
+  Localizacao: Linhas 6089-6148
+  Metricas:    Lines=60, N=3, C=28
+  Violacoes:   N=3, C=28 (HIGH: >15), Lines=60
+
+================================================================================
+MEDIUM - 5 funcoes
+================================================================================
+
+triggerPri_DualWheel
+  Localizacao: Linhas 1032-1073
+  Metricas:    Lines=42, N=4, C=11
+  Violacoes:   N=4, C=11, Lines=42
+
+triggerPri_FordTFI
+  Localizacao: Linhas 6504-6549
+  Metricas:    Lines=46, N=4, C=9
+  Violacoes:   N=4, Lines=46
+
+triggerSec_missingTooth
+  Localizacao: Linhas 773-812
+  Metricas:    Lines=40, N=4, C=6
+  Violacoes:   N=4
+
+getRPM_Vmax
+  Localizacao: Linhas 5557-5583
+  Metricas:    Lines=27, N=4, C=5
+  Violacoes:   N=4
+
+checkPerToothTiming
+  Localizacao: Linhas 545-590
+  Metricas:    Lines=46, N=3, C=15
+  Violacoes:   N=3, C=15, Lines=46
+
+================================================================================
+LOW - 10 funcoes
+================================================================================
+
+loggerPrimaryISR
+  Localizacao: Linhas 298-327
+  Metricas:    Lines=30, N=3, C=10
+  Violacoes:   N=3
+
+apply4G63FilterConfig
+  Localizacao: Linhas 1637-1672
+  Metricas:    Lines=36, N=3, C=8
+  Violacoes:   N=3
+
+triggerRoverMEMSCommon
+  Localizacao: Linhas 5927-5954
+  Metricas:    Lines=28, N=3, C=8
+  Violacoes:   N=3
+
+triggerSec_DualWheel
+  Localizacao: Linhas 1077-1107
+  Metricas:    Lines=31, N=3, C=7
+  Violacoes:   N=3
+
+setEndTeethFromDistributorConfig
+  Localizacao: Linhas 1241-1269
+  Metricas:    Lines=29, N=3, C=6
+  Violacoes:   N=3
+
+triggerSec_FordST170
+  Localizacao: Linhas 4853-4886
+  Metricas:    Lines=34, N=3, C=5
+  Violacoes:   N=3
+
+getRPM_missingTooth
+  Localizacao: Linhas 848-864
+  Metricas:    Lines=17, N=3, C=3
+  Violacoes:   N=3
+
+getRPM_FordST170
+  Localizacao: Linhas 4888-4904
+  Metricas:    Lines=17, N=3, C=3
+  Violacoes:   N=3
+
+getRPM_DualWheel
+  Localizacao: Linhas 1111-1126
+  Metricas:    Lines=16, N=3, C=3
+  Violacoes:   N=3
+
+triggerSetup_SuzukiK6A
+  Localizacao: Linhas 6157-6202
+  Metricas:    Lines=46, N=1, C=2
+  Violacoes:   Lines=46
+
+================================================================================
+FIM DA ANALISE
+================================================================================
