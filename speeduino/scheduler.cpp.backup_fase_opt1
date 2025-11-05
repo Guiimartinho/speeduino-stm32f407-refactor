@@ -326,40 +326,34 @@ extern void beginInjectorPriming(void)
 // overhead.
 static inline __attribute__((always_inline)) void fuelScheduleISR(FuelSchedule &schedule)
 {
-  // FASE OPT-1: Switch optimization for better branch prediction (10-15% faster)
-  switch(schedule.Status)
+  if (schedule.Status == PENDING) //Check to see if this schedule is turn on
   {
-    case PENDING: //Check to see if this schedule is turn on
-      schedule.pStartFunction();
-      schedule.Status = RUNNING; //Set the status to be in progress (ie The start callback has been called, but not the end callback)
-      SET_COMPARE(schedule.compare, schedule.counter + uS_TO_TIMER_COMPARE(schedule.duration) ); //Doing this here prevents a potential overflow on restarts
-      break;
-
-    case RUNNING:
-      schedule.pEndFunction();
-      schedule.Status = OFF; //Turn off the schedule
-
-      //If there is a next schedule queued up, activate it
-      if(schedule.hasNextSchedule == true)
-      {
-        SET_COMPARE(schedule.compare, schedule.nextStartCompare); //Flip the next start compare time to be the current one. The duration of this next pulse will already have been set in _setFuelScheduleNext()
-        schedule.Status = PENDING;
-        schedule.hasNextSchedule = false;
-      }
-      else
-      {
-        schedule.pTimerDisable();
-      }
-      break;
-
-    case OFF:
-      schedule.pTimerDisable(); //Safety check. Turn off this output compare unit and return without performing any action
-      break;
-
-    default:
-      break;
+    schedule.pStartFunction();
+    schedule.Status = RUNNING; //Set the status to be in progress (ie The start callback has been called, but not the end callback)
+    SET_COMPARE(schedule.compare, schedule.counter + uS_TO_TIMER_COMPARE(schedule.duration) ); //Doing this here prevents a potential overflow on restarts
   }
-}
+  else if (schedule.Status == RUNNING)
+  {
+    schedule.pEndFunction();
+    schedule.Status = OFF; //Turn off the schedule
+
+    //If there is a next schedule queued up, activate it
+    if(schedule.hasNextSchedule == true)
+    {
+      SET_COMPARE(schedule.compare, schedule.nextStartCompare); //Flip the next start compare time to be the current one. The duration of this next pulse will already have been set in _setFuelScheduleNext()
+      schedule.Status = PENDING;
+      schedule.hasNextSchedule = false;
+    }
+    else
+    { 
+      schedule.pTimerDisable(); 
+    }
+  }
+  else if (schedule.Status == OFF) 
+  { 
+    schedule.pTimerDisable(); //Safety check. Turn off this output compare unit and return without performing any action
+  } 
+} 
 
 /*******************************************************************************************************************************************************************************************************/
 /** fuelSchedule*Interrupt (All 8 ISR functions below) get called (as timed interrupts) when either the start time or the duration time are reached.
@@ -458,47 +452,38 @@ void fuelSchedule8Interrupt() //Most ARM chips can simply call a function
 // overhead.
 static inline __attribute__((always_inline)) void ignitionScheduleISR(IgnitionSchedule &schedule)
 {
-  // FASE OPT-2: Switch + micros() caching optimization (15-20% faster)
-  // Cache micros() call - expensive system call, ~50-100 cycles
-  unsigned long currentMicros = micros();
-
-  switch(schedule.Status)
+  if (schedule.Status == PENDING) //Check to see if this schedule is turn on
   {
-    case PENDING: //Check to see if this schedule is turn on
-      schedule.pStartCallback();
-      schedule.Status = RUNNING; //Set the status to be in progress (ie The start callback has been called, but not the end callback)
-      schedule.startTime = currentMicros;
-      if(schedule.endScheduleSetByDecoder == true) { SET_COMPARE(schedule.compare, schedule.endCompare); }
-      else { SET_COMPARE(schedule.compare, schedule.counter + uS_TO_TIMER_COMPARE(schedule.duration) ); } //Doing this here prevents a potential overflow on restarts
-      break;
+    schedule.pStartCallback();
+    schedule.Status = RUNNING; //Set the status to be in progress (ie The start callback has been called, but not the end callback)
+    schedule.startTime = micros();
+    if(schedule.endScheduleSetByDecoder == true) { SET_COMPARE(schedule.compare, schedule.endCompare); }
+    else { SET_COMPARE(schedule.compare, schedule.counter + uS_TO_TIMER_COMPARE(schedule.duration) ); } //Doing this here prevents a potential overflow on restarts
+  }
+  else if (schedule.Status == RUNNING)
+  {
+    schedule.pEndCallback();
+    schedule.Status = OFF; //Turn off the schedule
+    schedule.endScheduleSetByDecoder = false;
+    ignitionCount = ignitionCount + 1; //Increment the ignition counter
+    currentStatus.actualDwell = DWELL_AVERAGE( (micros() - schedule.startTime) );
 
-    case RUNNING:
-      schedule.pEndCallback();
-      schedule.Status = OFF; //Turn off the schedule
-      schedule.endScheduleSetByDecoder = false;
-      ignitionCount = ignitionCount + 1; //Increment the ignition counter
-      currentStatus.actualDwell = DWELL_AVERAGE( (currentMicros - schedule.startTime) );
-
-      //If there is a next schedule queued up, activate it
-      if(schedule.hasNextSchedule == true)
-      {
-        SET_COMPARE(schedule.compare, schedule.nextStartCompare);
-        schedule.Status = PENDING;
-        schedule.hasNextSchedule = false;
-      }
-      else
-      {
-        schedule.pTimerDisable();
-      }
-      break;
-
-    case OFF:
-      //This occurs after a hard cut is active to prevent the future schedules from ever being run
-      schedule.pTimerDisable();
-      break;
-
-    default:
-      break;
+    //If there is a next schedule queued up, activate it
+    if(schedule.hasNextSchedule == true)
+    {
+      SET_COMPARE(schedule.compare, schedule.nextStartCompare);
+      schedule.Status = PENDING;
+      schedule.hasNextSchedule = false;
+    }
+    else
+    { 
+      schedule.pTimerDisable(); 
+    }
+  }
+  else if (schedule.Status == OFF)
+  {
+    //This occurs after a hard cut is active to prevent the future schedules from ever being run
+    schedule.pTimerDisable(); 
   }
 }
 

@@ -1,4 +1,5 @@
 {
+  "includeCoAuthoredBy": false,
   "permissions": {
     "allow": [
       "Bash(rm:*)",
@@ -7,10 +8,17 @@
       "Bash(/c/Users/AORUS-Desktop/.platformio/penv/Scripts/platformio.exe run:*)",
       "Bash(~/.platformio/penv/bin/platformio run:*)",
       "Bash(awk:*)",
-      "Bash(nm:*)"
+      "Bash(nm:*)",
+      "Bash(/tmp/auxiliaries_original.cpp)",
+      "Bash(\"C:\\Users\\AORUS-Desktop\\Documents\\88.Personal\\1.Projects\\scu-ecu-2.0-stm32f407-8x8\\firmware\\speeduino\\auxiliaries_original_temp.cpp\")",
+      "Bash(./platformio.exe run:*)",
+      "Bash(\"C:/Users/AORUS-Desktop/Documents/88.Personal/1.Projects/scu-ecu-2.0-stm32f407-8x8/firmware/speeduino/build_fase_fs.log\")",
+      "Bash(cat:*)",
+      "Bash(tee:*)",
+      "Bash(git add:*)",
+      "Bash(git commit:*)"
     ],
     "deny": [],
     "ask": []
-  },
-  "includeCoAuthoredBy": false
+  }
 }

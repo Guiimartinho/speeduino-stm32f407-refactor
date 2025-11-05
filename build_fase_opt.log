@@ -1,0 +1,44 @@
+Processing black_F407VE-EEPROM-SPI (platform: ststm32; framework: arduino; board: black_f407ve)
+--------------------------------------------------------------------------------
+Verbose mode can be enabled via `-v, --verbose` option
+CONFIGURATION: https://docs.platformio.org/page/boards/ststm32/black_f407ve.html
+PLATFORM: ST STM32 (19.4.0) > Black STM32F407VE
+HARDWARE: STM32F407VET6 168MHz, 128KB RAM, 512KB Flash
+DEBUG: Current (stlink) External (blackmagic, cmsis-dap, jlink, stlink)
+PACKAGES: 
+ - framework-arduinoststm32 @ 4.21100.0 (2.11.0) 
+ - framework-cmsis @ 2.50900.0 (5.9.0) 
+ - tool-dfuutil @ 1.11.0 
+ - toolchain-gccarmnoneeabi @ 1.120301.0 (12.3.1)
+LDF: Library Dependency Finder -> https://bit.ly/configure-pio-ldf
+LDF Modes: Finder ~ chain, Compatibility ~ soft
+Found 19 compatible libraries
+Scanning dependencies...
+Dependency Graph
+|-- STM32duino RTC @ 1.2.0
+|-- SdFat @ 2.3.1
+|-- SimplyAtomic @ 1.0.0
+|-- elapsedMillis @ 1.0.6
+|-- SPI @ 1.1.0
+Building in release mode
+Compiling .pio\build\black_F407VE-EEPROM-SPI\src\scheduler.cpp.o
+Linking .pio\build\black_F407VE-EEPROM-SPI\firmware.elf
+Checking size .pio\build\black_F407VE-EEPROM-SPI\firmware.elf
+Advanced Memory Usage is available via "PlatformIO Home > Project Inspect"
+RAM:   [==        ]  16.3% (used 21376 bytes from 131072 bytes)
+Flash: [====      ]  37.1% (used 194380 bytes from 524288 bytes)
+Building .pio\build\black_F407VE-EEPROM-SPI\firmware.bin
+Adding dfu suffix to firmware.bin
+dfu-suffix (dfu-util) 0.11
+
+Copyright 2011-2012 Stefan Schmidt, 2013-2020 Tormod Volden
+This program is Free Software and has ABSOLUTELY NO WARRANTY
+Please report bugs to http://sourceforge.net/p/dfu-util/tickets/
+
+Suffix successfully added to file
+========================= [SUCCESS] Took 14.65 seconds =========================
+
+Environment              Status    Duration
+-----------------------  --------  ------------
+black_F407VE-EEPROM-SPI  SUCCESS   00:00:14.652
+========================= 1 succeeded in 00:00:14.652 =========================
