@@ -7,6 +7,11 @@
 [![Methodology](https://img.shields.io/badge/methodology-Structured%20Refactoring-red.svg)](#structured-refactoring-methodology)
 [![Status](https://img.shields.io/badge/status-HIL%20Ready-brightgreen.svg)](#project-status)
 
+[![CI/CD](https://github.com/Guiimartinho/speeduino-stm32f407-refactor/actions/workflows/ci.yml/badge.svg)](https://github.com/Guiimartinho/speeduino-stm32f407-refactor/actions/workflows/ci.yml)
+[![Unit Tests](https://img.shields.io/badge/tests-313%20passing-success.svg)](https://github.com/Guiimartinho/speeduino-stm32f407-refactor/actions/workflows/ci.yml)
+[![MISRA Scan](https://github.com/Guiimartinho/speeduino-stm32f407-refactor/actions/workflows/misra.yml/badge.svg)](https://github.com/Guiimartinho/speeduino-stm32f407-refactor/actions/workflows/misra.yml)
+[![Documentation](https://github.com/Guiimartinho/speeduino-stm32f407-refactor/actions/workflows/doxygen.yml/badge.svg)](https://github.com/Guiimartinho/speeduino-stm32f407-refactor/actions/workflows/doxygen.yml)
+
 ## Project Overview
 
 SCG-ECU 2.0 is a complete refactoring and modularization of the Speeduino ECU firmware, specifically optimized for the STM32F407VGT6 microcontroller with 8x8 configuration (8 independent fuel injectors + 8 independent ignition channels).
