@@ -20,6 +20,30 @@
 #include <stdio.h>
 #include <math.h>
 
+// ============================================================================
+// AVR HEADER MOCKS (for tests that include AVR headers directly)
+// ============================================================================
+
+#ifndef avr_sleep_h
+#define avr_sleep_h
+#define cli()
+#define sei()
+#define sleep_enable()
+#define sleep_cpu()
+#endif
+
+#ifndef __PGMSPACE_H_
+#define __PGMSPACE_H_ 1
+#define PROGMEM
+#define PGM_P const char *
+#define pgm_read_byte(addr) (*(const unsigned char *)(addr))
+#define pgm_read_word(addr) (*(const unsigned short *)(addr))
+#define pgm_read_dword(addr) (*(const unsigned long *)(addr))
+#define pgm_read_float(addr) (*(const float *)(addr))
+#define pgm_read_ptr(addr) (*(void * const *)(addr))
+#define PSTR(s) (s)
+#endif
+
 #ifdef __cplusplus
 extern "C" {
 #endif
@@ -49,6 +73,9 @@ typedef bool boolean;
 #define RISING 1
 #define FALLING 2
 #define CHANGE 3
+
+// Mock LED pin
+#define LED_BUILTIN 13
 
 // Math constants
 #ifndef PI

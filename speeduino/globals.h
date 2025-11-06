@@ -31,14 +31,31 @@
 #include "config_pages.h"
 #include "port_pin.h"
 
-#if __has_include(<SimplyAtomic.h>)
+#if defined(NATIVE_BUILD) || defined(UNIT_TEST)
+  // Mock SimplyAtomic for native tests
+  #define ATOMIC() for(int __atomic_dummy = 0; __atomic_dummy < 1; __atomic_dummy++)
+  #define ATOMIC_BLOCK(type) ATOMIC()
+#elif __has_include(<SimplyAtomic.h>)
   #include <SimplyAtomic.h>
 #else
   #error SimplyAtomic library is required. Please install via PlatformIO or Arduino Library Manager.
 #endif
 
 // SCG-ECU 2.0 - STM32F407VE Configuration
-#if defined(STM32_MCU_SERIES) || defined(ARDUINO_ARCH_STM32) || defined(STM32)
+#if defined(NATIVE_BUILD) || defined(UNIT_TEST)
+  // Mock board definitions for native tests
+  #define BOARD_H "test_mocks.h"
+  #define CORE_STM32
+  #define BOARD_MAX_ADC_PINS 15
+  #define INJ_CHANNELS 8
+  #define IGN_CHANNELS 8
+  #define NUM_ANALOG_INPUTS 16
+  // Mock port types for native tests
+  typedef uint32_t PORT_TYPE;
+  typedef uint32_t PINMASK_TYPE;
+  #define COMPARE_TYPE uint32_t
+  #define COUNTER_TYPE uint32_t
+#elif defined(STM32_MCU_SERIES) || defined(ARDUINO_ARCH_STM32) || defined(STM32)
   #define BOARD_H "board_stm32_official.h"
   #define CORE_STM32
   #define BOARD_MAX_ADC_PINS (NUM_ANALOG_INPUTS-1)
@@ -55,7 +72,9 @@
 #endif
 
 // Include board-specific definitions
-#include BOARD_H 
+#if !defined(NATIVE_BUILD) && !defined(UNIT_TEST)
+  #include BOARD_H
+#endif 
 
 #define CRANK_ANGLE_MAX (max(CRANK_ANGLE_MAX_IGN, CRANK_ANGLE_MAX_INJ))
 
