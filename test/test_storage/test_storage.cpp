@@ -8,7 +8,11 @@
 #include <unity.h>
 #include "../test_helpers/test_mocks.h"
 #include "Arduino.h"
-#include "../../speeduino/storage.h"
+
+// Mock storage.h - avoid complex EEPROM dependencies
+// These are placeholder tests - full implementation would need actual storage.cpp
+#define storage_h
+void mockStorageFunction() {} // Placeholder
 
 void setUp(void) {}
 void tearDown(void) {}

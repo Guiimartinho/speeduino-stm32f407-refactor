@@ -10,7 +10,7 @@
 #include "../test_helpers/test_mocks.h"
 #include "Arduino.h"
 
-// Forward declarations of LED functions (mocked in led_mocks.cpp)
+// Forward declarations of LED functions (mocked in led_button_mocks.cpp)
 typedef enum {
     LED_MODE_NORMAL = 0,
     LED_MODE_SHIFT_LIGHT = 1,
@@ -28,6 +28,12 @@ extern void ledLoadConfig(void);
 extern void ledFactoryReset(void);
 extern void ledAddError(byte error);
 extern void ledClearAllErrors(void);
+
+// Mock pin definitions
+#define BTN_MODE 0
+#define LED1 1
+#define LED2 2
+#define LED3 3
 
 // ============================================================================
 // TEST SETUP & TEARDOWN

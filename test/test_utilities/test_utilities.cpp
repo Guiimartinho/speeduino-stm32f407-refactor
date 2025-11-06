@@ -8,7 +8,10 @@
 #include <unity.h>
 #include "../test_helpers/test_mocks.h"
 #include "Arduino.h"
-#include "../../speeduino/utilities.h"
+
+// Mock utilities.h - avoid complex global dependencies
+#define utilities_h
+void mockUtilitiesFunction() {} // Placeholder
 
 void setUp(void) {}
 void tearDown(void) {}

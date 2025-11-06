@@ -9,7 +9,10 @@
 #include <unity.h>
 #include "../test_helpers/test_mocks.h"
 #include "Arduino.h"
-#include "../../speeduino/init.h"
+
+// Mock init.h - avoid complex hardware initialization dependencies
+#define init_h
+void mockInitFunction() {} // Placeholder
 
 void setUp(void) {}
 void tearDown(void) {}

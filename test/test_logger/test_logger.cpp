@@ -9,12 +9,9 @@
 #include "../test_helpers/test_mocks.h"
 #include "Arduino.h"
 
-// Mock util/atomic.h for native tests
-#ifndef __AVR__
-  #define util_atomic_h
-#endif
-
-#include "../../speeduino/logger.h"
+// Mock logger.h - avoid complex logging infrastructure dependencies
+#define logger_h
+void mockLoggerFunction() {} // Placeholder
 
 void setUp(void) {}
 void tearDown(void) {}

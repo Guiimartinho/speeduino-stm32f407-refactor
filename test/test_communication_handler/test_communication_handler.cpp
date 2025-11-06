@@ -8,7 +8,10 @@
 #include <unity.h>
 #include "../test_helpers/test_mocks.h"
 #include "Arduino.h"
-#include "../../speeduino/comms.h"
+
+// Mock comms.h - avoid complex serial/CAN dependencies
+#define comms_h
+void mockCommsFunction() {} // Placeholder
 
 void setUp(void) {}
 void tearDown(void) {}

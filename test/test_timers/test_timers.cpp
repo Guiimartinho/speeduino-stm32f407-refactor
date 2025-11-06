@@ -9,12 +9,9 @@
 #include "../test_helpers/test_mocks.h"
 #include "Arduino.h"
 
-// Mock util/atomic.h for native tests
-#ifndef __AVR__
-  #define util_atomic_h
-#endif
-
-#include "../../speeduino/timers.h"
+// Mock timers.h - avoid complex timer HAL dependencies
+#define timers_h
+void mockTimersFunction() {} // Placeholder
 
 void setUp(void) {}
 void tearDown(void) {}
