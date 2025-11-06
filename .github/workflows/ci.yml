@@ -70,7 +70,7 @@ jobs:
         fi
 
     - name: Upload firmware artifact
-      uses: actions/upload-artifact@v4
+      uses: actions/upload-artifact@v5
       with:
         name: firmware-stm32f407-${{ github.sha }}
         path: |
@@ -79,7 +79,7 @@ jobs:
         retention-days: 30
 
     - name: Upload build info
-      uses: actions/upload-artifact@v4
+      uses: actions/upload-artifact@v5
       with:
         name: build-info-${{ github.sha }}
         path: |
@@ -140,7 +140,7 @@ jobs:
 
     - name: Upload test results
       if: always()
-      uses: actions/upload-artifact@v4
+      uses: actions/upload-artifact@v5
       with:
         name: test-results-${{ github.sha }}
         path: |
