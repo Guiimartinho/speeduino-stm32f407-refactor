@@ -68,7 +68,7 @@ jobs:
 
     steps:
     - name: Download documentation artifact
-      uses: actions/download-artifact@v4
+      uses: actions/download-artifact@v6
       with:
         name: doxygen-docs-${{ github.sha }}
         path: ./docs-html
