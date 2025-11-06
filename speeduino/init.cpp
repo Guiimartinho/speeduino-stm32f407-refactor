@@ -87,7 +87,8 @@
 #include "table2d.h"
 #include "acc_mc33810.h"
 #include "board_config/board_config.h"  // MODULARIZED: Board configuration
-#include BOARD_H //Note that this is not a real file, it is defined in globals.h. 
+#include BOARD_H //Note that this is not a real file, it is defined in globals.h.
+#include "led_button_system.h"  // LED + Button interactive system 
 #if defined(EEPROM_RESET_PIN)
   #include EEPROM_LIB_H
 #endif
@@ -1734,6 +1735,11 @@ static void initialiseAll_FinalSetup(void)
 
   currentStatus.tachoSweepEnabled = (configPage2.useTachoSweep > 0);
   tachoSweepIncr = configPage2.tachoSweepMaxRPM * maxIgnOutputs * 5 / 3;
+
+#if defined(BOARD_SCG_ECU_20)
+  // Initialize LED + Button interactive system (SCG-ECU 2.0)
+  ledButtonInit();
+#endif
 
   currentStatus.initialisationComplete = true;
   digitalWrite(LED_BUILTIN, HIGH);

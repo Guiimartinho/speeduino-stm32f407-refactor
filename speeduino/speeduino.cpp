@@ -44,6 +44,7 @@
 #include "scheduledIO.h"
 #include "schedule_calcs.h"
 #include "maths.h"
+#include "led_button_system.h"  // LED + Button interactive system
 
 //=============================================================================
 // Global variable definitions (instantiation)
@@ -487,6 +488,11 @@ void loop(void)
 
   // Stepper idle control
   handleIdleControl();
+
+#if defined(BOARD_SCG_ECU_20)
+  // LED + Button system update (100Hz recommended)
+  ledButtonUpdate();
+#endif
 
   // Main calculations (only if synced and RPM in valid range)
   if(isEngineSyncedAndRunning())

@@ -11,6 +11,7 @@
 #include "comms_secondary.h"
 #include "comms_CAN.h"
 #include "modularization_globals.h"
+#include "led_button_system.h"
 
 void handleSerialComms(void)
 {
@@ -24,6 +25,10 @@ void handleSerialComms(void)
   if((Serial.available() > 0) || serialRecieveInProgress())
   {
     serialReceive();
+#if defined(BOARD_SCG_ECU_20)
+    // Flash activity LED on serial communication
+    ledFlashActivity();
+#endif
   }
 }
 
