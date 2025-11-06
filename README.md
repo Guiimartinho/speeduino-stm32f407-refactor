@@ -370,33 +370,52 @@ build_flags =
 
 ## Documentation
 
-### Technical Documentation
+Complete project documentation is organized in the `docs/` directory:
 
-Located in `docs/` directory:
+### 📚 Documentation Structure
 
-**Core Documentation**:
+**[docs/README.md](docs/README.md)** - Documentation index and navigation
+
+**[docs/guides/](docs/guides/)** - Development guides
+- `contributing.md` - Contribution guidelines
+- `GIT_COMMIT_RULES_MANDATORY.md` - Git commit standards
+- `PROJECT_PROGRESS_MASTER.md` - Project progress tracking
+
+**[docs/reports/](docs/reports/)** - Phase completion reports
+- `RELATORIO_FASE_V_COMPLETO.md` - ✅ **FASE V Complete** (313 unit tests)
+- `RELATORIO_FASE_V_VALIDATION_TESTING.md` - Testing infrastructure
+- `RELATORIO_FASE_D_DECODERS_COMPLETE.md` - Decoders refactoring complete
+- `RELATORIO_FASE_OPT_RESULTS.md` - Performance optimization results
+- Additional phase reports (A, C, I1, M, T, U, IS, FS, EP)
+
+**[docs/reference/](docs/reference/)** - Technical references
 - `PROJETO_SCG_ECU_MASTER_REFERENCE.md` - Complete project reference
-- `REQUISITOS_TECNICOS_Structured Refactoring.md` - structured refactoring methodology specification
-- `IMPLEMENTACAO_MODULARIZACAO_STATUS.md` - Implementation status tracking
-- `DECODERS_REFACTOR_COMPLETE_REPORT.md` - Decoder refactoring report
+- `REQUISITOS_TECNICOS.md` - Technical requirements & methodology
+- `DECODERS_REFACTOR_COMPLETE_REPORT.md` - Decoder refactoring analysis
+- `IMPLEMENTACAO_MODULARIZACAO_STATUS.md` - Implementation status
+- `ESTRATEGIA_TESTES_SEM_HARDWARE.md` - Hardware-independent testing strategy
+- `ANALISE_HELPERS_COMPLETA.md` - Complete helper functions analysis
+- `FASE_OPT_SUMMARY.md` - Optimization phase summary
+- `PHASE7_SCHEDULERS.md` - Scheduler architecture
 
-**VW Gol AP 1.8 Application Example**:
+**[docs/vw/](docs/vw/)** - VW Gol AP 1.8 application example
 - `VW_GOL_INDEX.md` - Documentation navigation index
 - `VW_GOL_AP18_COMPLETO.md` - Complete technical reference (2100+ lines)
 - `VW_GOL_COMPARATIVO_VERSOES.md` - Naturally aspirated vs turbo comparison
 - `VW_GOL_QUICK_REFERENCE.md` - Quick reference guide
 
-### Application Examples
+### 🚀 Quick Start
 
-The project includes complete documentation for configuring SCG-ECU 2.0 for a VW Gol Quadrado AP 1.8 (1994):
+**For developers:**
+1. Read [docs/guides/contributing.md](docs/guides/contributing.md)
+2. Check [docs/guides/PROJECT_PROGRESS_MASTER.md](docs/guides/PROJECT_PROGRESS_MASTER.md)
+3. Review latest completion report: [docs/reports/RELATORIO_FASE_V_COMPLETO.md](docs/reports/RELATORIO_FASE_V_COMPLETO.md)
 
-- Naturally aspirated configuration (97-110hp)
-- Turbo configurations (150-225hp @ 0.5-1.0 bar boost)
-- Air conditioning control integration
-- Sequential transmission with paddle shift
-- All configurations with real Brazilian market components and pricing
+**For VW Gol AP 1.8 configuration:**
+1. Start with [docs/vw/VW_GOL_INDEX.md](docs/vw/VW_GOL_INDEX.md)
+2. Review complete specs: [docs/vw/VW_GOL_AP18_COMPLETO.md](docs/vw/VW_GOL_AP18_COMPLETO.md)
 
-### Inline Documentation
+### 📖 Inline Code Documentation
 
 All modules include comprehensive Doxygen-formatted comments. Generate HTML documentation:
 
@@ -404,7 +423,7 @@ All modules include comprehensive Doxygen-formatted comments. Generate HTML docu
 doxygen Doxyfile
 ```
 
-### External Resources
+### 🌐 External Resources
 
 - Speeduino Wiki: [wiki.speeduino.com](https://wiki.speeduino.com)
 - TunerStudio Manual: [tunerstudio.com](https://www.tunerstudio.com)

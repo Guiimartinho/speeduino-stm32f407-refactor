@@ -16,7 +16,20 @@
       "Bash(cat:*)",
       "Bash(tee:*)",
       "Bash(git add:*)",
-      "Bash(git commit:*)"
+      "Bash(git commit:*)",
+      "Bash(/c/Users/AORUS-Desktop/.platformio/penv/Scripts/platformio.exe test -e native -f test_refactored_helpers)",
+      "Bash(/c/Users/AORUS-Desktop/.platformio/penv/Scripts/platformio.exe test -e native -f test_corrections_massive)",
+      "Bash(\"/c/Users/AORUS-Desktop/.platformio/penv/Scripts/platformio.exe\" test -e native -f test_decoders_massive)",
+      "Bash(/c/Users/AORUS-Desktop/.platformio/penv/Scripts/platformio.exe test -e native -f test_sensors_massive)",
+      "Bash(/c/Users/AORUS-Desktop/.platformio/penv/Scripts/platformio.exe test -e native -f test_idle_massive)",
+      "Bash(/c/Users/AORUS-Desktop/.platformio/penv/Scripts/platformio.exe test -e native -f test_engineProtection_massive)",
+      "Bash(/c/Users/AORUS-Desktop/.platformio/penv/Scripts/platformio.exe test -e native -f test_scheduling_massive)",
+      "Bash(/c/Users/AORUS-Desktop/.platformio/penv/Scripts/platformio.exe test -e native)",
+      "Bash(/c/Users/AORUS-Desktop/.platformio/penv/Scripts/platformio.exe test:*)",
+      "Bash(for file in docs/reports/RELATORIO_*.md)",
+      "Bash(head:*)",
+      "Bash(done)",
+      "Bash(git mv:*)"
     ],
     "deny": [],
     "ask": []
