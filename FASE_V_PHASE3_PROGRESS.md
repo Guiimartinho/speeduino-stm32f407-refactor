@@ -155,12 +155,22 @@ Arduino-style main.cpp with setup()/loop() breaks native tests because:
 
 ---
 
-## Expected Final Results
+## Final Results (Session 2)
 
-- **Target**: 680+ tests passing (from current ~673)
-- **Realistic**: 650-670 passing after applying pattern
-- **Acceptable**: Some tests may have logic failures due to stubs (like test_math)
-- **Critical**: Zero linking errors (all tests should compile and run)
+**Full test suite run**: 737 test cases total
+- **722 tests PASSED** ✅ (97.9% pass rate)
+- **6 tests FAILED** (logic failures, not linking)
+- **9 tests ERRORED** (compilation failures, complex hardware dependencies)
+
+**Working tests after pattern application:**
+- test_tables: 21/21 PASSED ✅ (Pattern successfully applied)
+- test_math: Needs pattern re-application (broke during experimentation)
+
+**Tests with too many hardware dependencies** (scheduler, timers, global config):
+- test_fuel: Needs corrections.cpp (PID, configPage2/4/6/10, currentStatus)
+- test_ign: Needs ignition_calculations.cpp (IgnitionSchedule, timers)
+- test_secondary: Needs secondaryTables.cpp + hardware
+- test_sensors: Needs sensors.cpp (auxiliaries.h, SimplyAtomic.h)
 
 ---
 
