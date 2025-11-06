@@ -127,7 +127,14 @@ jobs:
         echo "  - test_engineProtection_massive (29 tests)"
         echo "  - test_scheduling_massive (25 tests)"
         echo ""
-        platformio test -e native -v
+        platformio test -e native -v \
+          -f test_refactored_helpers \
+          -f test_corrections_massive \
+          -f test_decoders_massive \
+          -f test_sensors_massive \
+          -f test_idle_massive \
+          -f test_engineProtection_massive \
+          -f test_scheduling_massive
 
     - name: Generate test summary
       if: always()
