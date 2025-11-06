@@ -9,6 +9,7 @@
 
 #include "board_registry.h"
 #include "pin_mapping/stm32f407_pins.h"
+#include "pin_mapping/stm32f407_scg_ecu_pins.h"
 
 // Anonymous namespace for private data
 namespace {
@@ -21,8 +22,11 @@ namespace {
  * {BOARD_ID_ARDUINO_MEGA, "Arduino Mega 2560", &arduinoMegaConfigurePins},
  */
 static const BoardRegistryEntry boardRegistry[] = {
-  // STM32F407 Black F407VE (Primary target for SCG-ECU 2.0)
+  // STM32F407 Black F407VE (Generic board)
   {60U, "STM32F407 Black F407VE", &stm32f407ConfigurePins},
+
+  // SCG-ECU 2.0 - Custom STM32F407VGT6 8x8 board
+  {61U, "SCG-ECU 2.0 STM32F407", &stm32f407ScgEcuConfigurePins},
 
   // Add additional boards here following same pattern
   // {<board_id>, "<name>", &<config_function>},
@@ -49,6 +53,6 @@ BoardConfigFunc boardRegistryGetConfig(byte boardID)
 
 BoardConfigFunc boardRegistryGetDefault(void)
 {
-  // Default to STM32F407 for SCG-ECU 2.0
-  return &stm32f407ConfigurePins;
+  // Default to SCG-ECU 2.0 (board ID 61)
+  return &stm32f407ScgEcuConfigurePins;
 }

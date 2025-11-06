@@ -190,15 +190,132 @@ uint8_t getSystemTemp();
 * 3 - VVT   3 - INJ3  3 - IGN3  3 -
 * 4 - IDLE  4 - INJ4  4 - IGN4  4 -
 *
-* Timers Table for STM32F4
+* Timers Table for STM32F4 (STANDARD)
 *   TIMER1  |  TIMER2  |  TIMER3  |  TIMER4  |  TIMER5  |  TIMER11
 * 1 - FAN   |1 - IGN1  |1 - INJ1  |1 - IGN5  |1 - INJ5  |1 - oneMSInterval
 * 2 - BOOST |2 - IGN2  |2 - INJ2  |2 - IGN6  |2 - INJ6  |
 * 3 - VVT   |3 - IGN3  |3 - INJ3  |3 - IGN7  |3 - INJ7  |
-* 4 - IDLE  |4 - IGN4  |4 - INJ4  |4 - IGN8  |4 - INJ8  | 
+* 4 - IDLE  |4 - IGN4  |4 - INJ4  |4 - IGN8  |4 - INJ8  |
+*
+* Timers Table for STM32F4 (SCG-ECU 2.0 CUSTOM)
+*   TIMER1  |  TIMER4  |  TIMER12  |  TIMER13 (Software PWM)  |  TIMER11
+* 1 - INJ1  |1 - IGN1  |1 - IGN4   |   IGN5 (PD8 - Software)  |1 - oneMSInterval
+* 2 - INJ2  |2 - IGN2  |2 - IGN3   |   IGN7 (PD11 - Software) |
+* 3 - INJ3  |3 - IGN6  |           |                          |
+* 4 - INJ4  |4 - IGN8  |           |                          |
+* 5 - INJ5  |          |           |                          |
+* 6 - INJ6  |          |           |                          |
+* 7 - INJ7  |          |           |                          |
+* 8 - INJ8  |          |           |                          |
+*
+* NOTE: SCG-ECU 2.0 uses TIM1 for ALL injectors (PE8-15 pins)
+*       IGN5 and IGN7 use software PWM (no hardware timer on PD8, PD11)
 */
 #define MAX_TIMER_PERIOD 262140UL //The longest period of time (in uS) that the timer can permit (IN this case it is 65535 * 4, as each timer tick is 4uS)
 #define uS_TO_TIMER_COMPARE(uS1) ((uS1) >> 2) //Converts a given number of uS into the required number of timer ticks until that time has passed
+
+// ============================================================================
+// SCG-ECU 2.0 CUSTOM TIMER ALLOCATION
+// ============================================================================
+#if defined(BOARD_SCG_ECU_20)
+
+// --- INJECTORS (TIM1 - ALL 8 CHANNELS) ---
+// PE8-15 pins are on TIM1, not TIM3/TIM5
+#define FUEL1_COUNTER (TIM1)->CNT
+#define FUEL2_COUNTER (TIM1)->CNT
+#define FUEL3_COUNTER (TIM1)->CNT
+#define FUEL4_COUNTER (TIM1)->CNT
+#define FUEL5_COUNTER (TIM1)->CNT
+#define FUEL6_COUNTER (TIM1)->CNT
+#define FUEL7_COUNTER (TIM1)->CNT
+#define FUEL8_COUNTER (TIM1)->CNT
+
+#define FUEL1_COMPARE (TIM1)->CCR1  // PE15
+#define FUEL2_COMPARE (TIM1)->CCR4  // PE14
+#define FUEL3_COMPARE (TIM1)->CCR3  // PE13
+#define FUEL4_COMPARE (TIM1)->CCR2  // PE12 (complementary CH2N)
+#define FUEL5_COMPARE (TIM1)->CCR2  // PE11 (shares CCR2)
+#define FUEL6_COMPARE (TIM1)->CCR2  // PE10 (complementary CH2N, shares CCR2)
+#define FUEL7_COMPARE (TIM1)->CCR1  // PE9 (shares CCR1)
+#define FUEL8_COMPARE (TIM1)->CCR1  // PE8 (complementary CH1N, shares CCR1)
+
+// --- IGNITION (TIM4 + TIM12 + Software PWM) ---
+// IGN1,2,6,8 on TIM4 (PD9-13)
+// IGN3,4 on TIM12 (PB14-15)
+// IGN5,7 on SOFTWARE PWM (PD8, PD11 - no hardware timer!)
+
+#define IGN1_COUNTER  (TIM4)->CNT   // PD12
+#define IGN2_COUNTER  (TIM4)->CNT   // PD13
+#define IGN3_COUNTER  (TIM12)->CNT  // PB15
+#define IGN4_COUNTER  (TIM12)->CNT  // PB14
+// IGN5 uses software PWM (no hardware timer) - provide dummy macro for compilation
+#define IGN5_COUNTER  (TIM4)->CNT   // Dummy (software PWM)
+#define IGN6_COUNTER  (TIM4)->CNT   // PD9
+// IGN7 uses software PWM (no hardware timer) - provide dummy macro for compilation
+#define IGN7_COUNTER  (TIM4)->CNT   // Dummy (software PWM)
+#define IGN8_COUNTER  (TIM4)->CNT   // PD10
+
+#define IGN1_COMPARE (TIM4)->CCR1   // PD12
+#define IGN2_COMPARE (TIM4)->CCR2   // PD13
+#define IGN3_COMPARE (TIM12)->CCR2  // PB15
+#define IGN4_COMPARE (TIM12)->CCR1  // PB14
+// IGN5 uses software PWM (no CCR register) - provide dummy macro for compilation
+#define IGN5_COMPARE (TIM4)->CCR1   // Dummy (software PWM)
+#define IGN6_COMPARE (TIM4)->CCR1   // PD9 (shares CCR1 with IGN1)
+// IGN7 uses software PWM (no CCR register) - provide dummy macro for compilation
+#define IGN7_COMPARE (TIM4)->CCR2   // Dummy (software PWM)
+#define IGN8_COMPARE (TIM4)->CCR2   // PD10 (shares CCR2 with IGN2)
+
+// --- TIMER ENABLE/DISABLE FUNCTIONS ---
+// FUEL channels on TIM1
+static inline void FUEL1_TIMER_ENABLE(void) {(TIM1)->CR1 |= TIM_CR1_CEN; (TIM1)->SR = ~TIM_FLAG_CC1; (TIM1)->DIER |= TIM_DIER_CC1IE;}
+static inline void FUEL2_TIMER_ENABLE(void) {(TIM1)->CR1 |= TIM_CR1_CEN; (TIM1)->SR = ~TIM_FLAG_CC4; (TIM1)->DIER |= TIM_DIER_CC4IE;}
+static inline void FUEL3_TIMER_ENABLE(void) {(TIM1)->CR1 |= TIM_CR1_CEN; (TIM1)->SR = ~TIM_FLAG_CC3; (TIM1)->DIER |= TIM_DIER_CC3IE;}
+static inline void FUEL4_TIMER_ENABLE(void) {(TIM1)->CR1 |= TIM_CR1_CEN; (TIM1)->SR = ~TIM_FLAG_CC2; (TIM1)->DIER |= TIM_DIER_CC2IE;}
+static inline void FUEL5_TIMER_ENABLE(void) {(TIM1)->CR1 |= TIM_CR1_CEN; (TIM1)->SR = ~TIM_FLAG_CC2; (TIM1)->DIER |= TIM_DIER_CC2IE;}
+static inline void FUEL6_TIMER_ENABLE(void) {(TIM1)->CR1 |= TIM_CR1_CEN; (TIM1)->SR = ~TIM_FLAG_CC2; (TIM1)->DIER |= TIM_DIER_CC2IE;}
+static inline void FUEL7_TIMER_ENABLE(void) {(TIM1)->CR1 |= TIM_CR1_CEN; (TIM1)->SR = ~TIM_FLAG_CC1; (TIM1)->DIER |= TIM_DIER_CC1IE;}
+static inline void FUEL8_TIMER_ENABLE(void) {(TIM1)->CR1 |= TIM_CR1_CEN; (TIM1)->SR = ~TIM_FLAG_CC1; (TIM1)->DIER |= TIM_DIER_CC1IE;}
+
+static inline void FUEL1_TIMER_DISABLE(void) {(TIM1)->DIER &= ~TIM_DIER_CC1IE;}
+static inline void FUEL2_TIMER_DISABLE(void) {(TIM1)->DIER &= ~TIM_DIER_CC4IE;}
+static inline void FUEL3_TIMER_DISABLE(void) {(TIM1)->DIER &= ~TIM_DIER_CC3IE;}
+static inline void FUEL4_TIMER_DISABLE(void) {(TIM1)->DIER &= ~TIM_DIER_CC2IE;}
+static inline void FUEL5_TIMER_DISABLE(void) {(TIM1)->DIER &= ~TIM_DIER_CC2IE;}
+static inline void FUEL6_TIMER_DISABLE(void) {(TIM1)->DIER &= ~TIM_DIER_CC2IE;}
+static inline void FUEL7_TIMER_DISABLE(void) {(TIM1)->DIER &= ~TIM_DIER_CC1IE;}
+static inline void FUEL8_TIMER_DISABLE(void) {(TIM1)->DIER &= ~TIM_DIER_CC1IE;}
+
+// IGN1,2,6,8 on TIM4
+static inline void IGN1_TIMER_ENABLE(void)  {(TIM4)->CR1 |= TIM_CR1_CEN; (TIM4)->SR = ~TIM_FLAG_CC1; (TIM4)->DIER |= TIM_DIER_CC1IE;}
+static inline void IGN2_TIMER_ENABLE(void)  {(TIM4)->CR1 |= TIM_CR1_CEN; (TIM4)->SR = ~TIM_FLAG_CC2; (TIM4)->DIER |= TIM_DIER_CC2IE;}
+static inline void IGN6_TIMER_ENABLE(void)  {(TIM4)->CR1 |= TIM_CR1_CEN; (TIM4)->SR = ~TIM_FLAG_CC1; (TIM4)->DIER |= TIM_DIER_CC1IE;}
+static inline void IGN8_TIMER_ENABLE(void)  {(TIM4)->CR1 |= TIM_CR1_CEN; (TIM4)->SR = ~TIM_FLAG_CC2; (TIM4)->DIER |= TIM_DIER_CC2IE;}
+
+static inline void IGN1_TIMER_DISABLE(void)  {(TIM4)->DIER &= ~TIM_DIER_CC1IE;}
+static inline void IGN2_TIMER_DISABLE(void)  {(TIM4)->DIER &= ~TIM_DIER_CC2IE;}
+static inline void IGN6_TIMER_DISABLE(void)  {(TIM4)->DIER &= ~TIM_DIER_CC1IE;}
+static inline void IGN8_TIMER_DISABLE(void)  {(TIM4)->DIER &= ~TIM_DIER_CC2IE;}
+
+// IGN3,4 on TIM12
+static inline void IGN3_TIMER_ENABLE(void)  {(TIM12)->CR1 |= TIM_CR1_CEN; (TIM12)->SR = ~TIM_FLAG_CC2; (TIM12)->DIER |= TIM_DIER_CC2IE;}
+static inline void IGN4_TIMER_ENABLE(void)  {(TIM12)->CR1 |= TIM_CR1_CEN; (TIM12)->SR = ~TIM_FLAG_CC1; (TIM12)->DIER |= TIM_DIER_CC1IE;}
+
+static inline void IGN3_TIMER_DISABLE(void)  {(TIM12)->DIER &= ~TIM_DIER_CC2IE;}
+static inline void IGN4_TIMER_DISABLE(void)  {(TIM12)->DIER &= ~TIM_DIER_CC1IE;}
+
+// IGN5,7 use SOFTWARE PWM - no hardware timer
+// These are handled by software_pwm_ignition.cpp via ignition scheduler
+// We provide stub functions to maintain API compatibility
+static inline void IGN5_TIMER_ENABLE(void)  { /* Software PWM - no hardware timer */ }
+static inline void IGN7_TIMER_ENABLE(void)  { /* Software PWM - no hardware timer */ }
+static inline void IGN5_TIMER_DISABLE(void) { /* Software PWM - no hardware timer */ }
+static inline void IGN7_TIMER_DISABLE(void) { /* Software PWM - no hardware timer */ }
+
+#else
+// ============================================================================
+// STANDARD STM32F4 TIMER ALLOCATION (Original Speeduino)
+// ============================================================================
 
 #define FUEL1_COUNTER (TIM3)->CNT
 #define FUEL2_COUNTER (TIM3)->CNT
@@ -281,6 +398,7 @@ static inline void IGN6_TIMER_DISABLE(void)  {(TIM4)->DIER &= ~TIM_DIER_CC2IE;}
 static inline void IGN7_TIMER_DISABLE(void)  {(TIM4)->DIER &= ~TIM_DIER_CC3IE;}
 static inline void IGN8_TIMER_DISABLE(void)  {(TIM4)->DIER &= ~TIM_DIER_CC4IE;}
 
+#endif // BOARD_SCG_ECU_20
 
 /*
 ***********************************************************************************************************
