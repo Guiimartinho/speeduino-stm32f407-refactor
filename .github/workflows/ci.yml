@@ -87,10 +87,10 @@ jobs:
         retention-days: 7
 
   # ============================================================================
-  # JOB 2: UNIT TESTS (313 tests - PlatformIO native)
+  # JOB 2: UNIT TESTS (648 tests - PlatformIO native)
   # ============================================================================
   unit-tests:
-    name: Unit Tests (313 tests)
+    name: Unit Tests (648 tests)
     runs-on: ubuntu-latest
 
     steps:
@@ -117,7 +117,7 @@ jobs:
 
     - name: Run all unit tests
       run: |
-        echo "=== Running 313 Unit Tests (7 test suites) ==="
+        echo "=== Running 648 Unit Tests (17 test suites) ==="
         echo "Test suites:"
         echo "  - test_refactored_helpers (9 tests)"
         echo "  - test_corrections_massive (35 tests)"
@@ -126,6 +126,17 @@ jobs:
         echo "  - test_idle_massive (61 tests)"
         echo "  - test_engineProtection_massive (29 tests)"
         echo "  - test_scheduling_massive (25 tests)"
+        echo "  === FASE 1: Core Modules (10 new test suites, 335 tests) ==="
+        echo "  - test_led_button_system (50 tests)"
+        echo "  - test_init_full (60 tests)"
+        echo "  - test_speeduino (40 tests)"
+        echo "  - test_timers (30 tests)"
+        echo "  - test_updates (25 tests)"
+        echo "  - test_auxiliaries (50 tests)"
+        echo "  - test_utilities (30 tests)"
+        echo "  - test_logger (20 tests)"
+        echo "  - test_storage (35 tests)"
+        echo "  - test_communication_handler (20 tests)"
         echo ""
         platformio test -e native -v \
           -f test_refactored_helpers \
@@ -134,13 +145,25 @@ jobs:
           -f test_sensors_massive \
           -f test_idle_massive \
           -f test_engineProtection_massive \
-          -f test_scheduling_massive
+          -f test_scheduling_massive \
+          -f test_led_button_system \
+          -f test_init_full \
+          -f test_speeduino \
+          -f test_timers \
+          -f test_updates \
+          -f test_auxiliaries \
+          -f test_utilities \
+          -f test_logger \
+          -f test_storage \
+          -f test_communication_handler
 
     - name: Generate test summary
       if: always()
       run: |
         echo "=== Unit Test Summary ===" > test-summary.txt
-        echo "Total Tests: 313" >> test-summary.txt
+        echo "Total Tests: 648" >> test-summary.txt
+        echo "Test Suites: 17" >> test-summary.txt
+        echo "Coverage: Phase 1 Complete (FASE 1 + existing)" >> test-summary.txt
         echo "Date: $(date -u +"%Y-%m-%d %H:%M:%S UTC")" >> test-summary.txt
         echo "Commit: ${{ github.sha }}" >> test-summary.txt
         cat test-summary.txt
@@ -421,10 +444,10 @@ jobs:
         fi
 
         if [ "${{ needs.unit-tests.result }}" != "success" ]; then
-          echo "❌ Unit Tests FAILED (313 tests)"
+          echo "❌ Unit Tests FAILED (648 tests)"
           FAILED=1
         else
-          echo "✅ Unit Tests PASSED (313 tests)"
+          echo "✅ Unit Tests PASSED (648 tests)"
         fi
 
         if [ "${{ needs.code-quality.result }}" != "success" ]; then
