@@ -6,8 +6,9 @@
  */
 
 #include <unity.h>
-#include "../../speeduino/utilities.h"
+#include "../test_helpers/test_mocks.h"
 #include "Arduino.h"
+#include "../../speeduino/utilities.h"
 
 void setUp(void) {}
 void tearDown(void) {}

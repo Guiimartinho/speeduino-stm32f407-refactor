@@ -10,9 +10,15 @@
 #include <stdint.h>
 #include "bit_manip.h"
 
-#if __has_include(<SimplyAtomic.h>)
+#if defined(NATIVE_BUILD) || defined(UNIT_TEST)
+  // Mock atomic operations for native tests
+  #define ATOMIC() for(int __atomic_dummy = 0; __atomic_dummy < 1; __atomic_dummy++)
+  #define ATOMIC_BLOCK(type) ATOMIC()
+  #define ATOMIC_RESTORESTATE 0
+  #define ATOMIC_FORCEON 1
+#elif __has_include(<SimplyAtomic.h>)
   #include <SimplyAtomic.h>
-#else 
+#else
   //Fallback for Arduino IDE when SimplyAtomic is not installed
   #include <util/atomic.h>
   #define ATOMIC() ATOMIC_BLOCK(ATOMIC_RESTORESTATE)

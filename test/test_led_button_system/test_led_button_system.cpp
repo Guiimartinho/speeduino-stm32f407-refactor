@@ -7,8 +7,27 @@
  */
 
 #include <unity.h>
-#include "../../speeduino/led_button_system.h"
+#include "../test_helpers/test_mocks.h"
 #include "Arduino.h"
+
+// Forward declarations of LED functions (mocked in led_mocks.cpp)
+typedef enum {
+    LED_MODE_NORMAL = 0,
+    LED_MODE_SHIFT_LIGHT = 1,
+    LED_MODE_ERROR_CODES = 2,
+    LED_MODE_TUNING = 3,
+    LED_MODE_DIAGNOSTIC = 4,
+    LED_MODE_COUNT = 5
+} LedMode_t;
+
+extern void ledButtonInit(void);
+extern void ledButtonUpdate(void);
+extern void ledSetMode(LedMode_t mode);
+extern void ledSaveConfig(void);
+extern void ledLoadConfig(void);
+extern void ledFactoryReset(void);
+extern void ledAddError(byte error);
+extern void ledClearAllErrors(void);
 
 // ============================================================================
 // TEST SETUP & TEARDOWN

@@ -6,8 +6,15 @@
  */
 
 #include <unity.h>
-#include "../../speeduino/logger.h"
+#include "../test_helpers/test_mocks.h"
 #include "Arduino.h"
+
+// Mock util/atomic.h for native tests
+#ifndef __AVR__
+  #define util_atomic_h
+#endif
+
+#include "../../speeduino/logger.h"
 
 void setUp(void) {}
 void tearDown(void) {}

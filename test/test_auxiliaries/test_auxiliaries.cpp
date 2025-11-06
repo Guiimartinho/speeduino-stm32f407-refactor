@@ -6,8 +6,19 @@
  */
 
 #include <unity.h>
-#include "../../speeduino/auxiliaries.h"
+#include "../test_helpers/test_mocks.h"
 #include "Arduino.h"
+
+// Mock BOARD_H and SimplyAtomic for native tests
+#undef BOARD_H
+#define BOARD_H "../test_helpers/test_mocks.h"
+
+#ifndef SimplyAtomic_h
+  #define SimplyAtomic_h
+  #define ATOMIC(x) x
+#endif
+
+#include "../../speeduino/auxiliaries.h"
 
 void setUp(void) {}
 void tearDown(void) {}
