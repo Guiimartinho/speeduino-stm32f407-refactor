@@ -2,8 +2,8 @@
 ## STM32F407VGT6 8x8 - Speeduino Modularizado
 
 **Versão Projeto:** 2.0
-**Última Atualização:** 05/11/2025
-**Status:** ✅ **FASE V COMPLETE - 313 TESTES UNITÁRIOS PASSING**
+**Última Atualização:** 06/11/2025
+**Status:** ✅ **17 RELATÓRIOS - DOCUMENTAÇÃO COMPLETA**
 
 ---
 
@@ -58,7 +58,7 @@ docs/
 │   ├── 07_ESTRATEGIA_TESTES_SEM_HARDWARE.md
 │   └── 08_FASE_OPT_SUMMARY_PROXIMOS_PASSOS.md
 │
-├── reports/                     ← Relatórios de Fases (13 arquivos)
+├── reports/                     ← Relatórios de Fases (17 arquivos)
 │   ├── 01_RELATORIO_FASE_I1_INIT.md
 │   ├── 02_RELATORIO_FASE_C_CORRECTIONS.md
 │   ├── 03_RELATORIO_FASE_T_TIMERS.md
@@ -71,7 +71,11 @@ docs/
 │   ├── 10_RELATORIO_FASE_OPT_PHASE2.md
 │   ├── 11_RELATORIO_FASE_OPT_RESULTS.md
 │   ├── 12_RELATORIO_FASE_V_VALIDATION_TESTING.md
-│   └── 13_RELATORIO_FASE_V_COMPLETO.md ⭐ MAIS RECENTE
+│   ├── 13_RELATORIO_FASE_V_COMPLETO.md
+│   ├── 14_RELATORIO_LED_BUTTON_SYSTEM_COMPLETO.md
+│   ├── 15_ANALISE_PINOS_SCG_ECU.md
+│   ├── 16_STATIC_ANALYSIS_GPIO_REFACTOR.md
+│   └── 17_PINOUT_COMPLETO_SCG_ECU.md ⭐ MAIS RECENTE
 │
 └── vw/                          ← Aplicação VW Gol AP 1.8 (4 arquivos)
     ├── VW_GOL_INDEX.md
@@ -80,7 +84,7 @@ docs/
     └── VW_GOL_QUICK_REFERENCE.md
 ```
 
-**Total:** 29 arquivos de documentação técnica
+**Total:** 33 arquivos de documentação técnica
 
 ---
 
@@ -102,8 +106,11 @@ docs/
 4. **guides/PROJECT_PROGRESS_MASTER.md**
    → Timeline completo, fases concluídas, próximos passos
 
-5. **reports/13_RELATORIO_FASE_V_COMPLETO.md** ⭐
-   → Resultado mais recente: 313 testes unitários
+5. **reports/13_RELATORIO_FASE_V_COMPLETO.md**
+   → Fase V: 313 testes unitários (100% passing)
+
+6. **reports/17_PINOUT_COMPLETO_SCG_ECU.md** ⭐
+   → Mais recente: Pinout completo 59 pinos STM32F407VGT6
 
 ### Para Contribuir com Código
 
@@ -414,7 +421,7 @@ docs/
 
 **Status:** ✅ INFRASTRUCTURE COMPLETE
 
-#### 13_RELATORIO_FASE_V_COMPLETO.md ⭐ MAIS RECENTE
+#### 13_RELATORIO_FASE_V_COMPLETO.md
 **FASE:** V - Validation & Testing - COMPLETE
 **Data:** 05/11/2025
 **Resultados:**
@@ -435,6 +442,94 @@ docs/
 **Infrastructure:** Arduino mocks, PlatformIO native, Unity framework
 
 **Status:** ✅ FASE V COMPLETE - 313 TESTS PASSING 🚀
+
+---
+
+#### 14_RELATORIO_LED_BUTTON_SYSTEM_COMPLETO.md
+**Descrição:** Sistema LED + Button Interativo - Documentação Completa
+**Data:** 06/11/2025
+**Hardware:** 3 LEDs (PC10/PC11/PC12) + 1 Button (PB2/BOOT1)
+
+**Conteúdo:**
+- **Evolução do design:** 3 fases (LED-only → Button control → Implementation)
+- **5 Modos de operação:** Normal, Shift Light, Error Codes, Tuning, Diagnostic
+- **Controle via botão:** 5 tipos de press (short, long, very long, double, triple)
+- **Persistência EEPROM:** 19 bytes com wear leveling
+- **Detecção de erros:** 7 sensores monitorados automaticamente
+
+**Build Results:**
+- Flash: +2,480 bytes (1.3%)
+- RAM: +112 bytes (0.09%)
+- Build time: 7.86s
+- Warnings: 0 ✅
+
+**Status:** ✅ IMPLEMENTADO E TESTADO
+
+#### 15_ANALISE_PINOS_SCG_ECU.md
+**Descrição:** Análise de Pinos Após GPIO-only Refactor
+**Data:** 06/11/2025
+
+**Conteúdo:**
+- **39 pinos funcionais:** 6 ADC, 2 triggers, 8 INJ, 8 IGN, 15 AUX
+- **10 pinos disponíveis:** Reserva para expansão futura
+- **10 pinos sistema:** USB, debug, boot, crystal
+
+**Mapeamento:**
+- Entradas analógicas (PA0-PA4, PB0)
+- Triggers (PC13=CRANK, PE6=CAM)
+- Injetores (PE8-PE15 com hardware PWM TIM1)
+- Ignição (PB0-PB3, PC6-PC9 GPIO-only após refator)
+- Auxiliaries (PD0-PD7, PA5-PA7, PD10-PD11, PC14-PC15)
+- LEDs (PC10-PC12)
+- Button (PB2)
+
+**Status:** ✅ COMPLETO
+
+#### 16_STATIC_ANALYSIS_GPIO_REFACTOR.md
+**Descrição:** Análise Estática do GPIO-only Refactor (IGN5/IGN7)
+**Data:** 06/11/2025
+
+**Objetivo:** Verificar build após refatoração de IGN5 e IGN7 para GPIO-only
+
+**Mudanças:**
+- IGN5: TIM10_CH1 → GPIO (PB8 → PB1)
+- IGN7: TIM13_CH1 → GPIO (PA6 → PC8)
+
+**Build Results:**
+- Compilation: ✅ SUCCESS
+- Warnings: 0
+- Flash: Stable
+- RAM: Stable
+
+**Validation:**
+- Code compiles without errors ✅
+- No new warnings introduced ✅
+- Memory footprint stable ✅
+
+**Status:** ✅ BUILD VERIFICATION PASSED
+
+#### 17_PINOUT_COMPLETO_SCG_ECU.md ⭐ MAIS RECENTE
+**Descrição:** Mapeamento Completo de Todos os 59 Pinos STM32F407VGT6
+**Data:** 06/11/2025
+**Revisão:** 3.0 - ULTRATHINK Analysis
+
+**Conteúdo:**
+- **59/59 pinos identificados** (100% mapeado)
+- Análise completa por categoria:
+  - 6 ADC channels (Battery, TPS, CLT, IAT, O2, MAP)
+  - 2 Trigger inputs (CRANK, CAM)
+  - 8 Injector outputs (INJ1-8)
+  - 8 Ignition outputs (IGN1-8)
+  - 15 Auxiliary outputs
+  - 10 System pins (USB, SWD, boot, crystal)
+
+**Análise de Hardware:**
+- Timer allocation completo
+- ADC channels validados
+- Conflitos identificados e resolvidos
+- Pinout real vs código SPECTRE (discrepâncias corrigidas)
+
+**Status:** ✅ 100% MAPEADO - PRONTO PARA IMPLEMENTAÇÃO
 
 ---
 
@@ -615,14 +710,41 @@ Hardware Dependencies:   0 (fully mocked) ✅
 ✅ **Arduino mock library** (450+ lines)
 
 ### Documentação
-✅ **29 comprehensive documents**
+✅ **33 comprehensive documents** (4 guides, 8 references, 17 reports, 4 vw)
 ✅ **100% Doxygen coverage**
 ✅ **4 categories** (guides, reference, reports, vw)
 ✅ **Complete traceability** (requirements → implementation → validation)
+✅ **100% padronizado** (reports 01-17 numerados)
 
 ---
 
 ## 📝 HISTÓRICO DE MUDANÇAS
+
+### 06/11/2025 - Reorganização Final da Documentação ✅
+📁 **ESTRUTURA OTIMIZADA:** Reports limpos e padronizados (01-17)
+
+**Changes:**
+- ✅ Unificados 3 docs LED em relatório 14 (design + implementação)
+- ✅ Movidos 2 relatórios do root para reports/ (15, 16)
+- ✅ Consolidados 3 docs de pinout em relatório 17 (v3.0 ULTRATHINK)
+- ✅ Excluídos docs duplicados/superseded (v1.0, v2.0)
+- ✅ Root limpo (apenas README.md)
+- ✅ Todos reports numerados (01-17)
+
+**Documentation:**
+- Criado: reports/14_RELATORIO_LED_BUTTON_SYSTEM_COMPLETO.md (unificado)
+- Renomeado: SCG_ECU_PIN_ANALYSIS.md → reports/15_ANALISE_PINOS_SCG_ECU.md
+- Renomeado: STATIC_ANALYSIS_REPORT.md → reports/16_STATIC_ANALYSIS_GPIO_REFACTOR.md
+- Renomeado: PINOUT_COMPLETO_SCG_ECU_ULTRATHINK.md → reports/17_PINOUT_COMPLETO_SCG_ECU.md
+- Excluídos: ANALISE_CRITICA_PINOUT_SCG_ECU.md (v1.0)
+- Excluídos: PINOUT_REAL_SCG_ECU_ANALISE.md (v2.0)
+- Excluídos: LED_BUTTON_SYSTEM_IMPLEMENTATION_REPORT.md (root)
+- Excluídos: LED_BUTTON_SYSTEM_DESIGN_V2.md (docs/)
+- Excluídos: LED_STATUS_SYSTEM_DESIGN.md (docs/)
+- Atualizado: reports/README.md (índice completo com 17 reports)
+- Atualizado: docs/README.md (estrutura atualizada)
+
+**Status:** Documentação 100% organizada e padronizada
 
 ### 05/11/2025 - FASE V COMPLETE ✅
 🚀 **MAJOR MILESTONE:** Testing infrastructure complete com 313 testes unitários
@@ -747,8 +869,8 @@ Hardware Dependencies:   0 (fully mocked) ✅
 - **Contributing:** guides/contributing.md
 
 ### Relatórios
-- **Mais recente:** reports/13_RELATORIO_FASE_V_COMPLETO.md ⭐
-- **Todos os reports:** docs/reports/ (13 arquivos)
+- **Mais recente:** reports/17_PINOUT_COMPLETO_SCG_ECU.md ⭐
+- **Todos os reports:** docs/reports/ (17 arquivos + README.md)
 
 ### Código
 - **Repository:** [Local project]
@@ -757,8 +879,8 @@ Hardware Dependencies:   0 (fully mocked) ✅
 ---
 
 **Versão:** 2.0
-**Última Atualização:** 05/11/2025 23:00
-**Status:** ✅ PRODUCTION READY - HIL TESTING
+**Última Atualização:** 06/11/2025
+**Status:** ✅ 17 RELATÓRIOS - DOCUMENTAÇÃO COMPLETA
 **Próximo:** Hardware validation → OPT Phase 2 → CI/CD → FreeRTOS
 
 ---
