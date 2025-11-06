@@ -3,6 +3,7 @@
 #include <stdio.h>
 #include "tests_tables.h"
 #include "table3d.h"
+#include "table_access/table_interface.h"  // For QU1X8_t typedef
 #include "../test_utils.h"
 
 TEST_DATA_P table3d_value_t values[] = {
@@ -167,10 +168,11 @@ static void test_linear_bin_search(void) {
   TEST_ASSERT_EQUAL(0U, linear_bin_search(axis, _countof(axis), 55));
 }
 
+// QU1X8 functions and constants are now available via included sources
 extern uint16_t mulQU1X8(uint16_t a, uint16_t b);
-extern uint16_t QU1X8_ONE;
-const uint16_t QU1X8_HALF = QU1X8_ONE/2U;
-const uint16_t QU1X8_QTR = QU1X8_ONE/4U;
+// Define QU1X8 constants locally (constexpr has internal linkage)
+static constexpr QU1X8_t QU1X8_HALF = QU1X8_ONE/2U;
+static constexpr QU1X8_t QU1X8_QTR = QU1X8_ONE/4U;
 
 static void test_mulQU1X8(void) {
 

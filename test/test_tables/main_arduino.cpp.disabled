@@ -2,6 +2,15 @@
 #include <unity.h>
 #include <avr/sleep.h>
 
+// Include source implementations directly for native tests
+#if defined(NATIVE_BUILD) || defined(UNIT_TEST)
+#include "../mocks/arduino_mock.cpp"
+#include "../../speeduino/table2d.cpp"
+#include "../../speeduino/table3d.cpp"
+#include "../../speeduino/table3d_interpolate.cpp"
+#include "../../speeduino/maths.cpp"
+#endif
+
 #include "tests_tables.h"
 #include "test_table2d.h"
 

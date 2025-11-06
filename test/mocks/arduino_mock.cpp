@@ -76,3 +76,33 @@ long random(long howsmall, long howbig) {
 }
 
 #endif // __cplusplus
+
+// ============================================================================
+// UNITY TEST FRAMEWORK STUBS
+// ============================================================================
+
+#ifdef __cplusplus
+extern "C" {
+#endif
+
+/**
+ * @brief Unity setUp function - called before each test
+ * Tests can override this with their own implementation if needed
+ */
+void setUp(void) {
+    // Default no-op implementation
+    // Individual tests can override this
+}
+
+/**
+ * @brief Unity tearDown function - called after each test
+ * Tests can override this with their own implementation if needed
+ */
+void tearDown(void) {
+    // Default no-op implementation
+    // Individual tests can override this
+}
+
+#ifdef __cplusplus
+}
+#endif

@@ -3,7 +3,7 @@
 #include "decoders.h"
 #include "../test_utils.h"
 
-extern void SetRevolutionTime(uint32_t revTime);
+extern bool SetRevolutionTime(uint32_t revTime);  // Returns bool, not void
 
 struct crankmaths_rev_testdata {
   uint16_t rpm;
