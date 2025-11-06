@@ -27,12 +27,17 @@ typedef uint8_t byte;
 // ============================================================================
 
 // Mock atomic operations for native tests (single-threaded)
+// Only define if not already defined by globals.h
+#ifndef ATOMIC_BLOCK
 #define ATOMIC_BLOCK(type) for(int __atomic_dummy = 0; __atomic_dummy < 1; __atomic_dummy++)
 #define ATOMIC_RESTORESTATE 0
 #define ATOMIC_FORCEON 1
+#endif
 
 // Alternative atomic macro names
+#ifndef ATOMIC
 #define ATOMIC() ATOMIC_BLOCK(ATOMIC_RESTORESTATE)
+#endif
 
 // ============================================================================
 // BOARD DEFINITIONS MOCK
@@ -84,17 +89,9 @@ extern Stream* pSecondarySerial;
 // GLOBAL CONFIG PAGES MOCK
 // ============================================================================
 
-// Mock config page structures (normally defined in globals.h)
-#ifndef GLOBALS_H_MOCKED
-
-struct mockConfigPage13 {
-    byte outputPin[8];
-};
-
-extern mockConfigPage13 configPage13;
-
-#define GLOBALS_H_MOCKED
-#endif
+// NOTE: Config pages are now defined in globals.h with NATIVE_BUILD guards.
+// This section is kept for reference but is no longer used.
+// If globals.h is not included, tests should include it directly.
 
 // ============================================================================
 // UTILITY MACROS

@@ -5,6 +5,7 @@
 #include <stdint.h>
 #include <unity.h>
 #include <Arduino.h>
+#include <avr/pgmspace.h>
 #include <unity.h>
 #include "table2d.h"
 #include "table3d.h"
