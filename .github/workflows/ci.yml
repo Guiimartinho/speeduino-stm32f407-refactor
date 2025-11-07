@@ -28,7 +28,7 @@ jobs:
 
     steps:
     - name: Checkout repository
-      uses: actions/checkout@v4
+      uses: actions/checkout@v5
 
     - name: Cache pip dependencies
       uses: actions/cache@v4
@@ -95,7 +95,7 @@ jobs:
 
     steps:
     - name: Checkout repository
-      uses: actions/checkout@v4
+      uses: actions/checkout@v5
 
     - name: Cache PlatformIO
       uses: actions/cache@v4
@@ -189,7 +189,7 @@ jobs:
 
     steps:
     - name: Checkout repository
-      uses: actions/checkout@v4
+      uses: actions/checkout@v5
 
     - name: Download build artifacts
       uses: actions/download-artifact@v6
@@ -226,7 +226,7 @@ jobs:
         fi
 
     - name: Checkout base branch
-      uses: actions/checkout@v4
+      uses: actions/checkout@v5
       with:
         ref: ${{ github.base_ref }}
         path: base
@@ -384,7 +384,7 @@ jobs:
 
     steps:
     - name: Checkout repository
-      uses: actions/checkout@v4
+      uses: actions/checkout@v5
 
     # -----------------------------------
     # Codespell: Check spelling in code
