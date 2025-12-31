@@ -317,7 +317,7 @@ def print_summary(results: List[TestResult]) -> None:
     print(f"Total duration: {total_duration:.1f}s")
     print()
 
-    status = "\033[92m✓ ALL TESTS PASSED\033[0m" if all_success else "\033[91m✗ TESTS FAILED\033[0m"
+    status = "\033[92m[OK] ALL TESTS PASSED\033[0m" if all_success else "\033[91m[FAIL] TESTS FAILED\033[0m"
     print(status)
     print("=" * 70)
 

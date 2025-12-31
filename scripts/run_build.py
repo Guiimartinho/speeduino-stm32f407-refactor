@@ -252,8 +252,8 @@ def print_result(result: BuildResult) -> None:
     print()
 
     # Memória
-    flash_status = "✓" if result.flash_percent <= FLASH_BUDGET_PERCENT else "✗"
-    ram_status = "✓" if result.ram_percent <= RAM_BUDGET_PERCENT else "✗"
+    flash_status = "[OK]" if result.flash_percent <= FLASH_BUDGET_PERCENT else "[X]"
+    ram_status = "[OK]" if result.ram_percent <= RAM_BUDGET_PERCENT else "[X]"
 
     print("Memory Usage:")
     print(f"  Flash: {result.flash_bytes:,} bytes ({result.flash_percent:.1f}%) {flash_status} [budget: {FLASH_BUDGET_PERCENT}%]")
@@ -349,17 +349,17 @@ def main() -> int:
 
     # Verificações
     if not result.success:
-        print("\033[91m✗ Build failed!\033[0m")
+        print("\033[91m[FAIL] Build failed!\033[0m")
         if not args.warn_only:
             return 1
 
     if not check_memory_budget(result):
-        print("\033[93m⚠ Memory budget exceeded!\033[0m")
+        print("\033[93m[WARN] Memory budget exceeded!\033[0m")
         if not args.warn_only and args.check:
             return 1
 
     if result.success:
-        print("\033[92m✓ Build successful!\033[0m")
+        print("\033[92m[OK] Build successful!\033[0m")
 
     return 0
 

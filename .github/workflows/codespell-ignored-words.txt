@@ -20,3 +20,5 @@ usin
 defineable
 operaton
 rasies
+nome
+erro
