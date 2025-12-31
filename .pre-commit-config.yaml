@@ -84,15 +84,15 @@ repos:
     hooks:
       # -----------------------------------------------------------------------
       # CHECK NESTING - MISRA C:2012 Rule 15.6 (Máximo 3 níveis)
-      # TODO: Fix false positives with comments before enabling
+      # Modo warn-only: reporta mas não bloqueia commits
       # -----------------------------------------------------------------------
       - id: check-nesting
         name: "Check nesting depth (max 3)"
-        entry: python scripts/hooks/check_nesting.py
+        entry: python scripts/hooks/check_nesting.py --warn-only
         language: python
         files: \.(c|cpp|h|hpp|ino)$
-        exclude: ^(libdivide/|test/|docs/|reference/|backups/|\.backup|speeduino/)
-        stages: [manual]  # Disabled: has false positives with comments
+        exclude: ^(libdivide/|test/|docs/|reference/|backups/|speeduino/src/)
+        verbose: true
 
       # -----------------------------------------------------------------------
       # CHECK SECRETS - Detecção de Credentials Hardcoded

@@ -22,3 +22,6 @@ operaton
 rasies
 nome
 erro
+limite
+caractere
+ignora

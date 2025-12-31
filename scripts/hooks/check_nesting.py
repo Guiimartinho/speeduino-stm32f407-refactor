@@ -20,7 +20,7 @@ import os
 import re
 import argparse
 from pathlib import Path
-from typing import List, Tuple, Dict, Optional
+from typing import List, Dict, Optional
 from dataclasses import dataclass
 from enum import Enum
 
@@ -41,6 +41,7 @@ IGNORE_DIRS = {
     '.git',
     'build',
     '.pio',
+    'backups',
 }
 
 # Arquivos específicos a ignorar (padrões conhecidos com nesting alto)
@@ -59,6 +60,16 @@ SUPPRESSION_PATTERN = re.compile(r'(?://|/\*)\s*NESTING_OK')
 class Severity(Enum):
     WARNING = "WARNING"
     ERROR = "ERROR"
+
+
+class ParseState(Enum):
+    """Estado do parser."""
+    CODE = 0
+    LINE_COMMENT = 1
+    BLOCK_COMMENT = 2
+    STRING_DOUBLE = 3
+    STRING_SINGLE = 4
+    CHAR_LITERAL = 5
 
 
 @dataclass
@@ -83,35 +94,18 @@ class NestingViolation:
 # ANÁLISE DE NESTING
 # =============================================================================
 
-def remove_strings_and_comments(content: str) -> str:
-    """Remove strings e comentários para análise precisa."""
-    # Remove comentários de bloco /* ... */
-    content = re.sub(r'/\*.*?\*/', '', content, flags=re.DOTALL)
-    # Remove comentários de linha // ...
-    content = re.sub(r'//.*$', '', content, flags=re.MULTILINE)
-    # Remove strings "..." e '...'
-    content = re.sub(r'"(?:[^"\\]|\\.)*"', '""', content)
-    content = re.sub(r"'(?:[^'\\]|\\.)*'", "''", content)
-    return content
-
-
-def get_line_number(content: str, position: int) -> int:
-    """Retorna o número da linha para uma posição no conteúdo."""
-    return content[:position].count('\n') + 1
-
-
 def check_nesting_depth(
     file_path: str,
-    max_depth: int = DEFAULT_MAX_DEPTH,
-    original_content: Optional[str] = None
+    max_depth: int = DEFAULT_MAX_DEPTH
 ) -> List[NestingViolation]:
     """
     Analisa um arquivo e retorna violações de profundidade de aninhamento.
 
+    Usa um parser de estado para ignorar comentários e strings corretamente.
+
     Args:
         file_path: Caminho do arquivo a analisar
         max_depth: Profundidade máxima permitida
-        original_content: Conteúdo original (para contexto)
 
     Returns:
         Lista de violações encontradas
@@ -120,64 +114,118 @@ def check_nesting_depth(
 
     try:
         with open(file_path, 'r', encoding='utf-8', errors='ignore') as f:
-            original = f.read()
+            content = f.read()
     except (IOError, OSError) as e:
         print(f"Warning: Could not read {file_path}: {e}", file=sys.stderr)
         return violations
 
-    # Guarda original para contexto
-    if original_content is None:
-        original_content = original
-
-    original_lines = original_content.split('\n')
-
-    # Remove strings e comentários para análise
-    cleaned = remove_strings_and_comments(original)
-
-    # Rastreia profundidade de nesting
+    lines = content.split('\n')
+    state = ParseState.CODE
     depth = 0
-    max_found = 0
-    position = 0
+    line_num = 1
+    i = 0
+    n = len(content)
 
-    # Mapa de posição para profundidade
-    depth_at_position: Dict[int, int] = {}
+    # Set para evitar duplicatas na mesma linha
+    reported_lines: set = set()
 
-    for i, char in enumerate(cleaned):
-        if char == '{':
-            depth += 1
-            depth_at_position[i] = depth
-            if depth > max_found:
-                max_found = depth
+    while i < n:
+        char = content[i]
+        next_char = content[i + 1] if i + 1 < n else ''
 
-            # Verifica violação
-            if depth > max_depth:
-                line_num = get_line_number(original, i)
+        # Atualiza número da linha
+        if char == '\n':
+            line_num += 1
+            # Sai de comentário de linha no final da linha
+            if state == ParseState.LINE_COMMENT:
+                state = ParseState.CODE
+            i += 1
+            continue
 
-                # Verifica supressão inline
-                if line_num <= len(original_lines):
-                    line_content = original_lines[line_num - 1]
-                    if SUPPRESSION_PATTERN.search(line_content):
-                        continue  # Suprimido
+        # Estado: CÓDIGO
+        if state == ParseState.CODE:
+            # Início de comentário de bloco
+            if char == '/' and next_char == '*':
+                state = ParseState.BLOCK_COMMENT
+                i += 2
+                continue
+            # Início de comentário de linha
+            if char == '/' and next_char == '/':
+                state = ParseState.LINE_COMMENT
+                i += 2
+                continue
+            # Início de string
+            if char == '"':
+                state = ParseState.STRING_DOUBLE
+                i += 1
+                continue
+            # Início de char literal
+            if char == "'":
+                state = ParseState.CHAR_LITERAL
+                i += 1
+                continue
 
-                # Contexto: linha atual + algumas anteriores
-                context_start = max(0, line_num - 2)
-                context_end = min(len(original_lines), line_num + 1)
-                context_lines = original_lines[context_start:context_end]
-                context = '\n    '.join(context_lines)
+            # Conta chaves apenas em código
+            if char == '{':
+                depth += 1
 
-                severity = Severity.ERROR if depth > max_depth + 1 else Severity.WARNING
+                # Verifica violação
+                if depth > max_depth and line_num not in reported_lines:
+                    # Verifica supressão inline
+                    line_content = lines[line_num - 1] if line_num <= len(lines) else ''
+                    if not SUPPRESSION_PATTERN.search(line_content):
+                        # Contexto: linhas ao redor
+                        context_start = max(0, line_num - 2)
+                        context_end = min(len(lines), line_num + 1)
+                        context_lines = lines[context_start:context_end]
+                        context = '\n    '.join(context_lines)
 
-                violations.append(NestingViolation(
-                    file=file_path,
-                    line=line_num,
-                    depth=depth,
-                    max_allowed=max_depth,
-                    context=context,
-                    severity=severity
-                ))
+                        severity = Severity.ERROR if depth > max_depth + 1 else Severity.WARNING
 
-        elif char == '}':
-            depth = max(0, depth - 1)
+                        violations.append(NestingViolation(
+                            file=file_path,
+                            line=line_num,
+                            depth=depth,
+                            max_allowed=max_depth,
+                            context=context,
+                            severity=severity
+                        ))
+                        reported_lines.add(line_num)
+
+            elif char == '}':
+                depth = max(0, depth - 1)
+
+        # Estado: COMENTÁRIO DE BLOCO
+        elif state == ParseState.BLOCK_COMMENT:
+            if char == '*' and next_char == '/':
+                state = ParseState.CODE
+                i += 2
+                continue
+
+        # Estado: COMENTÁRIO DE LINHA
+        elif state == ParseState.LINE_COMMENT:
+            # Continua até newline (tratado acima)
+            pass
+
+        # Estado: STRING COM ASPAS DUPLAS
+        elif state == ParseState.STRING_DOUBLE:
+            if char == '\\' and next_char:
+                # Escape - pula próximo caractere
+                i += 2
+                continue
+            if char == '"':
+                state = ParseState.CODE
+
+        # Estado: CHAR LITERAL
+        elif state == ParseState.CHAR_LITERAL:
+            if char == '\\' and next_char:
+                # Escape - pula próximo caractere
+                i += 2
+                continue
+            if char == "'":
+                state = ParseState.CODE
+
+        i += 1
 
     return violations
 
@@ -193,6 +241,10 @@ def should_ignore_file(file_path: str) -> bool:
 
     # Verifica arquivos específicos ignorados
     if path.name in IGNORE_FILES:
+        return True
+
+    # Ignora arquivos .backup
+    if '.backup' in path.name:
         return True
 
     return False
@@ -257,7 +309,12 @@ def print_violations(violations: List[NestingViolation]) -> None:
     for v in violations:
         color = "\033[91m" if v.severity == Severity.ERROR else "\033[93m"
         reset = "\033[0m"
-        print(f"\n{color}{v}{reset}")
+        # Handle encoding errors for Windows
+        try:
+            print(f"\n{color}{v}{reset}")
+        except UnicodeEncodeError:
+            safe_str = str(v).encode('ascii', errors='replace').decode('ascii')
+            print(f"\n{color}{safe_str}{reset}")
 
 
 # =============================================================================
