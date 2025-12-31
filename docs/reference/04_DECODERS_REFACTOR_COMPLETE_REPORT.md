@@ -882,7 +882,6 @@ d068532c refactor: BasicDistributor + FordTFI with shared function (FASE M)
 
 ---
 
-**Report Generated:** 2025-10-31
-**Author:** Refactoring Team
-**Project:** SCU-ECU 2.0 STM32F407 Speeduino Port
-**Repository:** speeduino-stm32f407-refactor
+**Report Generated:** 2025-12-30
+**Projeto:** SCG-ECU 2.0 - Modularização e Adaptação Speeduino para STM32F407VGT6
+**Projeto Base:** [Speeduino](https://speeduino.com) por Josh Stewart

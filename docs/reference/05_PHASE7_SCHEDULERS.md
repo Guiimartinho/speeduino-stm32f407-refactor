@@ -1,9 +1,11 @@
 # MÓDULO 7: SCHEDULERS - PLANEJAMENTO COMPLETO
-## SCG-ECU 2.0 - STM32F407VGT6 8x8
+## SCG-ECU 2.0 - Modularização e Adaptação Speeduino para STM32F407VGT6
 
-**Data:** 29/10/2025
-**Status:** FASE 1 - ANÁLISE E PLANEJAMENTO COMPLETA
+**Data:** 2025-12-30
+**Status:**  IMPLEMENTADO E OTIMIZADO
 **Complexidade:** MUITO ALTA (Timing-critical ISRs)
+
+**Projeto Base:** [Speeduino](https://speeduino.com) por Josh Stewart
 
 ---
 

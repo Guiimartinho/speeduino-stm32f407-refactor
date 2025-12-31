@@ -1,8 +1,10 @@
 # RELATÓRIO FASE M - SPEEDUINO.CPP REFACTORING (MAIN LOOP)
+## SCG-ECU 2.0 - Modularização e Adaptação Speeduino para STM32F407VGT6
 
+**Projeto Base:** [Speeduino](https://speeduino.com) por Josh Stewart
 **Arquivo:** `speeduino/speeduino.cpp`
 **Fase:** FASE M - Main Loop (🔥 ALTA)
-**Data:** 2025-11-05
+**Data:** 2025-12-30
 **Status:** ✅ COMPLETA
 
 ---

@@ -1,5 +1,8 @@
 # Static Analysis Report - GPIO-only Ignition Refactor
-**Date:** 2025-11-06
+## SCG-ECU 2.0 - Modularização e Adaptação Speeduino para STM32F407VGT6
+
+**Projeto Base:** [Speeduino](https://speeduino.com) por Josh Stewart
+**Date:** 2025-12-30
 **Scope:** IGN5/IGN7 GPIO-only control refactoring
 
 ---

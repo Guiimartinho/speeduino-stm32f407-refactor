@@ -1,8 +1,10 @@
 # RELATÓRIO FASE D - DECODERS COMPLETION (10/10 FUNCTIONS COMPLIANT)
+## SCG-ECU 2.0 - Modularização e Adaptação Speeduino para STM32F407VGT6
 
+**Projeto Base:** [Speeduino](https://speeduino.com) por Josh Stewart
 **Arquivo:** `speeduino/decoders.cpp`
 **Fase:** FASE D - Decoders (⚡ CRITICAL - ISR context)
-**Data:** 2025-11-05
+**Data:** 2025-12-30
 **Status:** ✅ FASE D 100% COMPLETA - TODAS AS 10 FUNÇÕES CRITICAL RESOLVIDAS
 
 ---

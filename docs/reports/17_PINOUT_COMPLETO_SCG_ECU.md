@@ -1,6 +1,8 @@
-# ULTRATHINK: Pinout Completo SCG-ECU 2.0 - Análise Total
+# Pinout Completo SCG-ECU 2.0 - Análise Total
+## Modularização e Adaptação Speeduino para STM32F407VGT6
 
-**Data:** 2025-11-06 (Análise Original) | **Atualizado:** 2025-11-07
+**Projeto Base:** [Speeduino](https://speeduino.com) por Josh Stewart
+**Data:** 2025-12-30
 **Revisão:** 4.0 - IMPLEMENTAÇÃO COMPLETA ✅
 **Status:** 🟢 **TODOS OS 59 PINOS MAPEADOS E IMPLEMENTADOS**
 

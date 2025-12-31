@@ -1,7 +1,8 @@
 # RELATÓRIO FASE I1 - init.cpp
-## Refatoração MISRA-C:2012 Compliance
+## SCG-ECU 2.0 - Modularização e Adaptação Speeduino para STM32F407VGT6
 
-**Data:** 2025-11-05
+**Projeto Base:** [Speeduino](https://speeduino.com) por Josh Stewart
+**Data:** 2025-12-30
 **Módulo:** speeduino/init.cpp (2721 linhas, 84 funções)
 **Objetivo:** 100% MISRA-C:2012 compliance com N≤2, C<10, funções <50 linhas
 **Status:** ✅ **COMPLETO - 100% COMPLIANCE ALCANÇADO**

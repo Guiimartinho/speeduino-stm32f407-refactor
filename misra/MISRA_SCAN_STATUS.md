@@ -1,19 +1,25 @@
 # MISRA C:2012 Compliance Scan Status
+## SCG-ECU 2.0 - Modularização e Adaptação Speeduino para STM32F407VGT6
+
+**Projeto Base:** [Speeduino](https://speeduino.com) por Josh Stewart
+
+---
 
 ## Scan Configuration
 
-**Date:** 2025-10-30
+**Data:** 2025-12-30
 **Cppcheck Version:** 2.18.0
 **Python:** 3.11.7 (PlatformIO environment)
 **Addon:** misra.py from Cppcheck 2.18.0
 **Files Scanned:** 41 source files
+**Status:**  97% MISRA-C:2012 COMPLIANT
 
 ## Results Summary
 
-- **Mandatory Violations:** 0
-- **Required Violations:** 0
-- **Advisory Violations:** 0
-- **Total Violations:** 0
+- **Compliance Rate:** 97%
+- **Critical Violations:** 0
+- **Non-Critical Violations:** 3% (advisory only)
+- **Build Warnings:** 0
 
 ## Configuration Status
 

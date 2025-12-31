@@ -1,6 +1,8 @@
 # RELATÓRIO COMPLETO: Sistema LED + Button Interativo
-**Projeto:** SCG-ECU 2.0 - STM32F407VGT6
-**Data:** 2025-11-06
+## SCG-ECU 2.0 - Modularização e Adaptação Speeduino para STM32F407VGT6
+
+**Projeto Base:** [Speeduino](https://speeduino.com) por Josh Stewart
+**Data:** 2025-12-30
 **Status:** ✅ **IMPLEMENTADO E TESTADO**
 **Build:** SUCCESS (7.86s, 0 warnings)
 

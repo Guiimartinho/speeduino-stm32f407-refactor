@@ -1,6 +1,8 @@
 # Plano de Cobertura de Testes Completo - SCG-ECU 2.0
+## Modularização e Adaptação Speeduino para STM32F407VGT6
 
-**Data:** 06/11/2025
+**Projeto Base:** [Speeduino](https://speeduino.com) por Josh Stewart
+**Data:** 2025-12-30
 **Versão:** 1.0
 **Status:** 📋 PLANEJAMENTO - Pronto para Execução
 

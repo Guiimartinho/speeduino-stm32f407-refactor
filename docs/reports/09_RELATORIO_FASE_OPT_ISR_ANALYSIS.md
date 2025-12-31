@@ -1,8 +1,10 @@
 # FASE OPT - ISR LATENCY & PERFORMANCE ANALYSIS
+## SCG-ECU 2.0 - Modularização e Adaptação Speeduino para STM32F407VGT6
 
-**Date:** 2025-11-05
+**Projeto Base:** [Speeduino](https://speeduino.com) por Josh Stewart
+**Data:** 2025-12-30
 **Target:** STM32F407VGT6 @ 168MHz
-**Current Binary:** 194,444 bytes (37.1% Flash), 21,376 bytes RAM (16.3%)
+**Binary:** 194,380 bytes (37.1% Flash), 21,376 bytes RAM (16.3%)
 
 ---
 

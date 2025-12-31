@@ -1,4 +1,8 @@
 # FASE V - Phase 3: Native Test Linking - PROGRESS REPORT
+## SCG-ECU 2.0 - Modularização e Adaptação Speeduino para STM32F407VGT6
+
+**Projeto Base:** [Speeduino](https://speeduino.com) por Josh Stewart
+**Data:** 2025-12-30
 
 ## Status: MAJOR BREAKTHROUGH ✅
 

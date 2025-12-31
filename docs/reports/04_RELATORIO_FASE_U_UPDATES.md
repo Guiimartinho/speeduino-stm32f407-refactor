@@ -1,8 +1,10 @@
-# RELATÓRIO FASE U - UPDATES.CPP REFACTORING (FINAL PHASE)
+# RELATÓRIO FASE U - UPDATES.CPP REFACTORING
+## SCG-ECU 2.0 - Modularização e Adaptação Speeduino para STM32F407VGT6
 
+**Projeto Base:** [Speeduino](https://speeduino.com) por Josh Stewart
 **Arquivo:** `speeduino/updates.cpp`
-**Fase:** FASE U - EEPROM Updates (⚙️ MÉDIA - FINAL)
-**Data:** 2025-11-05
+**Fase:** FASE U - EEPROM Updates (⚙️ MÉDIA)
+**Data:** 2025-12-30
 **Status:** ✅ COMPLETA
 
 ---

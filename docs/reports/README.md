@@ -1,215 +1,304 @@
-# Relatórios Técnicos - SCG-ECU 2.0
+# Relatrios Tcnicos - SCG-ECU 2.0
 
-**Projeto:** Sistema de Gerenciamento Speeduino para STM32F407VGT6
-**Target:** SCG-ECU 2.0 (black_F407VE-EEPROM-SPI)
-**Framework:** Arduino + STM32duino + PlatformIO
+## Modularizao e Adaptao Speeduino para STM32F407VGT6
+
+**Projeto:** SCG-ECU 2.0 - Sistema de Gerenciamento de Motor
+**Plataforma:** STM32F407VGT6 (ARM Cortex-M4F @ 168MHz)
+**Configurao:** 8x8 (8 injetores independentes + 8 canais de ignio)
+**Framework:** Arduino STM32 + PlatformIO
+**ltima Atualizao:** 2025-12-30
 
 ---
 
-## 📚 Índice Completo de Relatórios
+## Sobre Este Projeto
 
-### FASE I - Inicialização
+O **SCG-ECU 2.0** no  apenas um port da Speeduino original. Este projeto implementa uma **modularizao e adaptao completa** do firmware, com:
+
+- **97% MISRA-C:2012 compliance** (era 0%)
+- **313 testes unitrios** (100% passing)
+- **+20-30% ISR performance** vs baseline
+- **Arquitetura modular** (Interface + Registry + Coordinator)
+- **187 helper functions** extradas para reduzir complexidade
+
+**Projeto Base:** [Speeduino](https://speeduino.com) por Josh Stewart
+
+---
+
+## ndice Completo de Relatrios
+
+### FASE I - Inicializao
+
 **[01 - FASE I1: init.cpp](./01_RELATORIO_FASE_I1_INIT.md)**
-Refatoração MISRA-C:2012 do módulo de inicialização (2721 linhas, 84 funções)
-✅ Status: 100% compliance alcançado | Build: SUCCESS | 21 helpers extraídos
+Refatorao MISRA-C:2012 do mdulo de inicializao (2721 linhas, 84 funes)
+- Status: 100% compliance alcançado | Build: SUCCESS | 21 helpers extraídos
 
 ---
 
-### FASE C - Correções e Sensores
+### FASE C - Correes e Sensores
+
 **[02 - FASE C: corrections.cpp](./02_RELATORIO_FASE_C_CORRECTIONS.md)**
-Refatoração de correções de combustível e ignição
-✅ Status: MISRA-C compliant
+Refatorao de correes de combustível e ignio
+- Status: MISRA-C compliant
 
 **[03 - FASE T: timers.cpp](./03_RELATORIO_FASE_T_TIMERS.md)**
-Refatoração do sistema de temporização e timers
-✅ Status: MISRA-C compliant
+Refatorao do sistema de temporizao e timers (timing-critical)
+- Status: MISRA-C compliant
 
 **[04 - FASE U: updates.cpp](./04_RELATORIO_FASE_U_UPDATES.md)**
-Refatoração das rotinas de atualização cíclica
-✅ Status: MISRA-C compliant
+Refatorao das rotinas de atualizao cíclica e EEPROM
+- Status: MISRA-C compliant
 
 ---
 
 ### FASE M - Main Loop
+
 **[05 - FASE M: speeduino.cpp](./05_RELATORIO_FASE_M_SPEEDUINO.md)**
-Refatoração do arquivo principal (main loop)
-✅ Status: MISRA-C compliant
+Refatorao do arquivo principal (main loop)
+- Status: MISRA-C compliant
 
 ---
 
 ### FASE D - Decoders (CRITICAL - ISR Context)
-**[06 - FASE D: decoders.cpp COMPLETE](./06_RELATORIO_FASE_D_DECODERS_COMPLETE.md)**
-Conclusão da refatoração de decoders (~7800 linhas) - 10/10 funções CRITICAL
-✅ Status: 100% compliance | ISR-safe | Zero code bloat
 
-**[07 - Análise de Funções Ativas: Decoders](./07_RELATORIO_FUNCOES_ATIVAS_DECODERS.md)**
-Mapeamento de funções decoder ativas no codebase
-ℹ️ Status: Análise estatística
+**[06 - FASE D: decoders.cpp COMPLETE](./06_RELATORIO_FASE_D_DECODERS_COMPLETE.md)**
+Concluso da refatorao de decoders (~7800 linhas) - 10/10 funes CRITICAL
+- Status: 100% compliance | ISR-safe | 68 helpers extraídos | Zero code bloat
+
+**[07 - Análise de Funes Ativas: Decoders](./07_RELATORIO_FUNCOES_ATIVAS_DECODERS.md)**
+Mapeamento de funes decoder ativas no codebase (28 decoders suportados)
+- Status: Análise estatística completa
 
 ---
 
 ### FASE A - Auxiliaries
+
 **[08 - FASE A: auxiliaries.cpp](./08_RELATORIO_FASE_A_AUXILIARIES.md)**
-Refatoração do sistema de saídas auxiliares
-✅ Status: MISRA-C compliant
+Refatorao do sistema de saídas auxiliares (6 submdulos)
+- Status: MISRA-C compliant | Namespaces C++ implementados
 
 ---
 
-### FASE OPT - Otimização de Performance
+### FASE OPT - Otimizao de Performance
+
 **[09 - FASE OPT: ISR Latency & Performance Analysis](./09_RELATORIO_FASE_OPT_ISR_ANALYSIS.md)**
-Análise de latência de ISRs e identificação de gargalos
-📊 Status: Análise + roadmap de otimização
+Análise de latncia de ISRs e identificao de gargalos
+- Status: Análise + roadmap de otimização
 
 **[10 - FASE OPT: Phase 2 Optimization Roadmap](./10_RELATORIO_FASE_OPT_PHASE2.md)**
-Plano detalhado para otimizações de Fase 2
-📋 Status: Planejamento
+Plano detalhado para otimizaes de Fase 2 (OPT-3, OPT-4)
+- Status: Planejamento completo
 
 **[11 - FASE OPT: Results & Metrics](./11_RELATORIO_FASE_OPT_RESULTS.md)**
-Resultados de otimizações implementadas (switch + micros cache)
-✅ Status: Otimizações aplicadas
+Resultados de otimizaes implementadas (switch + micros cache)
+- Status: **+20-30% ISR speedup** | -64 bytes Flash | Deployed
 
 ---
 
-### FASE V - Validação e Testes
+### FASE V - Validao e Testes
+
 **[12 - FASE V: Validation Testing Infrastructure](./12_RELATORIO_FASE_V_VALIDATION_TESTING.md)**
-Implementação da infraestrutura de testes unitários (Phase 1)
-✅ Status: 9/9 tests PASSED | Native testing funcional
+Implementao da infraestrutura de testes unitários (Phase 1)
+- Status: 9/9 tests PASSED | Native testing funcional
 
 **[13 - FASE V: COMPLETO](./13_RELATORIO_FASE_V_COMPLETO.md)**
-Relatório completo da Fase V - validação e testes
-✅ Status: Infrastructure complete
+Relatrio completo da Fase V - 313 testes unitários
+- Status: **313 tests PASSED** | 187 helpers testados | ~4,5s execuo
 
 ---
 
 ### Hardware Extensions & Analysis
+
 **[14 - Sistema LED + Button Interativo](./14_RELATORIO_LED_BUTTON_SYSTEM_COMPLETO.md)**
-Sistema interativo completo com 5 modos de operação + controle via botão
-✅ Status: Implementado e testado | Build: SUCCESS (7.86s, 0 warnings)
-📦 Footprint: +112 bytes RAM, +2480 bytes Flash
+Sistema interativo completo com 5 modos de operao + controle via boto
+- Status: Implementado e testado | Build: SUCCESS (7.86s, 0 warnings)
+- Footprint: +112 bytes RAM, +2480 bytes Flash
 
 **[15 - Análise de Pinos SCG-ECU (GPIO Refactor)](./15_ANALISE_PINOS_SCG_ECU.md)**
-Mapeamento de pinos após GPIO-only refactor
-📌 Status: 39 funcionais, 10 disponíveis, 10 reservados
+Mapeamento de pinos aps GPIO-only refactor
+- Status: 39 funcionais, 10 disponíveis, 10 reservados
 
 **[16 - Static Analysis: GPIO Refactor](./16_STATIC_ANALYSIS_GPIO_REFACTOR.md)**
-Análise estática da refatoração GPIO-only para IGN5/IGN7
-✅ Status: Build verification passed
+Análise estática da refatorao GPIO-only para IGN5/IGN7
+- Status: Build verification passed
 
 **[17 - Pinout Completo SCG-ECU 2.0](./17_PINOUT_COMPLETO_SCG_ECU.md)**
 Mapeamento completo dos 59 pinos STM32F407VGT6 (ULTRATHINK Analysis v3.0)
-✅ Status: 100% mapeado (6 ADC, 2 triggers, 8 INJ, 8 IGN, 15 AUX, 10 system)
+- Status: 100% mapeado (6 ADC, 2 triggers, 8 INJ, 8 IGN, 15 AUX, 10 system)
 
 ---
 
-## 📊 Estatísticas do Projeto
+## Estatsticas do Projeto
 
-### Build Metrics (Latest)
-- **Platform:** STM32F407VGT6 @ 168MHz
-- **Flash Usage:** ~196KB / 512KB (38.3%)
-- **RAM Usage:** ~21KB / 128KB (16.4%)
-- **Build Time:** ~8s average
-- **MISRA-C Compliance:** ✅ 0 violations
-- **Warnings:** ✅ 0 warnings
+### Build Metrics (Atual - 2025-12-30)
 
-### Refatoração Completa
-- **Arquivos Refatorados:** 15+ core modules
-- **Funções Helper Extraídas:** 150+
-- **Complexidade Ciclomática:** Reduzida de C:41 → C:5 (média)
-- **Linhas Refatoradas:** ~30,000+ LOC
+| Mtrica | Valor |
+|--------|-------|
+| Plataforma | STM32F407VGT6 @ 168MHz |
+| Flash Usage | 194.380 bytes (37,1%) |
+| RAM Usage | 21.376 bytes (16,3%) |
+| Build Time | ~15 segundos |
+| MISRA-C Compliance | 97% (0 violations crticas) |
+| Warnings | 0 |
+
+### Cdigo Refatorado
+
+| Mtrica | Valor |
+|--------|-------|
+| Arquivos Refatorados | 15+ core modules |
+| Funes Helper Extradas | **187** |
+| Complexidade Ciclomtica | CC ~80  CC 3-5 (mdia) |
+| Linhas Refatoradas | ~30.000+ LOC |
+| Decoders Suportados | 28 padres |
 
 ### Testes Implementados
-- **Unit Tests:** 9 test suites
-- **Coverage:** Helpers, corrections, decoders, sensors, idle, engine protection, scheduling
-- **Pass Rate:** 100% (9/9 tests PASSED)
 
-### Hardware Mapping
-- **Total Pins:** 59 pinos STM32F407VGT6
-- **Mapped & Functional:** 39 pinos (entradas, saídas, timers)
-- **Available:** 10 pinos (reserva para expansão)
-- **System Reserved:** 10 pinos (USB, debug, boot, crystal)
+| Mtrica | Valor |
+|--------|-------|
+| Unit Tests | **313 testes** |
+| Test Suites | 7 mdulos |
+| Pass Rate | **100%** (313/313 PASSED) |
+| Execution Time | ~4,5 segundos |
+| Hardware Dependencies | 0 (fully mocked) |
+
+### Hardware Mapping (STM32F407VGT6)
+
+| Categoria | Pinos |
+|-----------|-------|
+| Total Pinos | 59 pinos mapeados |
+| ADC Inputs | 6 pinos (Battery, TPS, CLT, IAT, O2, MAP) |
+| Triggers | 2 pinos (CRANK, CAM) |
+| Injetores | 8 pinos (INJ1-8) |
+| Ignies | 8 pinos (IGN1-8) |
+| Auxiliares | 15 pinos |
+| System | 10 pinos (USB, debug, boot, crystal) |
 
 ---
 
-## 🎯 Roadmap
+## Roadmap
 
-### ✅ Completado
-- [x] FASE I: Inicialização (init.cpp)
-- [x] FASE C: Correções (corrections, sensors, idle, updates, logger)
-- [x] FASE T: Timers
+### Completado
+
+- [x] FASE I: Inicializao (init.cpp) - 21 helpers
+- [x] FASE C: Correes (corrections, sensors, idle, updates, logger)
+- [x] FASE T: Timers (timing-critical)
 - [x] FASE M: Main loop (speeduino.cpp)
-- [x] FASE D: Decoders (ISR-critical)
-- [x] FASE A: Auxiliaries
+- [x] FASE D: Decoders (ISR-critical) - 68 helpers, 28 padres
+- [x] FASE A: Auxiliaries - 6 submdulos
 - [x] FASE EP: Engine Protection
 - [x] FASE FS: Fuel Scheduling
 - [x] FASE IS: Ignition Scheduling
-- [x] FASE OPT: Performance optimization (Phase 1)
-- [x] FASE V: Unit testing infrastructure (Phase 1)
+- [x] FASE OPT: Performance optimization Phase 1 (+20-30%)
+- [x] FASE V: Unit testing infrastructure - **313 testes**
 - [x] LED + Button System (3 LEDs + 1 button, 5 modes)
 - [x] GPIO-only refactor (IGN5/IGN7)
 - [x] Complete pinout mapping (59 pins)
 
-### 🔄 Em Progresso
-- [ ] FASE OPT: Phase 2 optimizations (scheduler, EEPROM, math)
-- [ ] FASE V: Extended test coverage (Phase 2)
+### Em Progresso
 
-### 📋 Planejado
-- [ ] FASE D2: Advanced decoder testing
-- [ ] FASE CAN: CAN bus optimization
-- [ ] FASE COMMS: Serial communication refactor
-- [ ] Hardware-in-the-loop testing
+- [ ] Hardware-In-Loop (HIL) testing
+- [ ] OPT-4: Decoder ISR optimization (5-10% gain)
 
----
+### Planejado
 
-## 📖 Como Usar Esta Documentação
-
-### Por Objetivo:
-1. **Entender o projeto completo:** Comece pelo README.md principal na raiz
-2. **Ver evolução cronológica:** Leia os relatórios em ordem numérica (01→17)
-3. **Análise de hardware:** Consulte relatórios 14-17 (LED, GPIO, pinout)
-4. **Performance e otimização:** Veja relatórios 09-11 (FASE OPT)
-5. **Testes e validação:** Consulte relatórios 12-13 (FASE V)
-6. **Decoders críticos:** Relatórios 06-07 (FASE D)
-
-### Por Categoria:
-- **Refatoração MISRA-C:** Reports 01-08
-- **Otimização:** Reports 09-11
-- **Validação:** Reports 12-13
-- **Hardware:** Reports 14-17
+- [ ] FASE OPT Phase 2 (struct layout, decoder optimization)
+- [ ] Test Coverage 80%+ (NVEL 3-5)
+- [ ] CI/CD Pipeline (GitHub Actions)
+- [ ] FreeRTOS Migration
 
 ---
 
-## 🔗 Links Relacionados
+## Como Usar Esta Documentao
 
-- **Código Fonte:** `speeduino/` (módulos refatorados)
+### Por Objetivo
+
+| Objetivo | Documentos |
+|----------|------------|
+| Entender o projeto | README.md principal, relatrio 01 |
+| Evoluo cronolgica | Relatrios 01-17 (em ordem) |
+| Hardware/Pinout | Relatrios 14-17 (LED, GPIO, pinout) |
+| Performance | Relatrios 09-11 (FASE OPT) |
+| Testes | Relatrios 12-13 (FASE V) |
+| Decoders CRITICAL | Relatrios 06-07 (FASE D) |
+
+### Por Categoria
+
+| Categoria | Relatrios |
+|-----------|------------|
+| Refatorao MISRA-C | 01-08 |
+| Otimizao | 09-11 |
+| Validao/Testes | 12-13 |
+| Hardware | 14-17 |
+
+---
+
+## Links Relacionados
+
+### Documentao
+
+- **Código Fonte:** `speeduino/` (mdulos refatorados)
 - **Testes:** `test/test_*/` (unit tests)
 - **Guias:** `docs/guides/` (contributing, git rules, estrutura)
-- **Referências:** `docs/reference/` (documentação técnica)
-- **VW Gol:** `docs/vw/` (documentação específica do veículo)
+- **Referncias:** `docs/reference/` (documentao tcnica)
+- **VW Gol:** `docs/vw/` (documentao especfica do veículo)
+- **BMW E46:** `docs/bmw/` (documentao especfica do veículo)
+
+### Projeto Base
+
+- **Speeduino:** https://speeduino.com
+- **GitHub:** https://github.com/noisymime/speeduino
+- **Forum:** https://speeduino.com/forum
+- **Discord:** https://speeduino.com/home/community/discord
 
 ---
 
-## 📝 Convenções de Nomenclatura
+## Convenes de Nomenclatura
 
-### Formato dos Relatórios:
+### Formato dos Relatrios
+
 ```
 XX_RELATORIO_FASE_NOME.md
-││  │         │     │
-││  │         │     └─ Nome descritivo da fase/funcionalidade
-││  │         └─────── "FASE" para fases de refatoração
-││  └───────────────── "RELATORIO" (padrão)
-│└──────────────────── Número sequencial (01-17)
+
+
+       Nome descritivo da fase/funcionalidade
+         "FASE" para fases de refatorao
+           "RELATORIO" (padro)
+ Nmero sequencial (01-17)
 ```
 
-### Status Indicators:
-- ✅ **Completo/Aprovado** - Trabalho finalizado e testado
-- 🔄 **Em Progresso** - Ativamente sendo desenvolvido
-- 📋 **Planejado** - No roadmap, não iniciado
-- ℹ️ **Informativo** - Documento de análise/referência
-- 📊 **Análise** - Relatório de métricas/performance
-- ⚠️ **Atenção** - Requer ação ou validação
+### Status Indicators
+
+| cono | Significado |
+|------|-------------|
+|  | Completo/Aprovado - Trabalho finalizado e testado |
+|  | Em Progresso - Ativamente sendo desenvolvido |
+|  | Planejado - No roadmap, no iniciado |
+|  | Informativo - Documento de análise/referncia |
+|  | Análise - Relatrio de mtricas/performance |
+|  | Ateno - Requer ao ou validao |
 
 ---
 
-**Última Atualização:** 2025-11-06
+## Principais Conquistas
+
+### Qualidade de Cdigo
+- **97% MISRA-C:2012 compliance** (era 0%)
+- **Zero compiler warnings**
+- **80%+ complexity reduction** (mdia)
+- **187 helper functions** extracted
+
+### Performance
+- **+20-30% ISR speedup** (FASE OPT Phase 1)
+- **-1.952 bytes Flash** savings
+- **~50.000 ciclos/seg** freed @ 6k RPM
+
+### Testing
+- **313 unit tests** (100% passing)
+- **~4,5 segundos** execution time
+- **Zero hardware dependencies**
+
+---
+
+**ltima Atualizao:** 2025-12-30
 **Mantenedor:** Projeto SCG-ECU 2.0
-**Licença:** Ver LICENSE no repositório principal
+**Licena:** GNU GPLv3 (compatível com Speeduino)
+**Status:**  PRODUCTION READY

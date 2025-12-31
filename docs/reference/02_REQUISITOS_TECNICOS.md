@@ -1,9 +1,11 @@
 # REQUISITOS TÉCNICOS - METODOLOGIA Structured Refactoring
-## SCG-ECU 2.0 - STM32F407VGT6 8x8
+## SCG-ECU 2.0 - Modularização e Adaptação Speeduino para STM32F407VGT6
 
-**Versão:** 1.0
-**Data:** 29/10/2025
+**Versão:** 2.0
+**Data:** 2025-12-30
 **Status:** DOCUMENTO DE REFERÊNCIA OBRIGATÓRIO
+
+**Projeto Base:** [Speeduino](https://speeduino.com) por Josh Stewart
 
 ---
 
