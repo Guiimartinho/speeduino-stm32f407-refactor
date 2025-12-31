@@ -53,5 +53,3 @@ int channel7InjDegrees; /**< The number of crank degrees until cylinder 7 is at 
 #if (INJ_CHANNELS >= 8)
 int channel8InjDegrees; /**< The number of crank degrees until cylinder 8 is at TDC */
 #endif
-
-

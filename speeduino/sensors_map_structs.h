@@ -27,12 +27,12 @@ struct map_adc_readings_t {
 struct map_cycle_average_t {
   uint8_t cycleStartIndex;
 #if defined(__UINT24_MAX__)
-  // Maximum revolution time is ~1.5s (at min RPM). At a 1KHz sampling rate & 2 revolutions, 
+  // Maximum revolution time is ~1.5s (at min RPM). At a 1KHz sampling rate & 2 revolutions,
   // we'll store 3000 readings each at maximum of 1023 (~3000000 max). So a 24-bit value
   // should be plenty.
   __uint24 mapAdcRunningTotal;
   __uint24 emapAdcRunningTotal;
-#else  
+#else
   uint32_t mapAdcRunningTotal;
   uint32_t emapAdcRunningTotal;
 #endif
@@ -49,7 +49,7 @@ struct map_cycle_min_t {
 struct map_event_average_t {
 #if defined(__UINT24_MAX__)
   __uint24 mapAdcRunningTotal;
-#else  
+#else
   uint32_t mapAdcRunningTotal;
 #endif
   uint16_t sampleCount;

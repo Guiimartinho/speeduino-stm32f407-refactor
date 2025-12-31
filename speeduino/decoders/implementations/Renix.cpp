@@ -24,23 +24,23 @@ void triggerPri_Renix(void) {
     curTime = micros();
     curGap = curTime - toothSystemLastToothTime;
     if (curGap >= triggerFilterTime && currentStatus.startRevolutions != 0) { return; }
-    
+
     toothSystemCount++;
     if (currentStatus.hasSync == false) { toothLastToothTime = curTime; return; }
-    
+
     if (toothSystemCount >= 3) {
         BIT_SET(decoderState, BIT_DECODER_VALID_TRIGGER);
         toothSystemLastToothTime = curTime;
         toothSystemCount = 0;
         toothCurrentCount++;
-        
+
         if (toothCurrentCount == 1 || toothCurrentCount > 12) {
             toothCurrentCount = 1;
             toothOneMinusOneTime = toothOneTime;
             toothOneTime = curTime;
             currentStatus.startRevolutions++;
         }
-        
+
         setFilter(curGap);
         toothLastMinusOneToothTime = toothLastToothTime;
         toothLastToothTime = curTime;
@@ -67,12 +67,12 @@ int getCrankAngle_Renix(void) {
         tempToothLastToothTime = toothLastToothTime;
         lastCrankAngleCalc = micros();
         interrupts();
-        
+
         if (tempToothCurrentCount == 0) { tempToothCurrentCount = 12; }
         crankAngle = ((tempToothCurrentCount - 1) * 60) + configPage4.triggerAngle;
         elapsedTime = (lastCrankAngleCalc - tempToothLastToothTime);
         crankAngle += timeToAngleDegPerMicroSec(elapsedTime);
-        
+
         if (crankAngle >= 720) { crankAngle -= 720; }
         if (crankAngle < 0) { crankAngle += CRANK_ANGLE_MAX; }
     }

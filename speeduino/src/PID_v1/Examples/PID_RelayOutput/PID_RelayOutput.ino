@@ -7,10 +7,10 @@
  *
  *   to connect them together we use "time proportioning
  * control"  it's essentially a really slow version of PWM.
- * first we decide on a window size (5000mS say.) we then 
+ * first we decide on a window size (5000mS say.) we then
  * set the pid to adjust its output between 0 and that window
  * size.  lastly, we add some logic that translates the PID
- * output into "Relay On Time" with the remainder of the 
+ * output into "Relay On Time" with the remainder of the
  * window being "Relay Off Time"
  ********************************************************/
 
@@ -28,7 +28,7 @@ unsigned long windowStartTime;
 void setup()
 {
   windowStartTime = millis();
-  
+
   //initialize the variables we're linked to
   Setpoint = 100;
 
@@ -55,6 +55,3 @@ void loop()
   else digitalWrite(RelayPin,LOW);
 
 }
-
-
-

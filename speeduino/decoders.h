@@ -11,7 +11,7 @@
 #else
   #define READ_PRI_TRIGGER() digitalRead(pinTrigger)
   #define READ_SEC_TRIGGER() digitalRead(pinTrigger2)
-  #define READ_THIRD_TRIGGER() digitalRead(pinTrigger3)  
+  #define READ_THIRD_TRIGGER() digitalRead(pinTrigger3)
 #endif
 
 #define DECODER_MISSING_TOOTH     0
@@ -46,7 +46,7 @@
 
 #define BIT_DECODER_2ND_DERIV           0 //The use of the 2nd derivative calculation is limited to certain decoders. This is set to either true or false in each decoders setup routine
 #define BIT_DECODER_IS_SEQUENTIAL       1 //Whether or not the decoder supports sequential operation
-#define BIT_DECODER_UNUSED1             2 
+#define BIT_DECODER_UNUSED1             2
 #define BIT_DECODER_HAS_SECONDARY       3 //Whether or not the decoder supports fixed cranking timing
 #define BIT_DECODER_HAS_FIXED_CRANKING  4
 #define BIT_DECODER_VALID_TRIGGER       5 //Is set true when the last trigger (Primary or secondary) was valid (ie passed filters)
@@ -62,10 +62,10 @@ extern volatile uint8_t decoderState;
 
 /**
  * @brief Is the engine running?
- * 
+ *
  * This is based on whether or not the decoder has detected a tooth recently
- * 
- * @param curTime The time in µS to use for the liveness check. Typically the result of a recent call to micros() 
+ *
+ * @param curTime The time in µS to use for the liveness check. Typically the result of a recent call to micros()
  * @return true If the engine is turning
  * @return false If the engine is not turning
  */
@@ -77,7 +77,7 @@ extern volatile bool triggerToothAngleIsCorrect; //Whether or not the triggerToo
 extern bool secondDerivEnabled; //The use of the 2nd derivative calculation is limited to certain decoders. This is set to either true or false in each decoders setup routine
 extern bool decoderIsSequential; //Whether or not the decoder supports sequential operation
 extern bool decoderHasSecondary; //Whether or not the pattern uses a secondary input
-extern bool decoderHasFixedCrankingTiming; 
+extern bool decoderHasFixedCrankingTiming;
 */
 
 void loggerPrimaryISR(void);

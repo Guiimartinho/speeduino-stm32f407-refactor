@@ -18,13 +18,13 @@
 
 static bool commandRequiresStoppedEngine(uint16_t buttonCommand)
 {
-  return ((buttonCommand >= TS_CMD_INJ1_ON) && (buttonCommand <= TS_CMD_IGN8_PULSED)) 
+  return ((buttonCommand >= TS_CMD_INJ1_ON) && (buttonCommand <= TS_CMD_IGN8_PULSED))
       || ((buttonCommand == TS_CMD_TEST_ENBL) || (buttonCommand == TS_CMD_TEST_DSBL));
 }
 
 /**
- * @brief 
- * 
+ * @brief
+ *
  * @param buttonCommand The command number of the button that was clicked. See TS_CommendButtonHandler.h for a list of button IDs
  */
 bool TS_CommandButtonsHandler(uint16_t buttonCommand)
@@ -33,7 +33,7 @@ bool TS_CommandButtonsHandler(uint16_t buttonCommand)
   {
     return false;
   }
-  
+
   switch (buttonCommand)
   {
     case TS_CMD_TEST_DSBL: // cmd is stop
@@ -342,7 +342,7 @@ bool TS_CommandButtonsHandler(uint16_t buttonCommand)
       }
       break;
 
-    case TS_CMD_VSS_RATIO4: 
+    case TS_CMD_VSS_RATIO4:
       if(currentStatus.vss > 0)
       {
         configPage2.vssRatio4 = (currentStatus.vss * 10000UL) / currentStatus.RPM;

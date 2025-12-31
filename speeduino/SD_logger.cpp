@@ -280,26 +280,26 @@ elapsedMillis msSinceLastSDSync;
 void initSD()
 {
   //Set default state to ready. If any stage of the init fails, this will be changed
-  SD_status = SD_STATUS_READY; 
+  SD_status = SD_STATUS_READY;
 
   //Set the RTC callback. This is used to set the correct timestamp on file creation and sync operations
   FsDateTime::setCallback(dateTime);
 
   // Initialise the SD.
-  if (!sd.begin(SD_CONFIG)) 
+  if (!sd.begin(SD_CONFIG))
   {
     //sd.initErrorHalt(&Serial);
     //if (sdErrorCode() == SD_CARD_ERROR_CMD0) { SD_status = SD_STATUS_ERROR_NO_CARD;
     SD_status = SD_STATUS_ERROR_NO_CARD;
   }
-  
+
   //Set the TunerStudio status variable
   setTS_SD_status();
 }
 
 bool createLogFile()
 {
-  //TunerStudio only supports 8.3 filename format. 
+  //TunerStudio only supports 8.3 filename format.
   char filenameBuffer[13]; //8 + 1 + 3 + 1
   bool returnValue = false;
 
@@ -336,7 +336,7 @@ bool createLogFile()
   snprintf(filenameBuffer, 13, "%s%04d.%s", LOG_FILE_PREFIX, currentLogFileNumber, LOG_FILE_EXTENSION);
 
   logFile.close();
-  if (logFile.open(filenameBuffer, O_RDWR | O_CREAT | O_TRUNC)) 
+  if (logFile.open(filenameBuffer, O_RDWR | O_CREAT | O_TRUNC))
   {
     returnValue = true;
   }
@@ -369,7 +369,7 @@ bool getSDLogFileDetails(uint8_t* buffer, uint16_t logNumber)
   char filenameBuffer[13]; //8 + 1 + 3 + 1
   if(logNumber > MAX_LOG_FILES) { logNumber = MAX_LOG_FILES; } //If we've run out of file numbers, start again from 1
   snprintf(filenameBuffer, 13, "%s%04d.%s", LOG_FILE_PREFIX, logNumber, LOG_FILE_EXTENSION);
-  
+
   if(sd.exists(filenameBuffer))
   {
     fileFound = true;
@@ -446,7 +446,7 @@ void beginSDLogging()
     SD_status = SD_STATUS_ACTIVE; //Set the status as being active so that entries will begin to be written. This will be updated below if there is an error
 
     // Open or create file - truncate existing file.
-    if (!createLogFile()) 
+    if (!createLogFile())
     {
       SD_status = SD_STATUS_ERROR_NO_WRITE;
       setTS_SD_status();
@@ -454,7 +454,7 @@ void beginSDLogging()
     }
 
     //Perform pre-allocation on card. This dramatically improves write speed
-    if (!logFile.preAllocate(SD_LOG_FILE_SIZE)) 
+    if (!logFile.preAllocate(SD_LOG_FILE_SIZE))
     {
       SD_status = SD_STATUS_ERROR_NO_SPACE;
       setTS_SD_status();
@@ -522,8 +522,8 @@ void writeSDLogEntry()
       {
         #if FPU_MAX_SIZE >= 32
           float entryValue = getReadableFloatLogEntry(x);
-          if(IS_INTEGER(entryValue)) 
-          { 
+          if(IS_INTEGER(entryValue))
+          {
             uint16_t entryValueInt = (uint16_t)entryValue;
             if(entryValueInt <= UCHAR_MAX) { rb.print((uint8_t)entryValueInt); }
             else { rb.print(entryValueInt); }
@@ -541,10 +541,10 @@ void writeSDLogEntry()
     //We write to SD when there is more than 1 sector worth of data in the ringbuffer and there is not already a write being performed
     if( (rb.bytesUsed() >= SD_SECTOR_SIZE) && !logFile.isBusy())
     {
-      uint16_t bytesWritten = rb.writeOut(SD_SECTOR_SIZE); 
-      
+      uint16_t bytesWritten = rb.writeOut(SD_SECTOR_SIZE);
+
       //Make sure that the entire sector was written successfully
-      if (SD_SECTOR_SIZE != bytesWritten) 
+      if (SD_SECTOR_SIZE != bytesWritten)
       {
         SD_status = SD_STATUS_ERROR_WRITE_FAIL;
       }
@@ -592,9 +592,9 @@ void setTS_SD_status()
   else { BIT_SET(currentStatus.TS_SD_Status, SD_STATUS_CARD_PRESENT); } // CARD present
 
   BIT_SET(currentStatus.TS_SD_Status, SD_STATUS_CARD_TYPE); // CARD is SDHC
-  
+
   BIT_SET(currentStatus.TS_SD_Status, SD_STATUS_CARD_READY); // CARD is ready
-  
+
   if( SD_status == SD_STATUS_ACTIVE ) { BIT_SET(currentStatus.TS_SD_Status, SD_STATUS_CARD_LOGGING); }// CARD is logging
   else { BIT_CLEAR(currentStatus.TS_SD_Status, SD_STATUS_CARD_LOGGING); }// CARD is not logging
 
@@ -605,7 +605,7 @@ void setTS_SD_status()
   BIT_CLEAR(currentStatus.TS_SD_Status, SD_STATUS_CARD_UNUSED); //Unused bit is always 0
 }
 
-/** 
+/**
  * Checks whether the SD logging should be started based on the logging trigger conditions
  */
 void checkForSDStart()
@@ -622,7 +622,7 @@ void checkForSDStart()
       if((millis() / 1000) <= configPage13.onboard_log_tr1_duration)
       {
         beginSDLogging(); //Setup the log file, preallocation, header row
-      }    
+      }
     }
 
     //Check for RPM based Enable
@@ -658,7 +658,7 @@ void checkForSDStart()
   }
 }
 
-/** 
+/**
  * Checks whether the SD logging should be stopped, based on the logging trigger conditions
  */
 void checkForSDStop()
@@ -719,11 +719,11 @@ void checkForSDStop()
     if(configPage13.onboard_log_file_style == 0) { endSDLogging(); }
   }
 
-  
+
 }
 
 bool syncSDLog()
-{     
+{
   if( (SD_status == SD_STATUS_ACTIVE) && (!logFile.isBusy()) && (!sd.isBusy()) )
   {
     logFile.sync();
@@ -732,8 +732,8 @@ bool syncSDLog()
   return false;
 }
 
-/** 
- * Will perform a complete format of the SD card to ExFAT. 
+/**
+ * Will perform a complete format of the SD card to ExFAT.
  * This will delete all files and create a new empty file system.
  * The SD status will be set to busy when this happens to prevent any other operations
  */
@@ -746,9 +746,9 @@ void formatExFat()
 
   logFile.close();
 
-  if (sd.cardBegin(SD_CONFIG)) 
+  if (sd.cardBegin(SD_CONFIG))
   {
-    if(sd.format()) 
+    if(sd.format())
     {
       if (sd.volumeBegin())
       {
@@ -763,13 +763,13 @@ void formatExFat()
 
 /**
  * @brief Deletes a log file from the SD card
- * 
+ *
  * Log files all have the same name with a 4 digit number at the end (Eg SPD_0001.csv). TS sends the 4 digits as ASCII characters and they are combined here with the logfile prefix
- * 
- * @param log1 
- * @param log2 
- * @param log3 
- * @param log4 
+ *
+ * @param log1
+ * @param log2
+ * @param log3
+ * @param log4
  */
 void deleteLogFile(char log1, char log2, char log3, char log4)
 {
@@ -791,14 +791,14 @@ void deleteLogFile(char log1, char log2, char log3, char log4)
 
 // Call back for file timestamps.  Only called for file create and sync().
 void dateTime(uint16_t* date, uint16_t* time, uint8_t* ms10) {
-  
+
   // Return date using FS_DATE macro to format fields.
   //*date = FS_DATE(year(), month(), day());
   *date = FS_DATE(rtc_getYear(), rtc_getMonth(), rtc_getDay());
 
   // Return time using FS_TIME macro to format fields.
   *time = FS_TIME(rtc_getHour(), rtc_getMinute(), rtc_getSecond());
-  
+
   // Return low time bits in units of 10 ms.
   *ms10 = rtc_getSecond() & 1 ? 100 : 0;
 }

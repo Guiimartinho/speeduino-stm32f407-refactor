@@ -7,7 +7,7 @@ typedef uint8_t byte;
 
 int main(int argc, char **argv) {
   UNITY_BEGIN();
-  
+
   testTables();
   RUN_TEST(test_all_incrementing);
 

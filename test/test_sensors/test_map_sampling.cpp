@@ -16,7 +16,7 @@ extern  bool canUseCycleAverage(const statuses &current, const config2 &page2);
 
 static void enable_cycle_average(statuses &current, config2 &page2) {
   current.RPMdiv100 = 43;
-  page2.mapSwitchPoint = 15; 
+  page2.mapSwitchPoint = 15;
   current.startRevolutions = 55;
   current.hasSync = true;
   current.status3 =  0U;
@@ -151,7 +151,7 @@ struct cycleMinmumMAPReading_test_data {
 
 static void setup_cycle_minimum(cycleMinmumMAPReading_test_data &test_data) {
   test_data.current.RPMdiv100 = 43;
-  test_data.page2.mapSwitchPoint = 15; 
+  test_data.page2.mapSwitchPoint = 15;
   test_data.cycle_min.cycleStartIndex = 0;
   test_data.cycle_min.mapMinimum = UINT16_MAX;
 }
@@ -162,7 +162,7 @@ static void setup_cycle_minimum(cycleMinmumMAPReading_test_data &test_data) {
 
 //   test_data.current.RPMdiv100 = test_data.page2.mapSwitchPoint - 1U;
 //   test_data.sensorReadings.mapADC = 300;
-//   test_data.sensorReadings.emapADC = 500;  
+//   test_data.sensorReadings.emapADC = 500;
 
 //   TEST_ASSERT_TRUE(cycleMinimumMAPReading(test_data.current, test_data.page2, test_data.cycle_min, test_data.sensorReadings));
 //   TEST_ASSERT_EQUAL_UINT(UINT16_MAX, test_data.cycle_min.mapMinimum);
@@ -210,7 +210,7 @@ extern bool eventAverageMAPReading(const statuses &current, const config2 &page2
 
 static void enable_event_average(statuses &current, config2 &page2) {
   current.RPMdiv100 = 43;
-  page2.mapSwitchPoint = 15; 
+  page2.mapSwitchPoint = 15;
   current.startRevolutions = 55;
   current.hasSync = true;
   current.status3 =  0U;
@@ -241,7 +241,7 @@ static void test_canUseEventAverage(void) {
 
   current.engineProtectStatus = 1;
   TEST_ASSERT_FALSE(canUseEventAverage(current, page2));
-  current.engineProtectStatus = 0;  
+  current.engineProtectStatus = 0;
 }
 
 
@@ -354,5 +354,5 @@ void test_map_sampling(void) {
     RUN_TEST(test_eventAverageMAPReading);
     RUN_TEST(test_eventAverageMAPReading_nosamples);
     RUN_TEST(test_validateFilterMapSensorReading);
-  }    
+  }
 }

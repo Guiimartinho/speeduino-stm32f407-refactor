@@ -47,7 +47,7 @@ typedef struct {
     uint16_t sectors;
     uint16_t blocks;
 }pnListType;
-  
+
 static const pnListType pnList[] PROGMEM = {
     { winbondFlashClass::W25Q80, 0x4014,1048576, 4096, 256, 16  },
     { winbondFlashClass::W25Q16, 0x4015,2097152, 8192, 512, 32  },
@@ -55,8 +55,8 @@ static const pnListType pnList[] PROGMEM = {
     { winbondFlashClass::W25Q64, 0x4017,8388608, 32768,2048,128 },
     { winbondFlashClass::W25Q128,0x4018,16777216,65536,4096,256 }
 };
-  
-  
+
+
 uint16_t winbondFlashClass::readSR()
 {
   uint8_t r1,r2;
@@ -120,7 +120,7 @@ bool winbondFlashClass::checkPartNo(partNumber _partno)
 {
   uint8_t manuf;
   uint16_t id;
-  
+
   select();
   transfer(R_JEDEC_ID);
   manuf = transfer(0x00);
@@ -238,7 +238,7 @@ bool winbondFlashClass::begin(partNumber _partno)
   transfer(RELEASE);
   deselect();
   delayMicroseconds(15);//>3us
- 
+
   if(!checkPartNo(_partno)) return false;
   else return true;
 }
@@ -255,7 +255,7 @@ uint16_t winbondFlashClass::read (uint32_t addr,uint8_t *buf,uint16_t n)
 {
   if(busy())
     return 0;
-  
+
   select();
   transfer(READ);
   transfer(addr>>16);
@@ -266,7 +266,7 @@ uint16_t winbondFlashClass::read (uint32_t addr,uint8_t *buf,uint16_t n)
     buf[i] = transfer(0x00);
   }
   deselect();
-  
+
   return n;
 }
 
@@ -277,19 +277,19 @@ void winbondFlashClass::writePage(uint32_t addr_start,uint8_t *buf, uint16_t n)
   transfer(addr_start>>16);
   transfer(addr_start>>8);
   transfer(addr_start);
-  
-  
+
+
   for(uint16_t i=0; i < n; i++)
   {
       transfer(buf[i]);
   }
 
-  //uint8_t i=0;	
+  //uint8_t i=0;
   //do {
   //  transfer(buf[i]);
   //  i++;
   //}while(i!=0);
-  
+
   deselect();
 }
 
@@ -359,6 +359,3 @@ void winbondFlashSPI::end()
   winbondFlashClass::end();
   // spi_port->end();
 }
-
-
-

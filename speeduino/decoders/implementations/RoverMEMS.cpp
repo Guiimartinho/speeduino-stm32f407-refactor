@@ -23,10 +23,10 @@ void triggerPri_RoverMEMS() {
     curTime = micros();
     curGap = curTime - toothLastToothTime;
     if (curGap < triggerFilterTime) { return; }
-    
+
     toothCurrentCount++;
     BIT_SET(decoderState, BIT_DECODER_VALID_TRIGGER);
-    
+
     if (toothCurrentCount >= 361) {
         toothCurrentCount = 1;
         toothOneMinusOneTime = toothOneTime;
@@ -34,7 +34,7 @@ void triggerPri_RoverMEMS() {
         currentStatus.hasSync = true;
         currentStatus.startRevolutions++;
     }
-    
+
     setFilter(curGap);
     toothLastMinusOneToothTime = toothLastToothTime;
     toothLastToothTime = curTime;
@@ -53,11 +53,11 @@ int getCrankAngle_RoverMEMS() {
         tempToothLastToothTime = toothLastToothTime;
         lastCrankAngleCalc = micros();
         interrupts();
-        
+
         crankAngle = ((tempToothCurrentCount - 1) * 2) + configPage4.triggerAngle;
         elapsedTime = (lastCrankAngleCalc - tempToothLastToothTime);
         crankAngle += timeToAngleDegPerMicroSec(elapsedTime);
-        
+
         if (crankAngle >= 720) { crankAngle -= 720; }
         if (crankAngle < 0) { crankAngle += 360; }
     }

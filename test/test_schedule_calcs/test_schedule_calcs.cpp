@@ -19,14 +19,14 @@ void setup()
   test_calc_ign_timeout();
   test_calc_inj_timeout();
   test_adjust_crank_angle();
-  
+
   UNITY_END(); // stop unit testing
 
 #if defined(SIMULATOR)       // Tell SimAVR we are done
     cli();
     sleep_enable();
     sleep_cpu();
-#endif     
+#endif
 }
 
 void loop()

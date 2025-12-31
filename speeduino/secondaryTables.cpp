@@ -187,7 +187,7 @@ void calculateSecondaryFuel(const config10 &page10, const table3d16RpmLoad &veLo
   if(page10.fuel2Mode == FUEL2_MODE_MULTIPLY)
   {
     current.VE2 = lookupVE2(page10, veLookupTable, current);
-    BIT_SET(current.status3, BIT_STATUS3_FUEL2_ACTIVE); //Set the bit indicating that the 2nd fuel table is in use. 
+    BIT_SET(current.status3, BIT_STATUS3_FUEL2_ACTIVE); //Set the bit indicating that the 2nd fuel table is in use.
     //Fuel 2 table is treated as a % value. Table 1 and 2 are multiplied together and divided by 100
     auto combinedVE = percentage(current.VE2, current.VE1);
     current.VE = (uint8_t)min((uint32_t)UINT8_MAX, combinedVE);
@@ -195,7 +195,7 @@ void calculateSecondaryFuel(const config10 &page10, const table3d16RpmLoad &veLo
   else if(page10.fuel2Mode == FUEL2_MODE_ADD)
   {
     current.VE2 = lookupVE2(page10, veLookupTable, current);
-    BIT_SET(current.status3, BIT_STATUS3_FUEL2_ACTIVE); //Set the bit indicating that the 2nd fuel table is in use. 
+    BIT_SET(current.status3, BIT_STATUS3_FUEL2_ACTIVE); //Set the bit indicating that the 2nd fuel table is in use.
     //Fuel tables are added together, but a check is made to make sure this won't overflow the 8-bit VE value
     uint16_t combinedVE = (uint16_t)current.VE1 + (uint16_t)current.VE2;
     current.VE = (uint8_t)min((uint16_t)UINT8_MAX, combinedVE);
@@ -203,7 +203,7 @@ void calculateSecondaryFuel(const config10 &page10, const table3d16RpmLoad &veLo
   else if(fuelModeCondSwitchActive(page10, current) || fuelModeInputSwitchActive(page10))
   {
     current.VE2 = lookupVE2(page10, veLookupTable, current);
-    BIT_SET(current.status3, BIT_STATUS3_FUEL2_ACTIVE); //Set the bit indicating that the 2nd fuel table is in use. 
+    BIT_SET(current.status3, BIT_STATUS3_FUEL2_ACTIVE); //Set the bit indicating that the 2nd fuel table is in use.
     current.VE = current.VE2;
   }
   else
@@ -428,7 +428,7 @@ static inline bool isFixedTimingOn(const config2 &page2, const statuses &current
  */
 void calculateSecondarySpark(const config2 &page2, const config10 &page10, const table3d16RpmLoad &sparkLookupTable, statuses &current)
 {
-  BIT_CLEAR(current.status5, BIT_STATUS5_SPARK2_ACTIVE); //Clear the bit indicating that the 2nd spark table is in use. 
+  BIT_CLEAR(current.status5, BIT_STATUS5_SPARK2_ACTIVE); //Clear the bit indicating that the 2nd spark table is in use.
   current.advance2 = 0;
 
   if (!isFixedTimingOn(page2, current))
@@ -446,8 +446,8 @@ void calculateSecondarySpark(const config2 &page2, const config10 &page10, const
       current.advance2 = constrainAdvance((int16_t)spark2Percent-(int16_t)INT8_MAX);
     }
     else if(page10.spark2Mode == SPARK2_MODE_ADD)
-    {    
-      BIT_SET(current.status5, BIT_STATUS5_SPARK2_ACTIVE); //Set the bit indicating that the 2nd spark table is in use. 
+    {
+      BIT_SET(current.status5, BIT_STATUS5_SPARK2_ACTIVE); //Set the bit indicating that the 2nd spark table is in use.
       current.advance2 = constrainAdvance(lookupSpark2(page10, sparkLookupTable, current));
       //Spark tables are added together, but a check is made to make sure this won't overflow the 8-bit VE value
       int16_t combinedAdvance = (int16_t)current.advance1 + (int16_t)current.advance2;
@@ -455,13 +455,13 @@ void calculateSecondarySpark(const config2 &page2, const config10 &page10, const
     }
     else if(sparkModeCondSwitchActive(page10, current) || sparkModeInputSwitchActive(page10))
     {
-      BIT_SET(current.status5, BIT_STATUS5_SPARK2_ACTIVE); //Set the bit indicating that the 2nd spark table is in use. 
+      BIT_SET(current.status5, BIT_STATUS5_SPARK2_ACTIVE); //Set the bit indicating that the 2nd spark table is in use.
 #if defined(UNIT_TEST)
       current.advance2 = constrainAdvance(lookupSpark2(page10, sparkLookupTable, current));
 #else
       //Perform the corrections calculation on the secondary advance value, only if it uses a switched mode
       current.advance2 = correctionsIgn(constrainAdvance(lookupSpark2(page10, sparkLookupTable, current)));
-#endif      
+#endif
       current.advance = current.advance2;
     }
     else

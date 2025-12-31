@@ -56,8 +56,8 @@ A full copy of the license may be found in the projects root directory
 #define STEPPER_LESS_AIR_DIRECTION() ((configPage9.iacStepperInv == 0) ? STEPPER_BACKWARD : STEPPER_FORWARD)
 #define STEPPER_MORE_AIR_DIRECTION() ((configPage9.iacStepperInv == 0) ? STEPPER_FORWARD : STEPPER_BACKWARD)
 
-byte idleUpOutputHIGH = HIGH; // Used to invert the idle Up Output 
-byte idleUpOutputLOW = LOW;   // Used to invert the idle Up Output 
+byte idleUpOutputHIGH = HIGH; // Used to invert the idle Up Output
+byte idleUpOutputLOW = LOW;   // Used to invert the idle Up Output
 byte idleCounter; //Used for tracking the number of calls to the idle control function
 uint8_t idleTaper;
 
@@ -591,7 +591,7 @@ void initialiseIdleUpOutput(void)
   if (configPage2.idleUpOutputInv == 1) { idleUpOutputHIGH = LOW; idleUpOutputLOW = HIGH; }
   else { idleUpOutputHIGH = HIGH; idleUpOutputLOW = LOW; }
 
-  if(configPage2.idleUpEnabled > 0) { digitalWrite(pinIdleUpOutput, idleUpOutputLOW); } //Initialise program with the idle up output in the off state if it is enabled. 
+  if(configPage2.idleUpEnabled > 0) { digitalWrite(pinIdleUpOutput, idleUpOutputLOW); } //Initialise program with the idle up output in the off state if it is enabled.
   currentStatus.idleUpOutputActive = false;
 
   idleUpOutput_pin_port = portOutputRegister(digitalPinToPort(pinIdleUpOutput));

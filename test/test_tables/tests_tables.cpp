@@ -7,7 +7,7 @@
 #include "../test_utils.h"
 
 TEST_DATA_P table3d_value_t values[] = {
-  //0     1      2    3     4     5     6     7  
+  //0     1      2    3     4     5     6     7
     8,		11,		14,		17,		20,		23,		26,		29, // 0
     32,		35,		38,		41,		44,		47,		50,		53, // 1
     56,		59,		62,		65,		68,		71,		74,		77, // 2
@@ -118,7 +118,7 @@ static void test_all_incrementing(void)
   populate_table_P(testTable, tempXAxis, tempYAxis, values);
 
   uint16_t tempVE = 0;
-  
+
   for(uint16_t rpm = 0; rpm<xMax+1000; rpm+=100)
   {
     tempVE = 0;
@@ -129,8 +129,8 @@ static void test_all_incrementing(void)
       // sprintf(buffer, "%d, %d"
       //                 ", %d, %d, %d, %d"
       //                 ", %d, %d, %d, %d"
-      //                 ", %d", 
-      //                 rpm, load, 
+      //                 ", %d",
+      //                 rpm, load,
       //                 testTable.get_value_cache.lastXMin, testTable.get_value_cache.lastBinMax.x,
       //                 tempXAxis[testTable.get_value_cache.lastXMin], tempXAxis[testTable.get_value_cache.lastBinMax.x],
 
@@ -144,7 +144,7 @@ static void test_all_incrementing(void)
     }
   }
 }
-extern table3d_dim_t linear_bin_search(const table3d_axis_t *array, 
+extern table3d_dim_t linear_bin_search(const table3d_axis_t *array,
                             const table3d_dim_t length,
                             const table3d_axis_t value);
 
@@ -188,7 +188,7 @@ extern uint16_t compute_bin_position(const uint16_t &value, const table3d_dim_t 
 
 static void assert_compute_bin_position(table3d_axis_t *axis, uint16_t multiplier, uint8_t percent) {
   char msg[64];
-  sprintf(msg, "Mul: %u, Pct: %u", multiplier, percent);  
+  sprintf(msg, "Mul: %u, Pct: %u", multiplier, percent);
   TEST_ASSERT_INT_WITHIN_MESSAGE(1U, percentage(percent, QU1X8_ONE), compute_bin_position(intermediate(axis[1U]*multiplier, axis[0U]*multiplier, percent), 0U, axis, multiplier), msg);
 }
 
@@ -267,5 +267,5 @@ void testTables()
   RUN_TEST(test_bilinear_interpolation);
   // RUN_TEST(test_all_incrementing);
 
-  }  
+  }
 }

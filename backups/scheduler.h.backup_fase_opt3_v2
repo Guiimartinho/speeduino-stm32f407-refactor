@@ -189,17 +189,17 @@ struct IgnitionSchedule {
   counter_t &counter;  // Reference to the counter register. E.g. TCNT3
   compare_t &compare;  // Reference to the compare register. E.g. OCR3A
   void (&pTimerDisable)();    // Reference to the timer disable function
-  void (&pTimerEnable)();     // Reference to the timer enable function  
+  void (&pTimerEnable)();     // Reference to the timer enable function
 };
 
 void _setIgnitionScheduleRunning(IgnitionSchedule &schedule, unsigned long timeout, unsigned long duration);
 void _setIgnitionScheduleNext(IgnitionSchedule &schedule, unsigned long timeout, unsigned long duration);
 
-inline __attribute__((always_inline)) void setIgnitionSchedule(IgnitionSchedule &schedule, unsigned long timeout, unsigned long duration) 
+inline __attribute__((always_inline)) void setIgnitionSchedule(IgnitionSchedule &schedule, unsigned long timeout, unsigned long duration)
 {
   if((timeout) < MAX_TIMER_PERIOD)
   {
-    if(schedule.Status != RUNNING) 
+    if(schedule.Status != RUNNING)
     { //Check that we're not already part way through a schedule
       _setIgnitionScheduleRunning(schedule, timeout, duration);
     }
@@ -236,29 +236,29 @@ struct FuelSchedule {
   volatile ScheduleStatus Status; ///< Schedule status: OFF, PENDING, STAGED, RUNNING
   volatile COMPARE_TYPE startCompare; ///< The counter value of the timer when this will start
   void (*pStartFunction)(void);
-  void (*pEndFunction)(void);  
+  void (*pEndFunction)(void);
   COMPARE_TYPE nextStartCompare;
   volatile bool hasNextSchedule = false;
 
   counter_t &counter;  // Reference to the counter register. E.g. TCNT3
   compare_t &compare;  // Reference to the compare register. E.g. OCR3A
   void (&pTimerDisable)();    // Reference to the timer disable function
-  void (&pTimerEnable)();     // Reference to the timer enable function  
+  void (&pTimerEnable)();     // Reference to the timer enable function
 };
 
 void _setFuelScheduleRunning(FuelSchedule &schedule, unsigned long timeout, unsigned long duration);
 void _setFuelScheduleNext(FuelSchedule &schedule, unsigned long timeout, unsigned long duration);
 
-inline __attribute__((always_inline)) void setFuelSchedule(FuelSchedule &schedule, unsigned long timeout, unsigned long duration) 
+inline __attribute__((always_inline)) void setFuelSchedule(FuelSchedule &schedule, unsigned long timeout, unsigned long duration)
 {
   if((timeout) < MAX_TIMER_PERIOD)
   {
-    if(schedule.Status != RUNNING) 
+    if(schedule.Status != RUNNING)
     { //Check that we're not already part way through a schedule
       _setFuelScheduleRunning(schedule, timeout, duration);
     }
     //If the schedule is already running, we can queue up the next pulse. Only do this however if the maximum time between pulses (Based on CRANK_ANGLE_MAX_INJ) is less than the max timer period
-    else if(angleToTimeMicroSecPerDegree(CRANK_ANGLE_MAX_INJ) < MAX_TIMER_PERIOD) 
+    else if(angleToTimeMicroSecPerDegree(CRANK_ANGLE_MAX_INJ) < MAX_TIMER_PERIOD)
     {
       _setFuelScheduleNext(schedule, timeout, duration);
     }

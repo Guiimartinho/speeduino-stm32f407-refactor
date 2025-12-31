@@ -40,5 +40,5 @@ void test_LOW_PASS_FILTER(void) {
     RUN_TEST(test_U16_max);
     RUN_TEST(test_S16_min);
     RUN_TEST(test_S16_max);
-  }    
+  }
 }

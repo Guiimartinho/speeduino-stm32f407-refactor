@@ -4,7 +4,7 @@
  * @details REFACTORED from decoders.cpp (lines 2902-3043)
  *
  * Pattern: 4 crank teeth + cam tooth
- * - Alternating 72° and 108° spacing  
+ * - Alternating 72° and 108° spacing
  * - Tooth #2 defined after single cam tooth
  * - Tooth #1 at 348° ATDC
  * - Sequential mode

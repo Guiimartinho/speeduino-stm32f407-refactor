@@ -179,7 +179,7 @@ void test_status_off_to_pending(void)
     RUN_TEST(test_status_off_to_pending_ign2);
     RUN_TEST(test_status_off_to_pending_ign3);
     RUN_TEST(test_status_off_to_pending_ign4);
-#if IGN_CHANNELS >= 5    
+#if IGN_CHANNELS >= 5
     RUN_TEST(test_status_off_to_pending_ign5);
 #endif
 #if IGN_CHANNELS >= 6

@@ -1,10 +1,10 @@
 /**
  * @file
- * 
+ *
  * @brief The tune page structs and related defines.
- * 
+ *
  * @warning The structs in this file must match the page layouts defined in the INI file.
- * 
+ *
  */
 
 #pragma once
@@ -233,8 +233,8 @@ using byte = uint8_t;
 #define BATTV_COR_MODE_OPENTIME 1
 
 enum MAPSamplingMethod {
-  MAPSamplingInstantaneous = 0, 
-  MAPSamplingCycleAverage = 1, 
+  MAPSamplingInstantaneous = 0,
+  MAPSamplingCycleAverage = 1,
   MAPSamplingCycleMinimum = 2,
   MAPSamplingIgnitionEventAverage= 3,
 };
@@ -244,7 +244,7 @@ enum MAPSamplingMethod {
  * (and stored to e.g. EEPROM) from configuration/tuning SW (from outside by USBserial/bluetooth).
  * Contains a lots of *Min, *Max (named) variables to constrain values to sane ranges.
  * See the ini file for further reference.
- * 
+ *
  */
 struct config2 {
 
@@ -362,7 +362,7 @@ struct config2 {
   byte idleAdvEnabled : 2;
   byte idleAdvAlgorithm : 1;
   byte idleAdvDelay : 5;
-  
+
   byte idleAdvRPM;
   byte idleAdvTPS;
 
@@ -375,7 +375,7 @@ struct config2 {
   //VSS Stuff
   byte vssMode : 2; ///< VSS (Vehicle speed sensor) mode (0=none, 1=CANbus, 2,3=Interrupt driven)
   byte vssPin : 6; ///< VSS (Vehicle speed sensor) pin number
-  
+
   uint16_t vssPulsesPerKm; ///< VSS (Vehicle speed sensor) pulses per Km
   byte vssSmoothing;
   uint16_t vssRatio1;
@@ -409,7 +409,7 @@ struct config2 {
 #if defined(CORE_AVR)
   };
 #else
-  } __attribute__((packed,aligned(__alignof__(uint16_t)))); //The 32 bit systems require all structs to be fully packed, aligned to their largest member type 
+  } __attribute__((packed,aligned(__alignof__(uint16_t)))); //The 32 bit systems require all structs to be fully packed, aligned to their largest member type
 #endif
 
 #define IDLEADVANCE_MODE_OFF      0U
@@ -488,7 +488,7 @@ struct config4 {
   uint8_t ADCFILTER_BAT;
   uint8_t ADCFILTER_MAP; //This is only used on Instantaneous MAP readings and is intentionally very weak to allow for faster response
   uint8_t ADCFILTER_BARO;
-  
+
   byte cltAdvBins[6];   /**< Coolant Temp timing advance curve bins */
   byte cltAdvValues[6]; /**< Coolant timing advance curve values. These are translated by 15 to allow for negative values */
 
@@ -519,7 +519,7 @@ struct config4 {
 #if defined(CORE_AVR)
   };
 #else
-  } __attribute__((packed,aligned(__alignof__(uint16_t)))); //The 32 bit systems require all structs to be fully packed, aligned to their largest member type 
+  } __attribute__((packed,aligned(__alignof__(uint16_t)))); //The 32 bit systems require all structs to be fully packed, aligned to their largest member type
 #endif
 
 /** Page 6 of the config - mostly variables that are required for AFR targets and closed loop.
@@ -530,7 +530,7 @@ struct config6 {
   byte egoAlgorithm : 2; ///< EGO Algorithm - Simple, PID, No correction
   byte egoType : 2;      ///< EGO Sensor Type 0=Disabled/None, 1=Narrowband, 2=Wideband
   byte boostEnabled : 1; ///< Boost control enabled 0 =off, 1 = on
-  byte vvtEnabled : 1;   ///< 
+  byte vvtEnabled : 1;   ///<
   byte engineProtectType : 2;
 
   byte egoKP;
@@ -566,12 +566,12 @@ struct config6 {
   // Launch stuff, see beginning of speeduino.ino main loop
   byte launchPin : 6; ///< Launch (control ?) pin
   byte launchEnabled : 1; ///< Launch ...???... (control?) enabled
-  byte launchHiLo : 1;  // 
+  byte launchHiLo : 1;  //
 
   byte lnchSoftLim;
   int8_t lnchRetard; //Allow for negative advance value (ATDC)
   byte lnchHardLim;
-  int8_t lnchFuelAdd; //Note signed. 
+  int8_t lnchFuelAdd; //Note signed.
 
   //PID values for idle needed to go here as out of room in the idle page
   byte idleKP;
@@ -621,7 +621,7 @@ struct config6 {
 #if defined(CORE_AVR)
   };
 #else
-  } __attribute__((packed,aligned(__alignof__(uint8_t)))); //The 32 bit systems require all structs to be fully packed, aligned to their largest member type 
+  } __attribute__((packed,aligned(__alignof__(uint8_t)))); //The 32 bit systems require all structs to be fully packed, aligned to their largest member type
 #endif
 
 /** Page 9 of the config - mostly deals with CANBUS control.
@@ -638,7 +638,7 @@ struct config9 {
   uint16_t caninput_source_can_address[16];        //u16 [15] array holding can address of input
   uint8_t caninput_source_start_byte[16];     //u08 [15] array holds the start byte number(value of 0-7)
   uint16_t caninput_source_num_bytes;     //u16 bit status of the number of bytes length 1 or 2
-  
+
   byte caninputEndianess:1;
   //byte unused:2
   //...
@@ -669,7 +669,7 @@ struct config9 {
 
   byte iacMaxSteps; // Step limit beyond which the stepper won't be driven. Should always be less than homing steps. Stored div 3 as per home steps.
   byte idleAdvStartDelay;     //delay for idle advance engage
-  
+
   byte boostByGear1;
   byte boostByGear2;
   byte boostByGear3;
@@ -698,11 +698,11 @@ struct config9 {
   byte afrProtectDeviation; /* < Maximum deviation from AFR target table. Stored value is multiplied by 10 */
   byte afrProtectCutTime; /* < Time in ms before cut. Stored value is divided by 100. Maximum of 2550 ms */
   byte afrProtectReactivationTPS; /* Disable engine protection cut once below this TPS percentage */
-  
+
 #if defined(CORE_AVR)
   };
 #else
-  } __attribute__((packed,aligned(__alignof__(uint16_t)))); //The 32 bit systems require all structs to be fully packed, aligned to their largest member type 
+  } __attribute__((packed,aligned(__alignof__(uint16_t)))); //The 32 bit systems require all structs to be fully packed, aligned to their largest member type
 #endif
 
 /** Page 10 - No specific purpose. Created initially for the cranking enrich curve.
@@ -786,7 +786,7 @@ struct config10 {
   byte knock_firstStep; //Byte 116
   byte knock_stepSize; //Byte 117
   byte knock_stepTime; //Byte 118
-        
+
   byte knock_duration; //Time after knock retard starts that it should start recovering. Byte 119
   byte knock_recoveryStepTime; //Byte 120
   byte knock_recoveryStep; //Byte 121
@@ -822,7 +822,7 @@ struct config10 {
 
   byte fuelPressurePin : 5;
   byte unused11_165 : 3;
-  
+
   int8_t fuelPressureMin;
   byte fuelPressureMax;
   int8_t oilPressureMin;
@@ -833,7 +833,7 @@ struct config10 {
 
   byte wmiEnabled : 1; // Byte 149
   byte wmiMode : 6;
-  
+
   byte wmiAdvEnabled : 1;
 
   byte wmiTPS; // Byte 150
@@ -888,7 +888,7 @@ struct config10 {
 #if defined(CORE_AVR)
   };
 #else
-  } __attribute__((packed,aligned(2))); //The 32 bit systems require all structs to be fully packed, aligned to their largest member type 
+  } __attribute__((packed,aligned(2))); //The 32 bit systems require all structs to be fully packed, aligned to their largest member type
 #endif
 /** Config for programmable I/O comparison operation (between 2 vars).
  * Operations are implemented in utilities.ino (@ref checkProgrammableIO()).
@@ -921,26 +921,26 @@ struct config13 {
 
   byte unused12_106_116[10];
 
-  byte onboard_log_csv_separator :2;  //";", ",", "tab", "space"  
-  byte onboard_log_file_style    :2;  // "Disabled", "CSV", "Binary", "INVALID" 
-  byte onboard_log_file_rate     :2;  // "1Hz", "4Hz", "10Hz", "30Hz" 
-  byte onboard_log_filenaming    :2;  // "Overwrite", "Date-time", "Sequential", "INVALID" 
+  byte onboard_log_csv_separator :2;  //";", ",", "tab", "space"
+  byte onboard_log_file_style    :2;  // "Disabled", "CSV", "Binary", "INVALID"
+  byte onboard_log_file_rate     :2;  // "1Hz", "4Hz", "10Hz", "30Hz"
+  byte onboard_log_filenaming    :2;  // "Overwrite", "Date-time", "Sequential", "INVALID"
   byte onboard_log_storage       :2;  // "sd-card", "INVALID", "INVALID", "INVALID" ;In the future maybe an onboard spi flash can be used, or switch between SDIO vs SPI sd card interfaces.
   byte onboard_log_trigger_boot  :1;  // "Disabled", "On boot"
   byte onboard_log_trigger_RPM   :1;  // "Disabled", "Enabled"
   byte onboard_log_trigger_prot  :1;  // "Disabled", "Enabled"
   byte onboard_log_trigger_Vbat  :1;  // "Disabled", "Enabled"
-  byte onboard_log_trigger_Epin  :2;  // "Disabled", "polling", "toggle" , "INVALID" 
+  byte onboard_log_trigger_Epin  :2;  // "Disabled", "polling", "toggle" , "INVALID"
   uint16_t onboard_log_tr1_duration;  // Duration of logging that starts on boot
   byte onboard_log_tr2_thr_on;        //  "RPM",      100.0,  0.0,    0,     10000,  0
   byte onboard_log_tr2_thr_off;       //  "RPM",      100.0,  0.0,    0,     10000,  0
   byte onboard_log_tr3_thr_RPM   :1;  // "Disabled", "Enabled"
   byte onboard_log_tr3_thr_MAP   :1;  // "Disabled", "Enabled"
   byte onboard_log_tr3_thr_Oil   :1;  // "Disabled", "Enabled"
-  byte onboard_log_tr3_thr_AFR   :1;  // "Disabled", "Enabled"     
-  byte onboard_log_tr4_thr_on;        // "V",        0.1,   0.0,  0.0,  15.90,      2 ; * (  1 byte)    
-  byte onboard_log_tr4_thr_off;       // "V",        0.1,   0.0,  0.0,  15.90,      2 ; * (  1 byte)   
-  byte onboard_log_tr5_Epin_pin  :6;        // "pin",      0,    0, 0,  1,    255,        0 ;  
+  byte onboard_log_tr3_thr_AFR   :1;  // "Disabled", "Enabled"
+  byte onboard_log_tr4_thr_on;        // "V",        0.1,   0.0,  0.0,  15.90,      2 ; * (  1 byte)
+  byte onboard_log_tr4_thr_off;       // "V",        0.1,   0.0,  0.0,  15.90,      2 ; * (  1 byte)
+  byte onboard_log_tr5_Epin_pin  :6;        // "pin",      0,    0, 0,  1,    255,        0 ;
   byte unused13_125_2            :2;
 
   byte hwTestIgnDuration;
@@ -949,19 +949,19 @@ struct config13 {
 #if defined(CORE_AVR)
   };
 #else
-  } __attribute__((packed,aligned(__alignof__(uint16_t)))); //The 32 bit systems require all structs to be fully packed, aligned to their largest member type 
+  } __attribute__((packed,aligned(__alignof__(uint16_t)))); //The 32 bit systems require all structs to be fully packed, aligned to their largest member type
 #endif
 
 /**
 Page 15 - second page for VVT and boost control.
-256 bytes long. 
+256 bytes long.
 */
 struct config15 {
-  byte boostControlEnable : 1; 
+  byte boostControlEnable : 1;
   byte unused15_1 : 7; //7bits unused
   byte boostDCWhenDisabled;
   byte boostControlEnableThreshold; //if fixed value enable set threshold here.
-  
+
   //Byte 83 - Air conditioning binary points
   byte airConEnable : 1;
   byte airConCompPol : 1;
@@ -992,12 +992,12 @@ struct config15 {
 
   int8_t rollingProtRPMDelta[4]; // Signed RPM value representing how much below the RPM limit. Divided by 10
   byte rollingProtCutPercent[4];
-  
+
   //Bytes 106-255
   byte Unused15_106_255[150];
 
 #if defined(CORE_AVR)
   };
 #else
-  } __attribute__((packed,aligned(__alignof__(uint16_t)))); //The 32 bit systems require all structs to be fully packed, aligned to their largest member type 
+  } __attribute__((packed,aligned(__alignof__(uint16_t)))); //The 32 bit systems require all structs to be fully packed, aligned to their largest member type
 #endif

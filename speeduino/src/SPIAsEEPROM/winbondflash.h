@@ -26,7 +26,7 @@
 #define _W25Q128 winbondFlashClass::W25Q128
 
 class winbondFlashClass {
-public:  
+public:
   enum partNumber {
     custom = -1,
     autoDetect = 0,
@@ -49,7 +49,7 @@ public:
 
   void setWriteEnable(bool cmd = true);
   inline void WE(bool cmd = true) {setWriteEnable(cmd);}
-  
+
   //WE() every time before write or erase
   void writePage(uint32_t addr_start,uint8_t *buf, uint16_t n);//addr is 8bit-aligned, 0x00ffff00
   //write a page, sizeof(buf) is 256 bytes
@@ -66,7 +66,7 @@ public:
   void eraseResume();
 
   bool busy();
-  
+
   uint8_t  readManufacturer();
   uint16_t readPartID();
   uint64_t readUniqueID();
@@ -80,7 +80,7 @@ protected:
   virtual void select() = 0;
   virtual uint8_t transfer(uint8_t x) = 0;
   virtual void deselect() = 0;
-  
+
 };
 
 class winbondFlashSPI: public winbondFlashClass {
@@ -106,4 +106,3 @@ public:
 };
 
 #endif
-

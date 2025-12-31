@@ -10,7 +10,7 @@ No text specified
 Rule 2.2
 No text specified
 Rule 2.3
-Advisory - All defined types must be used. IE No unused types should be defined. 
+Advisory - All defined types must be used. IE No unused types should be defined.
 Rule 2.4
 No text specified
 Rule 2.5
@@ -96,13 +96,13 @@ No text specified
 Rule 9.5
 No text specified
 Rule 10.1
-Required - Operations must be of an essentially correct type (Eg no shift on signed values, comparison is not boolean, incrementing/decrementing a bool etc) 
+Required - Operations must be of an essentially correct type (Eg no shift on signed values, comparison is not boolean, incrementing/decrementing a bool etc)
 Rule 10.2
 No text specified
 Rule 10.3
 Required - The value from an expression must only be assigned to an object with the same or larger essential type
 Rule 10.4
-Required - The target of an operation must be of an appropriate type. Eg No implicit conversion of signed/unsigned. 
+Required - The target of an operation must be of an appropriate type. Eg No implicit conversion of signed/unsigned.
 Rule 10.5
 No text specified
 Rule 10.6
@@ -132,7 +132,7 @@ Required - An integer null pointer shall have no value assigned other than NULL 
 Rule 12.1
 Advisory - Order of operations within an expression must be explicit. Multiple conditions in a logical operation should have brackets around them.
 Rule 12.2
-Required - Right hand side of a shift operation must not exceed the width of the essential value. Potential shift too far or negative shift. 
+Required - Right hand side of a shift operation must not exceed the width of the essential value. Potential shift too far or negative shift.
 Rule 12.3
 Advisory - The comma operator is not permitted.
 Rule 12.4
@@ -264,7 +264,7 @@ No text specified
 Rule 21.7
 No text specified
 Rule 21.8
-Required - Termination functions from stdlib (Eg exit, abort etc) shall not be used 
+Required - Termination functions from stdlib (Eg exit, abort etc) shall not be used
 Rule 21.9
 No text specified
 Rule 21.10

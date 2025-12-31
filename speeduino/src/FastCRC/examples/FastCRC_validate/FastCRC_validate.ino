@@ -31,10 +31,10 @@ uint32_t crc;
   Serial.begin(115200);
 
   Serial.println("CRC Validation");
-  
+
   crc = CRC7.crc7(buf, sizeof(buf));
   printVals("CRC7", 0x75, crc);
-  
+
   crc = CRC8.smbus(buf, sizeof(buf));
   printVals("SMBUS", 0xf4, crc);
 

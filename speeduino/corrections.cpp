@@ -203,7 +203,7 @@ void initialiseCorrections(void)
   PID_AFRTarget = 0L;
   // Toggling between modes resets the PID internal state
   // This is required by the unit tests
-  // TODO: modify PID code to provide a method to reset it. 
+  // TODO: modify PID code to provide a method to reset it.
   egoPID.SetMode(AUTOMATIC);
   egoPID.SetMode(MANUAL);
   egoPID.SetMode(AUTOMATIC);
@@ -216,7 +216,7 @@ void initialiseCorrections(void)
   currentStatus.knockCount = 1;
   knockLastRecoveryStep = 0;
   knockStartTime = 0;
-  currentStatus.battery10 = 125; //Set battery voltage to sensible value for dwell correction for "flying start" (else ignition gets spurious pulses after boot)  
+  currentStatus.battery10 = 125; //Set battery voltage to sensible value for dwell correction for "flying start" (else ignition gets spurious pulses after boot)
 }
 
 #if 0 // REFACTORED - Implementation moved to corrections/fuel_corrections/fuel_corrections.cpp
@@ -375,7 +375,7 @@ uint16_t correctionCranking(void)
     crankingValue = (uint16_t) crankingValue * 5; //multiplied by 5 to get range from 0% to 1275%
     crankingEnrichTaper = 0;
   }
-  
+
   //If we're not cranking, check if if cranking enrichment tapering to ASE should be done
   else if ( crankingEnrichTaper < configPage10.crankingEnrichTaper )
   {
@@ -393,9 +393,9 @@ uint16_t correctionCranking(void)
 /** After Start Enrichment calculation.
  * This is a short period (Usually <20 seconds) immediately after the engine first fires (But not when cranking)
  * where an additional amount of fuel is added (Over and above the WUE amount).
- * 
- * @return uint8_t The After Start Enrichment modifier as a %. 100% = No modification. 
- */   
+ *
+ * @return uint8_t The After Start Enrichment modifier as a %. 100% = No modification.
+ */
 // ============================================================================
 // REFACTORED: correctionASE() - Simplified Nesting
 // Complexity reduced: 10 -> 5
@@ -752,12 +752,12 @@ bool correctionDFCO(void)
   bool DFCOValue = false;
   if ( configPage2.dfcoEnabled == 1 )
   {
-    if ( BIT_CHECK(currentStatus.status1, BIT_STATUS1_DFCO) == 1 ) 
+    if ( BIT_CHECK(currentStatus.status1, BIT_STATUS1_DFCO) == 1 )
     {
-      DFCOValue = ( currentStatus.RPM > ( configPage4.dfcoRPM * 10) ) && ( currentStatus.TPS < configPage4.dfcoTPSThresh ); 
+      DFCOValue = ( currentStatus.RPM > ( configPage4.dfcoRPM * 10) ) && ( currentStatus.TPS < configPage4.dfcoTPSThresh );
       if ( DFCOValue == false) { dfcoDelay = 0; }
     }
-    else 
+    else
     {
       if ( (currentStatus.TPS < configPage4.dfcoTPSThresh) && (currentStatus.coolant >= temperatureRemoveOffset(configPage2.dfcoMinCLT)) && ( currentStatus.RPM > (unsigned int)( (configPage4.dfcoRPM * 10U) + (configPage4.dfcoHyster * 2U)) ) )
       {
@@ -991,7 +991,7 @@ int8_t correctionCrankingFixedTiming(int8_t advance)
 {
   int8_t ignCrankFixValue = advance;
   if ( BIT_CHECK(currentStatus.engine, BIT_ENGINE_CRANK) )
-  { 
+  {
     if ( configPage2.crkngAddCLTAdv == 0 ) { ignCrankFixValue = configPage4.CrankAng; } //Use the fixed cranking ignition angle
     else { ignCrankFixValue = correctionCLTadvance(configPage4.CrankAng); } //Use the CLT compensated cranking ignition angle
   }
@@ -1004,7 +1004,7 @@ int8_t correctionFlexTiming(int8_t advance)
   if( configPage2.flexEnabled == 1 ) //Check for flex being enabled
   {
     ignFlexValue = (int16_t) table2D_getValue(&flexAdvTable, currentStatus.ethanolPct) - OFFSET_IGNITION; //Negative values are achieved with offset
-    currentStatus.flexIgnCorrection = (int8_t) ignFlexValue; //This gets cast to a signed 8 bit value to allows for negative advance (ie retard) values here. 
+    currentStatus.flexIgnCorrection = (int8_t) ignFlexValue; //This gets cast to a signed 8 bit value to allows for negative advance (ie retard) values here.
     ignFlexValue = (int8_t) advance + currentStatus.flexIgnCorrection;
   }
   return (int8_t) ignFlexValue;
@@ -1037,7 +1037,7 @@ int8_t correctionCLTadvance(int8_t advance)
   //Adjust the advance based on CLT.
   int8_t advanceCLTadjust = (int16_t)(table2D_getValue(&CLTAdvanceTable, temperatureAddOffset(currentStatus.coolant))) - 15;
   ignCLTValue = (advance + advanceCLTadjust);
-  
+
   return ignCLTValue;
 }
 /** Ignition Idle advance correction.
@@ -1142,7 +1142,7 @@ int8_t correctionSoftRevLimit(int8_t advance)
   byte ignSoftRevValue = advance;
   BIT_CLEAR(currentStatus.status2, BIT_STATUS2_SFTLIM);
 
-  if (configPage6.engineProtectType == PROTECT_CUT_IGN || configPage6.engineProtectType == PROTECT_CUT_BOTH) 
+  if (configPage6.engineProtectType == PROTECT_CUT_IGN || configPage6.engineProtectType == PROTECT_CUT_BOTH)
   {
     if (currentStatus.RPMdiv100 >= configPage4.SoftRevLim) //Softcut RPM limit
     {
@@ -1229,12 +1229,12 @@ uint8_t _calculateKnockRecovery(uint8_t curKnockRetard)
   //Check whether we are in knock recovery
   if((micros() - knockStartTime) > (configPage10.knock_duration * 100000UL)) //knock_duration is in seconds*10
   {
-    //Calculate how many recovery steps have occurred since the 
+    //Calculate how many recovery steps have occurred since the
     uint32_t timeInRecovery = (micros() - knockStartTime) - (configPage10.knock_duration * 100000UL);
     uint8_t recoverySteps = timeInRecovery / (configPage10.knock_recoveryStepTime * 100000UL);
     int8_t recoveryTimingAdj = 0;
-    if(recoverySteps > knockLastRecoveryStep) 
-    { 
+    if(recoverySteps > knockLastRecoveryStep)
+    {
       recoveryTimingAdj = (recoverySteps - knockLastRecoveryStep) * configPage10.knock_recoveryStep;
       knockLastRecoveryStep = recoverySteps;
     }
@@ -1244,7 +1244,7 @@ uint8_t _calculateKnockRecovery(uint8_t curKnockRetard)
       //Add the timing back in provided we haven't reached the end of the recovery period
       tmpKnockRetard = currentStatus.knockRetard - recoveryTimingAdj;
     }
-    else 
+    else
     {
       //Recovery is complete. Knock adjustment is set to 0 and we reset the knock status
       tmpKnockRetard = 0;

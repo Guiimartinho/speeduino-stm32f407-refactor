@@ -12,7 +12,7 @@ It parses the command and calls the relevant function.
 can_command is called when a command is received by the onboard/attached canbus module
 It parses the command and calls the relevant function.
 
-sendcancommand is called when a command is to be sent either to serial3 
+sendcancommand is called when a command is to be sent either to serial3
 ,to the external Can interface, or to the onboard/attached can interface
 */
 #include "globals.h"
@@ -32,7 +32,7 @@ SECONDARY_SERIAL_T* pSecondarySerial;
 #if defined(CORE_AVR)
 #pragma GCC push_options
 // This minimizes RAM usage at no performance cost
-#pragma GCC optimize ("Os") 
+#pragma GCC optimize ("Os")
 #endif
 
 void secondserial_Command(void)
@@ -42,7 +42,7 @@ void secondserial_Command(void)
   {
     pPrimarySerial = pSecondarySerial; //Divert the output of all primary serial functions to the secondary serial interface
     serialReceive();
-    if(serialStatusFlag == SERIAL_INACTIVE) { pPrimarySerial = &Serial; } //Reset serial to primary to ensure other requests can be handled. 
+    if(serialStatusFlag == SERIAL_INACTIVE) { pPrimarySerial = &Serial; } //Reset serial to primary to ensure other requests can be handled.
     return;
   }
 
@@ -51,7 +51,7 @@ void secondserial_Command(void)
 
   switch (currentSecondaryCommand)
   {
-    case 'A': 
+    case 'A':
       // sends a fixed 75 bytes of data. Used by Real Dash (Among others)
       if(configPage9.secondarySerialProtocol == SECONDARY_SERIAL_PROTO_GENERIC_FIXED) { sendValues(0, CAN_PACKET_SIZE, 0x31, secondarySerial, serialSecondaryStatusFlag, &getLegacySecondarySerialLogEntry); } // Send values using the legacy fixed byte order
       else { sendValues(0, CAN_PACKET_SIZE, 0x31, secondarySerial, serialSecondaryStatusFlag); } //send values to serial3 using the order in the ini file
@@ -61,7 +61,7 @@ void secondserial_Command(void)
       legacySerialHandler(currentSecondaryCommand, secondarySerial, serialSecondaryStatusFlag);
       break;
 
-    case 'B': // AS above but for the serial compatibility mode. 
+    case 'B': // AS above but for the serial compatibility mode.
       BIT_SET(currentStatus.status4, BIT_STATUS4_COMMS_COMPAT); //Force the compat mode
       legacySerialHandler(currentSecondaryCommand, secondarySerial, serialSecondaryStatusFlag);
       break;
@@ -116,7 +116,7 @@ void secondserial_Command(void)
     case 'M':
       legacySerialHandler(currentSecondaryCommand, secondarySerial, serialSecondaryStatusFlag);
       break;
-      
+
     case 'n': // sends the bytes of realtime values from the NEW CAN list
       //sendValues(0, NEW_CAN_PACKET_SIZE, 0x32, secondarySerial, serialSecondaryStatusFlag); //send values to serial3
       if(configPage9.secondarySerialProtocol == SECONDARY_SERIAL_PROTO_GENERIC_FIXED) { sendValues(0, NEW_CAN_PACKET_SIZE, 0x32, secondarySerial, serialSecondaryStatusFlag, &getLegacySecondarySerialLogEntry); } // Send values using the legacy fixed byte order
@@ -142,7 +142,7 @@ void secondserial_Command(void)
     case 'S': // send code version
       if(configPage9.secondarySerialProtocol == SECONDARY_SERIAL_PROTO_MSDROID) { legacySerialHandler('Q', secondarySerial, serialSecondaryStatusFlag); } //Note 'Q', this is a workaround for msDroid
       else { legacySerialHandler(currentSecondaryCommand, secondarySerial, serialSecondaryStatusFlag); }
-      
+
       break;
 
     case 'Z': //dev use
@@ -151,8 +151,8 @@ void secondserial_Command(void)
     default:
        break;
   }
-} 
-    
+}
+
 // this routine sends a request(either "0" for a "G" , "1" for a "L" , "2" for a "R" to the Can interface or "3" sends the request via the actual local canbus
 void sendCancommand(uint8_t cmdtype, uint16_t canaddress, uint8_t candata1, uint8_t candata2, uint16_t sourcecanAddress)
 {
@@ -184,7 +184,7 @@ void sendCancommand(uint8_t cmdtype, uint16_t canaddress, uint8_t candata1, uint
       #if defined(NATIVE_CAN_AVAILABLE)
       outMsg.id = (canaddress);
       outMsg.len = 8;
-      outMsg.buf[0] = 0x0B ;  //11;   
+      outMsg.buf[0] = 0x0B ;  //11;
       outMsg.buf[1] = 0x15;
       outMsg.buf[2] = candata1;
       outMsg.buf[3] = 0x24;

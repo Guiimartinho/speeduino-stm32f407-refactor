@@ -16,7 +16,7 @@ using table3d_bin_t = _table2d_detail::Bin<table3d_axis_t>;
 
 /**
  * @brief Perform a linear search on an array for the bin that contains value
- * 
+ *
  * @note Assume array is ordered [max...min]
  *
  * @param pStart Pointer to the start of the array.
@@ -24,9 +24,9 @@ using table3d_bin_t = _table2d_detail::Bin<table3d_axis_t>;
  * @param value Value to search for.
  * @return Upper array index of the bin
  */
-TESTABLE_INLINE_STATIC table3d_dim_t linear_bin_search( const table3d_axis_t *pStart, 
+TESTABLE_INLINE_STATIC table3d_dim_t linear_bin_search( const table3d_axis_t *pStart,
                                                     const table3d_dim_t length,
-                                                    const table3d_axis_t value) 
+                                                    const table3d_axis_t value)
 {
   const table3d_dim_t minBinIndex = length - 2U; // The minimum bin index is the last bin before the final value
 
@@ -53,7 +53,7 @@ TESTABLE_INLINE_STATIC table3d_dim_t linear_bin_search( const table3d_axis_t *pS
   // Up to 80 loop/sec!
   // const table3d_axis_t * const pEnd = pStart + length -1U;
   // const table3d_axis_t *pLower = pStart + 1U;
-  // while ((pLower != pEnd) && !is_in_bin(value, *pLower, *(pLower-1U))) { 
+  // while ((pLower != pEnd) && !is_in_bin(value, *pLower, *(pLower-1U))) {
   //   ++pLower;
   // }
   // return pLower - pStart - 1U;
@@ -95,12 +95,12 @@ table3d_dim_t find_bin_max(
 /// @{
 
 /// @brief Unsigned fixed point number type with 1 integer bit & 8 fractional bits.
-/// 
+///
 /// @see https://en.wikipedia.org/wiki/Q_(number_format).
 ///
 /// This is specialised for the number range 0..1 - a generic fixed point
 /// class would miss some important optimisations. Specifically, we can avoid
-/// type promotion during multiplication. 
+/// type promotion during multiplication.
 typedef uint16_t QU1X8_t;
 
 /** @brief Integer shift to convert to/from QU1X8_t. */
@@ -128,7 +128,7 @@ TESTABLE_INLINE_STATIC QU1X8_t mulQU1X8(QU1X8_t a, QU1X8_t b)
     // code path, we'd need to promote to uint32_t to avoid overflow.
     //
     // The overflow can only happen when *both* the X & Y inputs
-    // are at the edge of a bin. 
+    // are at the edge of a bin.
     //
     // This is a rare condition, so most of the time we can use 16-bit multiplication and gain performance
     if (a==QU1X8_ONE && b==QU1X8_ONE)
@@ -148,14 +148,14 @@ TESTABLE_INLINE_STATIC QU1X8_t mulQU1X8(QU1X8_t a, QU1X8_t b)
 
 /**
  * @brief Compute the % position of a value within a bin.
- * 
- *  - 0%==at/below the bin minimum 
+ *
+ *  - 0%==at/below the bin minimum
  *  - 100%==at/above the bin maximum
  *  - 50%==in the middle of the bin.
- * 
+ *
  * @note The multiplier is used to scale the axis values to the same scale as the value being checked.
  * *This retains the full precision of the axis values, thus the computed position and eventually the final interpolated result*
- * 
+ *
  * @param value The value to check.
  * @param upperBinIndex The upper bin index into pAxis.
  * @param pAxis The axis array.
@@ -170,14 +170,14 @@ TESTABLE_INLINE_STATIC QU1X8_t compute_bin_position(const uint16_t &value, const
   if (value>=binMaxValue) { return QU1X8_ONE; }
   uint16_t binWidth = binMaxValue-binMinValue;
 
-  // Since we can have bins of any width, we need to use 
+  // Since we can have bins of any width, we need to use
   // 24.8 fixed point to avoid overflow
   uint16_t binPosition = value - binMinValue;
   uint32_t p = (uint32_t)binPosition << QU1X8_INTEGER_SHIFT;
   // But since we are computing the ratio (0 to 1), p is guaranteed to be
   // less than binWidth and thus the division below will result in a value
   // <=1. So we can reduce the data type from 24.8 (uint32_t) to 1.8 (uint16_t)
-  return udiv_32_16(p, (uint16_t)binWidth);  
+  return udiv_32_16(p, (uint16_t)binWidth);
 }
 
 /** @brief Row and column coordinates in a 2D table */
@@ -212,14 +212,14 @@ static inline row_col2d toBottomLeft(const row_col2d &topRight, const table3d_di
  *  |           ^     |
  *  bl----------------br
  * </pre>
- * 
- * @param tl Top left value 
- * @param tr Top right value 
- * @param bl Bottom left value 
- * @param br Bottom right value 
+ *
+ * @param tl Top left value
+ * @param tr Top right value
+ * @param bl Bottom left value
+ * @param br Bottom right value
  * @param dx X distance
  * @param dy Y distance
- * @return table3d_value_t 
+ * @return table3d_value_t
  */
 TESTABLE_INLINE_STATIC table3d_value_t bilinear_interpolation( const table3d_value_t &tl,
                                                       const table3d_value_t &tr,
@@ -238,7 +238,7 @@ TESTABLE_INLINE_STATIC table3d_value_t bilinear_interpolation( const table3d_val
 
 /**
  * @brief Interpolate a table value from axis bins & values.
- * 
+ *
  * @param lookUpValues The x & y axis values we are interpolating
  * @param upperBinIndices The x & y axis bin indices that contain lookUpValues
  * @param axisSize The length of an axis
@@ -247,9 +247,9 @@ TESTABLE_INLINE_STATIC table3d_value_t bilinear_interpolation( const table3d_val
  * @param xMultiplier The x-axis multiplier
  * @param pYAxis The y-axis
  * @param yMultiplier The y-axis multiplier
- * @return table3d_value_t 
+ * @return table3d_value_t
  */
-table3d_value_t interpolate_3d_value(const xy_values &lookUpValues, 
+table3d_value_t interpolate_3d_value(const xy_values &lookUpValues,
                     const xy_coord2d &upperBinIndices,
                     const table3d_dim_t &axisSize,
                     const table3d_value_t *pValues,
@@ -270,7 +270,7 @@ table3d_value_t interpolate_3d_value(const xy_values &lookUpValues,
   (0,0) = 2
   (1,0) = 1
   (1,1) = 4
-  */  
+  */
   row_col2d tr = toTopRight(upperBinIndices, axisSize);
   row_col2d bl = toBottomLeft(tr, axisSize);
 
@@ -284,17 +284,17 @@ table3d_value_t interpolate_3d_value(const xy_values &lookUpValues,
             A          B
 
             C          D
-  Note that the values are stored in a 1D array, so we need to calculate the indices 
+  Note that the values are stored in a 1D array, so we need to calculate the indices
   appropriately based on the array layout.
   */
   table3d_value_t A = pValues[tr.row + bl.col];
   table3d_value_t B = pValues[tr.row + tr.col];
   table3d_value_t C = pValues[bl.row + bl.col];
-  table3d_value_t D = pValues[bl.row + tr.col];  
-  
+  table3d_value_t D = pValues[bl.row + tr.col];
+
   //Check that all values aren't just the same (This regularly happens with things like the fuel trim maps)
-  if( (A == B) && (A == C) && (A == D) ) 
-  { 
+  if( (A == B) && (A == C) && (A == D) )
+  {
     return A;
   }
   else

@@ -18,11 +18,11 @@
 ///
 /// If there is no overload for a certain shift, that's because GCC produced decent ASM
 /// in that case.
-/// 
+///
 /// @note Code is usable on all architectures, but the optimization only applies to AVR-GCC.
 /// Other compilers will see a standard bitwise shift.
 /// @{
-    
+
 // Flag if we should turn on optimized shifts
 #if !defined(USE_OPTIMIZED_SHIFTS)
 #if (defined(__AVR__) && defined(__GNUC__))
@@ -33,21 +33,21 @@
 #endif
 
 /**
- * @brief Bitwise left shift - generic, unoptimized, case 
- * 
+ * @brief Bitwise left shift - generic, unoptimized, case
+ *
  * @tparam b number of bits to shift by
  * @param a value to shift
  * @return uint32_t a<<b
  */
-template <uint8_t b> 
-static inline uint32_t lshift(uint32_t a) { 
+template <uint8_t b>
+static inline uint32_t lshift(uint32_t a) {
 #if USE_OPTIMIZED_SHIFTS==1
-    // The shifts below have been validated to produce performant code in GCC. 
+    // The shifts below have been validated to produce performant code in GCC.
     // Other shift amounts are either in a specialized template below (good) or are unvalidated (bad).
     static_assert(b==1 || b==2 || b==3 || b==8 || b==16 || b==24,
                   "Unvalidated shift - confirm gcc produces performant code");
 #endif
-    return a << b; 
+    return a << b;
 }
 
 #if USE_OPTIMIZED_SHIFTS==1
@@ -56,10 +56,10 @@ static inline uint32_t lshift(uint32_t a) {
 #pragma GCC diagnostic ignored "-Wunused-function"
 
 /// @{
-/// @brief uint32_t bitwise left shift optimised for the specified shift distance  
-/// 
+/// @brief uint32_t bitwise left shift optimised for the specified shift distance
+///
 /// @note The assembler was generated using clang 17.0.1 cross compiling: -O3 --target=avr -mmcu=atmega2560. See https://godbolt.org/z/71cPnMYqs
-/// 
+///
 /// @param a value to shift
 /// @return uint32_t a<<b
 template <>
@@ -80,8 +80,8 @@ uint32_t lshift<4U>(uint32_t a)
         "eor     %B0, %A0\n"
         "andi    %A0, 240\n"
         "eor     %B0, %A0\n"
-        : "=d" (a) 
-        : "0" (a) 
+        : "=d" (a)
+        : "0" (a)
         :
     );
 
@@ -110,9 +110,9 @@ uint32_t lshift<5U>(uint32_t a)
         "rol     %B0\n"
         "rol     %C0\n"
         "rol     %D0\n"
-        : "=d" (a) 
-        : "0" (a) 
-        : 
+        : "=d" (a)
+        : "0" (a)
+        :
     );
 
     return a;
@@ -137,8 +137,8 @@ uint32_t lshift<6U>(uint32_t a)
         "mov     %C0, %B0\n"
         "mov     r19, %A0\n"
         "movw    %A0, r18\n"
-        : "=d" (a) 
-        : "0" (a) 
+        : "=d" (a)
+        : "0" (a)
         : "r18", "r19"
     );
 
@@ -159,8 +159,8 @@ uint32_t lshift<7U>(uint32_t a)
         "mov     %C0, %B0\n"
         "mov     r19, %A0\n"
         "movw    %A0, r18\n"
-        : "=d" (a) 
-        : "0" (a) 
+        : "=d" (a)
+        : "0" (a)
         : "r18", "r19"
     );
 
@@ -178,9 +178,9 @@ uint32_t lshift<9U>(uint32_t a)
         "mov     %C0, %B0\n"
         "mov     %B0, %A0\n"
         "mov     %A0, __zero_reg__\n"
-        : "=d" (a) 
-        : "0" (a) 
-        : 
+        : "=d" (a)
+        : "0" (a)
+        :
     );
 
     return a;
@@ -200,9 +200,9 @@ uint32_t lshift<10U>(uint32_t a)
         "mov     %C0, %B0\n"
         "mov     %B0, %A0\n"
         "mov     %A0, __zero_reg__\n"
-        : "=d" (a) 
-        : "0" (a) 
-        : 
+        : "=d" (a)
+        : "0" (a)
+        :
     );
 
     return a;
@@ -225,9 +225,9 @@ uint32_t lshift<11U>(uint32_t a)
         "mov     %C0, %B0\n"
         "mov     %B0, %A0\n"
         "mov     %A0, __zero_reg__\n"
-        : "=d" (a) 
-        : "0" (a) 
-        : 
+        : "=d" (a)
+        : "0" (a)
+        :
     );
 
     return a;
@@ -251,9 +251,9 @@ uint32_t lshift<12U>(uint32_t a)
         "mov     %C0, %B0\n"
         "mov     %B0, %A0\n"
         "mov     %A0, __zero_reg__\n"
-        : "=d" (a) 
-        : "0" (a) 
-        : 
+        : "=d" (a)
+        : "0" (a)
+        :
     );
 
     return a;
@@ -280,9 +280,9 @@ uint32_t lshift<13U>(uint32_t a)
         "mov     %C0, %B0\n"
         "mov     %B0, %A0\n"
         "mov     %A0, __zero_reg__\n"
-        : "=d" (a) 
-        : "0" (a) 
-        : 
+        : "=d" (a)
+        : "0" (a)
+        :
     );
 
     return a;
@@ -304,8 +304,8 @@ uint32_t lshift<14U>(uint32_t a)
         "ror     %B0\n"
         "mov     %A0, __zero_reg__\n"
         "movw    %C0, r18\n"
-        : "=d" (a) 
-        : "0" (a) 
+        : "=d" (a)
+        : "0" (a)
         : "r18", "r19"
     );
 
@@ -324,8 +324,8 @@ uint32_t lshift<15U>(uint32_t a)
         "ror     %B0\n"
         "mov     %A0, __zero_reg__\n"
         "movw    %C0, r18\n"
-        : "=d" (a) 
-        : "0" (a) 
+        : "=d" (a)
+        : "0" (a)
         : "r18", "r19"
     );
 
@@ -338,20 +338,20 @@ uint32_t lshift<15U>(uint32_t a)
 #endif
 
 /**
- * @brief Bitwise right shift - generic, unoptimized, case 
- * 
+ * @brief Bitwise right shift - generic, unoptimized, case
+ *
  * @tparam b number of bits to shift by
  * @param a value to shift
- * @return uint32_t 
+ * @return uint32_t
  */
-template <uint8_t b> 
-static inline uint32_t rshift(uint32_t a) { 
-#if USE_OPTIMIZED_SHIFTS==1    // The shifts below have been validated to produce performant code in GCC. 
+template <uint8_t b>
+static inline uint32_t rshift(uint32_t a) {
+#if USE_OPTIMIZED_SHIFTS==1    // The shifts below have been validated to produce performant code in GCC.
     // Other shift amounts are either in a specialized template below (good) or are unvalidated (bad).
     static_assert(b==1 || b==2 || b==8 || b==16 || b==24,
                   "Unvalidated shift - confirm gcc produces performant code");
 #endif
-    return a >> b; 
+    return a >> b;
 }
 
 #if USE_OPTIMIZED_SHIFTS==1
@@ -360,10 +360,10 @@ static inline uint32_t rshift(uint32_t a) {
 #pragma GCC diagnostic ignored "-Wunused-function"
 
 /// @{
-/// @brief uint32_t bitwise right shift optimised for the specified shift distance  
-/// 
+/// @brief uint32_t bitwise right shift optimised for the specified shift distance
+///
 /// @note The assembler was generated using clang 17.0.1 cross compiling: -O3 --target=avr -mmcu=atmega2560. See https://godbolt.org/z/71cPnMYqs
-/// 
+///
 /// @param a value to shift
 /// @return uint32_t a>>b
 template <>
@@ -382,9 +382,9 @@ uint32_t rshift<3U>(uint32_t a)
         "ror     %C0\n"
         "ror     %B0\n"
         "ror     %A0\n"
-        : "=d" (a) 
-        : "0" (a) 
-        : 
+        : "=d" (a)
+        : "0" (a)
+        :
     );
 
     return a;
@@ -408,9 +408,9 @@ uint32_t rshift<4U>(uint32_t a)
         "eor     %C0, %D0\n"
         "andi    %D0, 15\n"
         "eor     %C0, %D0\n"
-        : "=d" (a) 
-        : "0" (a) 
-        : 
+        : "=d" (a)
+        : "0" (a)
+        :
     );
 
     return a;
@@ -438,9 +438,9 @@ uint32_t rshift<5U>(uint32_t a)
         "ror     %C0\n"
         "ror     %B0\n"
         "ror     %A0\n"
-        : "=d" (a) 
-        : "0" (a) 
-        : 
+        : "=d" (a)
+        : "0" (a)
+        :
     );
 
     return a;
@@ -465,8 +465,8 @@ uint32_t rshift<6U>(uint32_t a)
         "mov     %B0, %C0\n"
         "mov     r18, %D0\n"
         "movw    %C0, r18\n"
-        : "=d" (a) 
-        : "0" (a) 
+        : "=d" (a)
+        : "0" (a)
         : "r18", "r19"
     );
 
@@ -487,8 +487,8 @@ uint32_t rshift<7U>(uint32_t a)
         "mov     %B0, %C0\n"
         "mov     r18, %D0\n"
         "movw    %C0, r18\n"
-        : "=d" (a) 
-        : "0" (a) 
+        : "=d" (a)
+        : "0" (a)
         : "r18", "r19"
     );
 
@@ -506,9 +506,9 @@ uint32_t rshift<9U>(uint32_t a)
         "mov     %B0, %C0\n"
         "mov     %C0, %D0\n"
         "mov     %D0, __zero_reg__\n"
-        : "=d" (a) 
-        : "0" (a) 
-        : 
+        : "=d" (a)
+        : "0" (a)
+        :
     );
 
     return a;
@@ -523,14 +523,14 @@ uint32_t rshift<10U>(uint32_t a)
         "ror     %B0\n"
         "lsr     %D0\n"
         "ror     %C0\n"
-        "ror     %B0\n" 
+        "ror     %B0\n"
         "mov     %A0, %B0\n"
         "mov     %B0, %C0\n"
         "mov     %C0, %D0\n"
         "mov     %D0, __zero_reg__\n"
-        : "=d" (a) 
-        : "0" (a) 
-        : 
+        : "=d" (a)
+        : "0" (a)
+        :
     );
 
     return a;
@@ -553,9 +553,9 @@ uint32_t rshift<11U>(uint32_t a)
         "mov     %B0, %C0\n"
         "mov     %C0, %D0\n"
         "mov     %D0, __zero_reg__\n"
-        : "=d" (a) 
-        : "0" (a) 
-        : 
+        : "=d" (a)
+        : "0" (a)
+        :
     );
 
     return a;
@@ -579,9 +579,9 @@ uint32_t rshift<12U>(uint32_t a)
         "mov     %B0, %C0\n"
         "mov     %C0, %D0\n"
         "mov     %D0, __zero_reg__\n"
-        : "=d" (a) 
-        : "0" (a) 
-        : 
+        : "=d" (a)
+        : "0" (a)
+        :
     );
 
     return a;
@@ -608,9 +608,9 @@ uint32_t rshift<13U>(uint32_t a)
         "mov     %B0, %C0\n"
         "mov     %C0, %D0\n"
         "mov     %D0, __zero_reg__\n"
-        : "=d" (a) 
-        : "0" (a) 
-        : 
+        : "=d" (a)
+        : "0" (a)
+        :
     );
 
     return a;
@@ -632,8 +632,8 @@ uint32_t rshift<14U>(uint32_t a)
         "rol     %C0\n"
         "mov     %D0, __zero_reg__\n"
         "movw    %A0, r18\n"
-        : "=d" (a) 
-        : "0" (a) 
+        : "=d" (a)
+        : "0" (a)
         : "r18", "r19"
     );
 
@@ -652,8 +652,8 @@ uint32_t rshift<15U>(uint32_t a)
         "rol     %C0\n"
         "mov     %D0, __zero_reg__\n"
         "movw    %A0, r18\n"
-        : "=d" (a) 
-        : "0" (a) 
+        : "=d" (a)
+        : "0" (a)
         : "r18", "r19"
     );
 
@@ -668,19 +668,19 @@ uint32_t rshift<15U>(uint32_t a)
 
 /**
  * @brief Rounded arithmetic right shift
- * 
+ *
  * Right shifting throws away bits. When use for fixed point division, this
  * effectively rounds down (towards zero). To round-to-the-nearest-integer
- * when right-shifting by S, just add in 2 power b−1 (which is the 
+ * when right-shifting by S, just add in 2 power b−1 (which is the
  * fixed-point equivalent of 0.5) first
- *  
+ *
  * @tparam b number of bits to shift by
  * @param a value to shift
- * @return uint32_t 
+ * @return uint32_t
  */
-template <uint8_t b> 
-static inline uint32_t rshift_round(uint32_t a) { 
-    return rshift<b>(a+(1UL<<(b-1UL))); 
+template <uint8_t b>
+static inline uint32_t rshift_round(uint32_t a) {
+    return rshift<b>(a+(1UL<<(b-1UL)));
 }
 
 ///@}

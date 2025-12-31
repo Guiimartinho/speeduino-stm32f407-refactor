@@ -12,7 +12,7 @@
 #include "maths.h"
 #
 template<size_t MAX_LEN, size_t N>
-constexpr void STR_LEN_CHECK(char const (&)[N]) 
+constexpr void STR_LEN_CHECK(char const (&)[N])
 {
     static_assert(N < MAX_LEN, "String overflow!");
 }
@@ -39,7 +39,7 @@ constexpr void STR_LEN_CHECK(char const (&)[N])
     UnityDefaultTestRun(func, funcName, __LINE__); \
   }
 
-// ============================ SET_UNITY_FILENAME ============================ 
+// ============================ SET_UNITY_FILENAME ============================
 
 static inline uint8_t ufname_set(const char *newFName)
 {
@@ -61,7 +61,7 @@ static inline void ufname_szrestore(char** __s)
 for ( UNITY_FILENAME_RESTORE, _ufname_done = ufname_set(__FILE__);                  \
     _ufname_done; _ufname_done = 0 )
 
-// ============================ end SET_UNITY_FILENAME ============================ 
+// ============================ end SET_UNITY_FILENAME ============================
 
 // Store test data in flash, if feasible.
 #if defined(PROGMEM)
@@ -85,11 +85,11 @@ static inline void fill_table_values(table3d_t &table, table3d_value_t value) {
       ++itRow;
     }
     ++itZ;
-  }  
+  }
   invalidate_cache(&table.get_value_cache);
 }
 
-static inline void populate_table_axis_P(table_axis_iterator it, 
+static inline void populate_table_axis_P(table_axis_iterator it,
                                          const table3d_axis_t *pXValues) {   // PROGMEM if available
   while (!it.at_end())
   {
@@ -97,7 +97,7 @@ static inline void populate_table_axis_P(table_axis_iterator it,
     *it = (table3d_axis_t)pgm_read_word(pXValues);
 #else
     *it = *pXValues;
-#endif      
+#endif
     ++pXValues;
     ++it;
   }
@@ -106,7 +106,7 @@ static inline void populate_table_axis_P(table_axis_iterator it,
 // Populate a 3d table (from PROGMEM if available)
 // You wuld typically declare the 3 source arrays usin TEST_DATA_P
 template <typename table3d_t>
-static inline void populate_table_P(table3d_t &table, 
+static inline void populate_table_P(table3d_t &table,
                                   const table3d_axis_t *pXValues,   // PROGMEM if available
                                   const table3d_axis_t *pYValues,   // PROGMEM if available
                                   const table3d_value_t *pZValues)  // PROGMEM if available

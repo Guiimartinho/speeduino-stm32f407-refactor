@@ -36,7 +36,7 @@ public:
     void start() {
 #if defined(__AVR__)
         start_time = micros();
-#else 
+#else
         gettimeofday(&start_time, NULL);
 #endif
     }
@@ -44,17 +44,17 @@ public:
     void stop() {
 #if defined(__AVR__)
         end_time = micros();
-#else 
+#else
         gettimeofday(&end_time, NULL);
-#endif        
+#endif
     }
 
     uint32_t duration_micros() {
 #if defined(__AVR__)
         return end_time-start_time;
-#else 
+#else
         return (uint32_t)(((end_time.tv_sec - start_time.tv_sec) * MICROS_PER_SEC) + (end_time.tv_usec - start_time.tv_usec));
-#endif 
+#endif
     }
 };
 

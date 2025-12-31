@@ -4,7 +4,7 @@
 #include <SPI.h>
 #include "port_pin.h"
 #include "globals.h"
-#include BOARD_H //Note that this is not a real file, it is defined in globals.h. 
+#include BOARD_H //Note that this is not a real file, it is defined in globals.h.
 
 extern PORT_TYPE mc33810_1_pin_port;
 extern PINMASK_TYPE mc33810_1_pin_mask;
@@ -25,7 +25,7 @@ void initMC33810(void);
 #define MC33810_2_ACTIVE() (*mc33810_2_pin_port &= ~(mc33810_2_pin_mask))
 #define MC33810_2_INACTIVE() (*mc33810_2_pin_port |= (mc33810_2_pin_mask))
 
-//These are default values for which injector is attached to which output on the IC. 
+//These are default values for which injector is attached to which output on the IC.
 //They may (Probably will) be changed during init by the board specific config in init.ino
 extern uint8_t MC33810_BIT_INJ1;
 extern uint8_t MC33810_BIT_INJ2;

@@ -1,5 +1,5 @@
-/** 
- * @addtogroup table_3d 
+/**
+ * @addtogroup table_3d
  *  @{
  */
 
@@ -11,16 +11,16 @@
 
 #include "table3d_typedefs.h"
 
-// ========================= INTRA-ROW ITERATION ========================= 
+// ========================= INTRA-ROW ITERATION =========================
 
-/**  @brief Iterate through a table row. I.e. constant Y, changing X 
- * 
+/**  @brief Iterate through a table row. I.e. constant Y, changing X
+ *
  * Instances of this class are normally created via a table_value_iterator instance.
 */
 class table_row_iterator {
 public:
 
-    /** 
+    /**
      * @brief Construct
      * @param pRowStart Pointer to the 1st element in the row
      * @param rowWidth The number of elements to in the row
@@ -39,7 +39,7 @@ public:
      * @param steps The number of elements to move the iterator
     */
     table_row_iterator& advance(table3d_dim_t steps)
-    { 
+    {
         pValue  = pValue + steps;
         return *this;
     }
@@ -75,14 +75,14 @@ private:
     const table3d_value_t *pEnd;
 };
 
-// ========================= INTER-ROW ITERATION ========================= 
+// ========================= INTER-ROW ITERATION =========================
 
 /**  @brief Iterate through a tables values, row by row. */
 class table_value_iterator
 {
 public:
 
-    /** 
+    /**
      * @brief Construct
      * @param pValues Pointer to the 1st value in a 1-d array
      * @param axisSize The number of columns & elements per row (square tables only)
@@ -129,7 +129,7 @@ public:
     table_row_iterator operator*(void)
     {
         return table_row_iterator(pRowsStart, rowWidth);
-    }    
+    }
 
     /** @brief Test for end of iteration */
     bool at_end(void) const

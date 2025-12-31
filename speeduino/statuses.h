@@ -1,8 +1,8 @@
 /**
  * @file
- * 
- * @brief The statuses struct and related defines. 
- * 
+ *
+ * @brief The statuses struct and related defines.
+ *
  */
 
 #pragma once
@@ -101,9 +101,9 @@ using byte = uint8_t;
 #define ENGINE_PROTECT_BIT_COOLANT 4
 
 /** @brief The status struct with current values for all 'live' variables.
-* 
+*
 * Instantiated as global currentStatus.
-* 
+*
 * @note int *ADC (Analog-to-digital value / count) values contain the "raw" value from AD conversion, which get converted to
 * unit based values in similar variable(s) without ADC part in name (see sensors.ino for reading of sensors).
 */
@@ -125,7 +125,7 @@ struct statuses {
   volatile bool tachoSweepEnabled : 1;
   // cppcheck-suppress misra-c2012-6.1
   volatile bool tachoAlt : 1;
-    
+
   uint16_t RPM;   ///< RPM - Current Revs per minute
   byte RPMdiv100; ///< RPM value scaled (divided by 100) to fit a byte (0-255, e.g. 12000 => 120)
   long longRPM;   ///< RPM as long int (gets assigned to / maintained in statuses.RPM as well)
@@ -191,11 +191,11 @@ struct statuses {
   unsigned int PW8; ///< In uS
   volatile byte runSecs; /**< Counter of seconds since cranking commenced (Maxes out at 255 to prevent overflow) */
   volatile byte secl; /**< Counter incrementing once per second. Will overflow after 255 and begin again. This is used by TunerStudio to maintain comms sync */
-  volatile uint16_t loopsPerSecond; /**< A performance indicator showing the number of main loops that are being executed each second */ 
+  volatile uint16_t loopsPerSecond; /**< A performance indicator showing the number of main loops that are being executed each second */
   bool launchingSoft; /**< Indicator showing whether soft launch control adjustments are active */
   bool launchingHard; /**< Indicator showing whether hard launch control adjustments are active */
   uint16_t freeRAM;
-  unsigned int clutchEngagedRPM; /**< The RPM at which the clutch was last depressed. Used for distinguishing between launch control and flat shift */ 
+  unsigned int clutchEngagedRPM; /**< The RPM at which the clutch was last depressed. Used for distinguishing between launch control and flat shift */
   bool flatShiftingHard;
   volatile uint32_t startRevolutions; /**< A counter for how many revolutions have been completed since sync was achieved. */
   uint16_t boostTarget;
@@ -242,7 +242,7 @@ struct statuses {
 
 /**
  * @brief Non-atomic version of HasAnySync. **Should only be called in an ATOMIC() block***
- * 
+ *
  */
 static inline bool HasAnySyncUnsafe(const statuses &status) {
   return status.hasSync || BIT_CHECK(status.status3, BIT_STATUS3_HALFSYNC);

@@ -441,9 +441,9 @@ class Token:
     def __repr__(self):
         attrs = ["Id", "str", "scopeId", "isName", "isUnsigned", "isSigned",
                 "isNumber", "isInt", "isFloat", "isString", "strlen",
-                "isChar", "isBoolean", "isOp", "isArithmeticalOp", "isAssignmentOp", 
-                "isComparisonOp", "isLogicalOp", "isCast", "externLang", "isExpandedMacro", 
-                "isRemovedVoidParameter", "isSplittedVarDeclComma", "isSplittedVarDeclEq", 
+                "isChar", "isBoolean", "isOp", "isArithmeticalOp", "isAssignmentOp",
+                "isComparisonOp", "isLogicalOp", "isCast", "externLang", "isExpandedMacro",
+                "isRemovedVoidParameter", "isSplittedVarDeclComma", "isSplittedVarDeclEq",
                 "isImplicitInt", "isComplex", "isRestrict", "isAttributeExport", "isAnonymous", "linkId",
                 "varId", "variableId", "functionId", "valuesId", "valueType",
                 "typeScopeId", "astParentId", "astOperand1Id", "file",
@@ -684,7 +684,7 @@ class Function:
 
     def __repr__(self):
         attrs = ["Id", "tokenId", "tokenDefId", "name", "type", "hasVirtualSpecifier",
-                 "isImplicitlyVirtual", "access", "isInlineKeyword", "isStatic", 
+                 "isImplicitlyVirtual", "access", "isInlineKeyword", "isStatic",
                  "isAttributeNoreturn", "overriddenFunction", "nestedIn", "argumentId"]
         return "{}({})".format(
             "Function",

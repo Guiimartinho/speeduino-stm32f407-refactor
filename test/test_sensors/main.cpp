@@ -21,14 +21,14 @@ void setup()
 
     test_fastMap10Bit();
     test_map_sampling();
-    
+
     UNITY_END(); // stop unit testing
 
 #if defined(SIMULATOR)       // Tell SimAVR we are done
     cli();
     sleep_enable();
     sleep_cpu();
-#endif   
+#endif
 }
 
 void loop()

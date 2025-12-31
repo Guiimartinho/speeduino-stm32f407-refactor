@@ -638,7 +638,7 @@ int16_t getReadableLogEntry(uint16_t logIndex)
  * An expansion to the @ref getReadableLogEntry function for systems that have an FPU. It will provide a floating point value for any parameter that this is appropriate for, otherwise will return the result of @ref getReadableLogEntry.
  * See logger.h for the field names and order
  * @param logIndex - The log index required. Note that this is NOT the byte number, but the index in the log
- * @return float value of the requested log entry. 
+ * @return float value of the requested log entry.
  */
 #if defined(FPU_MAX_SIZE) && FPU_MAX_SIZE >= 32 //cppcheck-suppress misra-c2012-20.9
 float getReadableFloatLogEntry(uint16_t logIndex)
@@ -948,7 +948,7 @@ uint8_t getLegacySecondarySerialLogEntry(uint16_t byteNum)
  *
  * Searches the log 2 byte array to determine whether a given index is a regular single byte or a 2 byte field.
  * Uses a boundless binary search for improved performance, but requires the fsIntIndex to remain in order
- * 
+ *
  * @param key - Index in the log array to check
  * @return True if the index is a 2 byte log field. False if it is a single byte
  */
@@ -961,9 +961,9 @@ bool is2ByteEntry(uint8_t key)
 
   unsigned int bot = 0U;
   unsigned int mid = _countof(fsIntIndex);
-  
+
   while (mid > 1U)
-  {  
+  {
     if (key >= pgm_read_byte( &fsIntIndex[bot + mid / 2U]) )
     {
       bot += mid++ / 2U;
@@ -1013,7 +1013,7 @@ void startToothLogger(void)
   if(VSS_USES_RPM2() != true)
   {
     detachInterrupt( digitalPinToInterrupt(pinTrigger2) );
-    attachInterrupt( digitalPinToInterrupt(pinTrigger2), loggerSecondaryISR, CHANGE );  
+    attachInterrupt( digitalPinToInterrupt(pinTrigger2), loggerSecondaryISR, CHANGE );
   }
 
 }
@@ -1038,7 +1038,7 @@ void stopToothLogger(void)
   if(VSS_USES_RPM2() != true)
   {
     detachInterrupt( digitalPinToInterrupt(pinTrigger2) );
-    attachInterrupt( digitalPinToInterrupt(pinTrigger2), triggerSecondaryHandler, secondaryTriggerEdge );  
+    attachInterrupt( digitalPinToInterrupt(pinTrigger2), triggerSecondaryHandler, secondaryTriggerEdge );
   }
 }
 

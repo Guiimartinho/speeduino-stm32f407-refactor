@@ -74,7 +74,7 @@
 // Include board-specific definitions
 #if !defined(NATIVE_BUILD) && !defined(UNIT_TEST)
   #include BOARD_H
-#endif 
+#endif
 
 #define CRANK_ANGLE_MAX (max(CRANK_ANGLE_MAX_IGN, CRANK_ANGLE_MAX_INJ))
 
@@ -98,7 +98,7 @@
 #define BIT_TIMER_200HZ           6
 #define BIT_TIMER_1KHZ            7
 
-#ifndef UNIT_TEST 
+#ifndef UNIT_TEST
 #define TOOTH_LOG_SIZE      127U
 #else
 #define TOOTH_LOG_SIZE      1U
@@ -113,7 +113,7 @@ static_assert(TOOTH_LOG_SIZE<UINT8_MAX, "Check all uses of TOOTH_LOG_SIZE");
 // note the sequence of these defines which reference the bits used in a byte has moved when the third trigger & engine cycle was incorporated
 #define COMPOSITE_LOG_PRI   0
 #define COMPOSITE_LOG_SEC   1
-#define COMPOSITE_LOG_THIRD 2 
+#define COMPOSITE_LOG_THIRD 2
 #define COMPOSITE_LOG_TRIG 3
 #define COMPOSITE_LOG_SYNC 4
 #define COMPOSITE_ENGINE_CYCLE 5
@@ -176,7 +176,7 @@ extern struct table3d8RpmLoad vvtTable; //8x8 vvt map
 extern struct table3d8RpmLoad vvt2Table; //8x8 vvt map
 extern struct table3d8RpmLoad wmiTable; //8x8 wmi map
 
-using trimTable3d = table3d6RpmLoad; 
+using trimTable3d = table3d6RpmLoad;
 
 extern trimTable3d trim1Table; //6x6 Fuel trim 1 map
 extern trimTable3d trim2Table; //6x6 Fuel trim 2 map
@@ -341,7 +341,7 @@ extern byte pinStepperEnable; //Turning the DRV8825 driver on/off
 extern byte pinLaunch;
 extern byte pinIgnBypass; //The pin used for an ignition bypass (Optional)
 extern byte pinFlex; //Pin with the flex sensor attached
-extern byte pinVSS; 
+extern byte pinVSS;
 extern byte pinBaro; //Pin that an external barometric pressure sensor is attached to (If used)
 extern byte pinResetControl; // Output pin used control resetting the Arduino
 extern byte pinFuelPressure;

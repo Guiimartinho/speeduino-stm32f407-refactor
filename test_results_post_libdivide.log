@@ -2159,7 +2159,7 @@ test\test_init\test_ignition_schedule_init.cpp:16:18: note: in expansion of macr
 test\test_init\test_ignition_schedule_init.cpp:9:1: note: 'PRIu8' is defined in header '<cinttypes>'; this is probably fixable by adding '#include <cinttypes>'
     8 | #include "storage.h"
   +++ |+#include <cinttypes>
-    9 | 
+    9 |
 test\test_init\test_ignition_schedule_init.cpp:16:65: error: expected ')' before ';' token
    16 |   sprintf_P(msg, PSTR("channe%" PRIu8 "1InjDegrees"), channel+1);
       |            ~                                                    ^
@@ -2240,7 +2240,7 @@ test\test_init\test_fuel_schedule_init.cpp:20:18: note: in expansion of macro 'P
 test\test_init\test_fuel_schedule_init.cpp:10:1: note: 'PRIu8' is defined in header '<cinttypes>'; this is probably fixable by adding '#include <cinttypes>'
     9 | #include "storage.h"
   +++ |+#include <cinttypes>
-   10 | 
+   10 |
 test\test_init\test_fuel_schedule_init.cpp:20:102: error: expected ')' before ';' token
    20 |   sprintf_P(msg, PSTR("channel%" PRIu8 ".InjChannelIsEnabled. Max:%" PRIu8), cmdBit+1, maxInjOutputs);
       |            ~                                                                                         ^
@@ -4027,7 +4027,7 @@ test\test_schedule_calcs\test_ign_calcs.cpp:50:18: note: in expansion of macro '
 test\test_schedule_calcs\test_ign_calcs.cpp:8:1: note: 'PRIi8' is defined in header '<cinttypes>'; this is probably fixable by adding '#include <cinttypes>'
     7 | #include "../test_utils.h"
   +++ |+#include <cinttypes>
-    8 | 
+    8 |
 test\test_schedule_calcs\test_ign_calcs.cpp:50:217: error: expected ')' before ';' token
    50 |   sprintf_P(msg, PSTR("PENDING advanceAngle: %" PRIi8 ", channelAngle: %" PRIu16 ", crankAngle: %" PRIu16 ", endAngle: %" PRIi16), test_params.advanceAngle, test_params.channelAngle, test_params.crankAngle, endAngle);
       |            ~                                                                                                                                                                                                            ^
@@ -4105,7 +4105,7 @@ test\test_schedule_calcs\test_inj_calcs.cpp:46:20: note: in expansion of macro '
 test\test_schedule_calcs\test_inj_calcs.cpp:7:1: note: 'PRIu16' is defined in header '<cinttypes>'; this is probably fixable by adding '#include <cinttypes>'
     6 | #include "../test_utils.h"
   +++ |+#include <cinttypes>
-    7 | 
+    7 |
 test\test_schedule_calcs\test_inj_calcs.cpp:46:200: error: expected ')' before ';' token
    46 |     sprintf_P(msg, PSTR("RUNNING channelAngle: %" PRIu16 ", pw: %" PRIu16 ", crankAngle: %" PRIu16 ", openAngle: %" PRIu16), parameters.channelAngle, parameters.pw, parameters.crankAngle, startAngle);
       |              ~                                                                                                                                                                                         ^
@@ -4544,7 +4544,7 @@ test\test_tables\test_table2d.cpp:68:33: error: expected ')' before 'PRIu8' [-Wt
 test\test_tables\test_table2d.cpp:5:1: note: 'PRIu8' is defined in header '<cinttypes>'; this is probably fixable by adding '#include <cinttypes>'
     4 | #include "../test_utils.h"
   +++ |+#include <cinttypes>
-    5 | 
+    5 |
 *** [.pio\build\native\test\test_tables\test_table2d.o] Error 1
 Building stage has failed, see errors above. Use `pio test -vvv` option to enable verbose output.
 ---------------- native:test_tables [ERRORED] Took 1.14 seconds ----------------

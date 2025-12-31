@@ -56,8 +56,8 @@ A full copy of the license may be found in the projects root directory
 #define STEPPER_LESS_AIR_DIRECTION() ((configPage9.iacStepperInv == 0) ? STEPPER_BACKWARD : STEPPER_FORWARD)
 #define STEPPER_MORE_AIR_DIRECTION() ((configPage9.iacStepperInv == 0) ? STEPPER_FORWARD : STEPPER_BACKWARD)
 
-byte idleUpOutputHIGH = HIGH; // Used to invert the idle Up Output 
-byte idleUpOutputLOW = LOW;   // Used to invert the idle Up Output 
+byte idleUpOutputHIGH = HIGH; // Used to invert the idle Up Output
+byte idleUpOutputLOW = LOW;   // Used to invert the idle Up Output
 byte idleCounter; //Used for tracking the number of calls to the idle control function
 uint8_t idleTaper;
 
@@ -128,7 +128,7 @@ void initialiseIdle(bool forcehoming)
   //Initialising comprises of setting the 2D tables with the relevant values from the config pages
   switch(configPage6.iacAlgorithm)
   {
-    case IAC_ALGORITHM_NONE:       
+    case IAC_ALGORITHM_NONE:
       //Case 0 is no idle control ('None')
       break;
 
@@ -244,7 +244,7 @@ void initialiseIdleUpOutput(void)
   if (configPage2.idleUpOutputInv == 1) { idleUpOutputHIGH = LOW; idleUpOutputLOW = HIGH; }
   else { idleUpOutputHIGH = HIGH; idleUpOutputLOW = LOW; }
 
-  if(configPage2.idleUpEnabled > 0) { digitalWrite(pinIdleUpOutput, idleUpOutputLOW); } //Initialise program with the idle up output in the off state if it is enabled. 
+  if(configPage2.idleUpEnabled > 0) { digitalWrite(pinIdleUpOutput, idleUpOutputLOW); } //Initialise program with the idle up output in the off state if it is enabled.
   currentStatus.idleUpOutputActive = false;
 
   idleUpOutput_pin_port = portOutputRegister(digitalPinToPort(pinIdleUpOutput));
@@ -261,20 +261,20 @@ static inline byte checkForStepping(void)
 {
   bool isStepping = false;
   unsigned int timeCheck;
-  
+
   if( (idleStepper.stepperStatus == STEPPING) || (idleStepper.stepperStatus == COOLING) )
   {
     if (idleStepper.stepperStatus == STEPPING)
     {
       timeCheck = iacStepTime_uS;
     }
-    else 
+    else
     {
       timeCheck = iacCoolTime_uS;
     }
 
     if(micros() > (idleStepper.stepStartTime + timeCheck) )
-    {         
+    {
       if(idleStepper.stepperStatus == STEPPING)
       {
         //Means we're currently in a step, but it needs to be turned off
@@ -283,20 +283,20 @@ static inline byte checkForStepping(void)
 
 	//Set status to COOLING. In next cycle, status will be set to SOFF and set stepper power OFF based on given settings
         idleStepper.stepperStatus = COOLING; //'Cooling' is the time the stepper needs to sit in LOW state before the next step can be made
-                  
+
         isStepping = true;
       }
       else
       {
         //Means we're in COOLING status but have been in this state long enough. Go into off state
         idleStepper.stepperStatus = SOFF;
-        if(configPage9.iacStepperPower == STEPPER_POWER_WHEN_ACTIVE) 
-        { 
-          //Disable the DRV8825, but only if we're at the final step in this cycle or within the hysteresis range. 
+        if(configPage9.iacStepperPower == STEPPER_POWER_WHEN_ACTIVE)
+        {
+          //Disable the DRV8825, but only if we're at the final step in this cycle or within the hysteresis range.
           if ( (idleStepper.curIdleStep >= (idleStepper.targetIdleStep - configPage6.iacStepHyster)) && (idleStepper.curIdleStep <= (idleStepper.targetIdleStep + configPage6.iacStepHyster))) //Hysteresis check
-          { 
-            digitalWrite(pinStepperEnable, HIGH); 
-          } 
+          {
+            digitalWrite(pinStepperEnable, HIGH);
+          }
         }
       }
     }

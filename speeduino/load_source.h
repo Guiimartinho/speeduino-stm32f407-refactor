@@ -6,8 +6,8 @@
  * @brief The load source for various tables
  * */
 enum LoadSource {
-  /** Manifold Absolute Pressure (MAP). Aka Intake MAP (IMAP). 
-   * I.e. a pressure sensor that reads the pressure (positive or negative) 
+  /** Manifold Absolute Pressure (MAP). Aka Intake MAP (IMAP).
+   * I.e. a pressure sensor that reads the pressure (positive or negative)
    * in the intake manifold */
   LOAD_SOURCE_MAP,
   /** Throttle Position Sensor (TPS)*/
@@ -20,7 +20,7 @@ enum LoadSource {
 
 /**
  * @brief Get the load value, based the supplied algorithm
- * 
+ *
  * @param algorithm The load algorithm
  * @param current The current system state, from which the load is computed.
  * @return The load.

@@ -88,7 +88,7 @@
 #include "acc_mc33810.h"
 #include "board_config/board_config.h"  // MODULARIZED: Board configuration
 #include BOARD_H //Note that this is not a real file, it is defined in globals.h.
-#include "led_button_system.h"  // LED + Button interactive system 
+#include "led_button_system.h"  // LED + Button interactive system
 #if defined(EEPROM_RESET_PIN)
   #include EEPROM_LIB_H
 #endif
@@ -2672,7 +2672,7 @@ static inline bool isAnyFuelScheduleRunning(void) {
       || fuelSchedule2.Status==RUNNING
       || fuelSchedule3.Status==RUNNING
       || fuelSchedule4.Status==RUNNING
-#if INJ_CHANNELS >= 5      
+#if INJ_CHANNELS >= 5
       || fuelSchedule5.Status==RUNNING
 #endif
 #if INJ_CHANNELS >= 6
@@ -2688,17 +2688,17 @@ static inline bool isAnyFuelScheduleRunning(void) {
 }
 
 static inline bool isAnyIgnScheduleRunning(void) {
-  return ignitionSchedule1.Status==RUNNING      
-#if IGN_CHANNELS >= 2 
+  return ignitionSchedule1.Status==RUNNING
+#if IGN_CHANNELS >= 2
       || ignitionSchedule2.Status==RUNNING
-#endif      
-#if IGN_CHANNELS >= 3 
+#endif
+#if IGN_CHANNELS >= 3
       || ignitionSchedule3.Status==RUNNING
-#endif      
-#if IGN_CHANNELS >= 4       
+#endif
+#if IGN_CHANNELS >= 4
       || ignitionSchedule4.Status==RUNNING
-#endif      
-#if IGN_CHANNELS >= 5      
+#endif
+#if IGN_CHANNELS >= 5
       || ignitionSchedule5.Status==RUNNING
 #endif
 #if IGN_CHANNELS >= 6

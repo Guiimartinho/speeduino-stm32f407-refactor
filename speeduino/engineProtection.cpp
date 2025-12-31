@@ -321,4 +321,3 @@ byte checkAFRLimit(void)
 
   return checkAFRLimitActive;
 }
-

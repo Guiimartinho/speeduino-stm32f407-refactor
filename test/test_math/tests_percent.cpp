@@ -46,7 +46,7 @@ void test_maths_halfpercent_U8(void)
   test_halfPercentage(66, percentOf);
   test_halfPercentage(75, percentOf);
   test_halfPercentage(100, percentOf);
-  test_halfPercentage(125, percentOf);  
+  test_halfPercentage(125, percentOf);
 }
 
 void test_maths_halfpercent_U16(void)
@@ -58,7 +58,7 @@ void test_maths_halfpercent_U16(void)
   test_halfPercentage(66, percentOf);
   test_halfPercentage(75, percentOf);
   test_halfPercentage(100, percentOf);
-  test_halfPercentage(125, percentOf); 
+  test_halfPercentage(125, percentOf);
 }
 
 void test_maths_halfPercentage_perf(void)
@@ -74,7 +74,7 @@ void test_maths_halfPercentage_perf(void)
     auto optimizedTest = [] (uint8_t index, uint32_t &checkSum) { checkSum += halfPercentage(index, percentOf); };
     TEST_MESSAGE("halfPercentage ");
     auto comparison = compare_executiontime<uint8_t, uint32_t>(iters, start_index, end_index, step, nativeTest, optimizedTest);
-    
+
     // The checksums will be different due to rounding. This is only
     // here to force the compiler to run the loops above
     TEST_ASSERT_INT32_WITHIN(UINT32_MAX/2, comparison.timeA.result, comparison.timeB.result);
@@ -97,7 +97,7 @@ void test_maths_percentage_perf(void)
     auto optimizedTest = [] (uint8_t index, uint32_t &checkSum) { checkSum += percentage(index, percentOf); };
     TEST_MESSAGE("Percentage ");
     auto comparison = compare_executiontime<uint8_t, uint32_t>(iters, start_index, end_index, step, nativeTest, optimizedTest);
-    
+
     // The checksums will be different due to rounding. This is only
     // here to force the compiler to run the loops above
     TEST_ASSERT_INT32_WITHIN(UINT32_MAX/2, comparison.timeA.result, comparison.timeB.result);

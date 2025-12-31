@@ -23,16 +23,16 @@ void triggerPri_SuzukiK6A(void) {
     curTime = micros();
     curGap = curTime - toothSystemLastToothTime;
     if (curGap < triggerFilterTime && currentStatus.startRevolutions != 0) { return; }
-    
+
     toothSystemCount++;
     if (currentStatus.hasSync == false) { toothLastToothTime = curTime; return; }
-    
+
     if (toothSystemCount >= 3) {
         BIT_SET(decoderState, BIT_DECODER_VALID_TRIGGER);
         toothSystemLastToothTime = curTime;
         toothSystemCount = 0;
         toothCurrentCount++;
-        
+
         if (toothCurrentCount == 1 || toothCurrentCount > 120) {
             toothCurrentCount = 1;
             toothOneMinusOneTime = toothOneTime;
@@ -40,7 +40,7 @@ void triggerPri_SuzukiK6A(void) {
             currentStatus.hasSync = true;
             currentStatus.startRevolutions++;
         }
-        
+
         setFilter(curGap);
         toothLastMinusOneToothTime = toothLastToothTime;
         toothLastToothTime = curTime;
@@ -60,12 +60,12 @@ int getCrankAngle_SuzukiK6A(void) {
         tempToothLastToothTime = toothLastToothTime;
         lastCrankAngleCalc = micros();
         interrupts();
-        
+
         if (tempToothCurrentCount == 0) { tempToothCurrentCount = 120; }
         crankAngle = ((tempToothCurrentCount - 1) * 3) + configPage4.triggerAngle;
         elapsedTime = (lastCrankAngleCalc - tempToothLastToothTime);
         crankAngle += timeToAngleDegPerMicroSec(elapsedTime);
-        
+
         if (crankAngle >= 720) { crankAngle -= 720; }
         if (crankAngle < 0) { crankAngle += CRANK_ANGLE_MAX; }
     }

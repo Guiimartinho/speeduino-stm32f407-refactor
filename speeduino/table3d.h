@@ -1,16 +1,16 @@
-/** 
+/**
  * @defgroup table_3d 3D Tables
  * @brief Structures and functions related to 3D tables, such as VE, Spark Advance, AFR etc.
- * 
- * Logical: 
+ *
+ * Logical:
  *      - each 3D table is a continuous height map spread over a cartesian (x, y) plane
  *          - Continuous: we expect to interpolate between any 4 points
  *      - The axes are
- *          - Bounded. I.e. non-infinite 
+ *          - Bounded. I.e. non-infinite
  *          - Non-linear. I.e. x[n]-x[n-1] != x[n+1]-x[n]
  *          - Increasing. I.e. x[n] >= x[n-1]
  *          - Do not have to start at [0,0]
- * 
+ *
  * E.g. for a 3x3 table, this is what the TS table editor would show:
  * <pre>
  *      Y-Max    V6      V7      V8
@@ -28,7 +28,7 @@
  *      - The value locations match the axes.
  *          - <c>value[0][0]</c> stores \c V6.
  *          - <c>value[2][0]</c> stores \c V0.
- * 
+ *
  * I.e.
  * <pre>
  *      Y-Min    V0      V1      V2
@@ -75,17 +75,17 @@
 
 /**
  * @brief Table \b type identifiers. Limited compile time RTTI
- * 
- * With no virtual functions (they have quite a bit of overhead in both space & 
- * time), we have to pass void* around in certain cases. In order to cast that 
+ *
+ * With no virtual functions (they have quite a bit of overhead in both space &
+ * time), we have to pass void* around in certain cases. In order to cast that
  * back to a concrete table type, we need to somehow identify the type.
- * 
+ *
  * Once approach is to register each type - but that requires a central registry
  * which will use RAM.
- * 
+ *
  * Since we have a compile time fixed set of table types, we can map a unique
  * identifier to the type via a cast - this enum is that unique identifier.
- * 
+ *
  * Typically used in conjunction with the '#CONCRETE_TABLE_ACTION' macro
  */
 enum table_type_t {
@@ -124,14 +124,14 @@ TABLE3D_GENERATOR(TABLE3D_GEN_TYPE)
                               pTable->axisX.axis, \
                               pTable->axisY.axis, \
                               { x, y }); \
-    } 
+    }
 TABLE3D_GENERATOR(TABLE3D_GEN_GET_TABLE_VALUE)
 
 // =============================== Table function calls =========================
 
 // With no templates or inheritance we need some way to call functions
 // for the various distinct table types. CONCRETE_TABLE_ACTION dispatches
-// to a caller defined function overloaded by the type of the table. 
+// to a caller defined function overloaded by the type of the table.
 #define CONCRETE_TABLE_ACTION_INNER(size, xDomain, yDomain, action, ...) \
   case TO_TYPE_KEY(size, xDomain, yDomain): action(size, xDomain, yDomain, ##__VA_ARGS__);
 #define CONCRETE_TABLE_ACTION(testKey, action, defaultAction, ...) \

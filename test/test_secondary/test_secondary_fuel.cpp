@@ -13,14 +13,14 @@ static void __attribute__((noinline)) assert_2nd_fuel_is_off(const statuses &cur
     TEST_ASSERT_EQUAL(expectedVE, current.VE1);
     TEST_ASSERT_EQUAL(0, current.VE2);
     TEST_ASSERT_EQUAL(current.VE1, current.VE);
-} 
+}
 
 static void __attribute__((noinline)) assert_2nd_fuel_is_on(const statuses &current, uint8_t expectedVE1, uint8_t expectedVE2, uint8_t expectedVE) {
     TEST_ASSERT_BIT_HIGH(BIT_STATUS3_FUEL2_ACTIVE, current.status3);
     TEST_ASSERT_EQUAL(expectedVE1, current.VE1);
     TEST_ASSERT_EQUAL(expectedVE2, current.VE2);
     TEST_ASSERT_EQUAL(expectedVE, current.VE);
-} 
+}
 
 static void test_no_secondary_fuel(void) {
     config10 page10 = {};
@@ -48,7 +48,7 @@ static void __attribute__((noinline)) test_fuel_mode_cap_UINT8_MAX(uint8_t mode)
     populate_table_axis_P(lookupTable.axisX.begin(), tempXAxis);
     populate_table_axis_P(lookupTable.axisY.begin(), tempYAxis);
 
-    page10.fuel2Mode = mode;    
+    page10.fuel2Mode = mode;
     page10.fuel2Algorithm = LOAD_SOURCE_MAP;
     current.VE1 = 200;
     current.VE = current.VE1;
@@ -67,7 +67,7 @@ static void __attribute__((noinline)) setup_test_fuel_mode_simple(config10 &page
     populate_table_axis_P(lookupTable.axisX.begin(), tempXAxis);
     populate_table_axis_P(lookupTable.axisY.begin(), tempYAxis);
 
-    page10.fuel2Mode = mode;    
+    page10.fuel2Mode = mode;
     page10.fuel2Algorithm = LOAD_SOURCE_MAP;
     current.VE1 = SIMPLE_VE1;
     current.VE = current.VE1;
@@ -125,7 +125,7 @@ static void __attribute__((noinline)) test_fuel_mode_cond_switch_negative(uint8_
 
     calculateSecondaryFuel(page10, lookupTable, current);
 
-    assert_2nd_fuel_is_off(current, SIMPLE_VE1);    
+    assert_2nd_fuel_is_off(current, SIMPLE_VE1);
 }
 
 static void __attribute__((noinline)) test_fuel_mode_cond_switch_positive(uint8_t cond, uint16_t trigger) {
@@ -140,27 +140,27 @@ static void __attribute__((noinline)) test_fuel_mode_cond_switch_positive(uint8_
 }
 
 static void __attribute__((noinline)) test_fuel_mode_cond_switch_rpm(void) {
-    test_fuel_mode_cond_switch_positive(FUEL2_CONDITION_RPM, 3499);    
-    test_fuel_mode_cond_switch_negative(FUEL2_CONDITION_RPM, 3501);    
-    test_fuel_mode_cond_switch_positive(FUEL2_CONDITION_RPM, 3499);    
+    test_fuel_mode_cond_switch_positive(FUEL2_CONDITION_RPM, 3499);
+    test_fuel_mode_cond_switch_negative(FUEL2_CONDITION_RPM, 3501);
+    test_fuel_mode_cond_switch_positive(FUEL2_CONDITION_RPM, 3499);
 }
 
 static void __attribute__((noinline)) test_fuel_mode_cond_switch_tps(void) {
-    test_fuel_mode_cond_switch_positive(FUEL2_CONDITION_TPS, 49);    
-    test_fuel_mode_cond_switch_negative(FUEL2_CONDITION_TPS, 51);    
-    test_fuel_mode_cond_switch_positive(FUEL2_CONDITION_TPS, 49);    
+    test_fuel_mode_cond_switch_positive(FUEL2_CONDITION_TPS, 49);
+    test_fuel_mode_cond_switch_negative(FUEL2_CONDITION_TPS, 51);
+    test_fuel_mode_cond_switch_positive(FUEL2_CONDITION_TPS, 49);
 }
 
 static void __attribute__((noinline)) test_fuel_mode_cond_switch_map(void) {
-    test_fuel_mode_cond_switch_positive(FUEL2_CONDITION_MAP, 49);    
-    test_fuel_mode_cond_switch_negative(FUEL2_CONDITION_MAP, 51);    
-    test_fuel_mode_cond_switch_positive(FUEL2_CONDITION_MAP, 49);    
+    test_fuel_mode_cond_switch_positive(FUEL2_CONDITION_MAP, 49);
+    test_fuel_mode_cond_switch_negative(FUEL2_CONDITION_MAP, 51);
+    test_fuel_mode_cond_switch_positive(FUEL2_CONDITION_MAP, 49);
 }
 
 static void __attribute__((noinline)) test_fuel_mode_cond_switch_ethanol_pct(void) {
-    test_fuel_mode_cond_switch_positive(FUEL2_CONDITION_ETH, 49);    
-    test_fuel_mode_cond_switch_negative(FUEL2_CONDITION_ETH, 51);    
-    test_fuel_mode_cond_switch_positive(FUEL2_CONDITION_ETH, 49);    
+    test_fuel_mode_cond_switch_positive(FUEL2_CONDITION_ETH, 49);
+    test_fuel_mode_cond_switch_negative(FUEL2_CONDITION_ETH, 51);
+    test_fuel_mode_cond_switch_positive(FUEL2_CONDITION_ETH, 49);
 }
 
 static void __attribute__((noinline)) test_fuel_mode_input_switch(void) {
@@ -171,7 +171,7 @@ static void __attribute__((noinline)) test_fuel_mode_input_switch(void) {
     fill_table_values(lookupTable, SWITCHED_VE2);
 
     page10.fuel2InputPolarity = HIGH;
-    pinFuel2Input = 3;   
+    pinFuel2Input = 3;
     pinMode(pinFuel2Input, OUTPUT);
 
     // On

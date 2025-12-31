@@ -168,7 +168,7 @@ static constexpr byte SERIAL_RC_BUSY_ERR   = 0x85U; //!< TS will wait and retry
 static constexpr uint8_t SEND_OUTPUT_CHANNELS = 48U; //!< Code for the "send output channels command"
 
 #if defined(RTC_ENABLED) && defined(SD_LOGGING)
-  #define COMMS_SD            
+  #define COMMS_SD
 #endif
 
 /// @defgroup group-serial-hard-coded-responses Hard coded response for some TS messages
@@ -182,12 +182,12 @@ static constexpr byte productString[] PROGMEM = { SERIAL_RC_OK, 'S', 'p', 'e', '
 static constexpr byte testCommsResponse[] PROGMEM = { SERIAL_RC_OK, 255 };
 /// @}
 
-/** 
+/**
  * @brief The number of bytes received or transmitted to date during nonblocking I/O.
- * @note We can share one variable between rx & tx because we only support simplex serial comms. 
+ * @note We can share one variable between rx & tx because we only support simplex serial comms.
  * I.e. we can only be receiving or transmitting at any one time.
  */
-static uint16_t serialBytesRxTx = 0; 
+static uint16_t serialBytesRxTx = 0;
 
 static constexpr uint16_t SERIAL_TIMEOUT = 400; //!< Timeout threshold in milliseconds
 uint32_t serialReceiveStartTime = 0; //!< The time in milliseconds at which the serial receive started. Used for calculating whether a timeout has occurred
@@ -199,8 +199,8 @@ using crc_t = uint32_t;
 #ifdef COMMS_SD
 #undef SERIAL_BUFFER_SIZE
 /** @brief Serial payload buffer must be significantly larger for boards that support SD logging.
- * 
- * Large enough to contain 4 sectors + overhead 
+ *
+ * Large enough to contain 4 sectors + overhead
  */
 #define SERIAL_BUFFER_SIZE (2048 + 3)
 static uint16_t SDcurrentDirChunk;
@@ -215,11 +215,11 @@ Stream* pPrimarySerial;
 #if defined(CORE_AVR)
 #pragma GCC push_options
 // This minimizes RAM usage at no performance cost
-#pragma GCC optimize ("Os") 
+#pragma GCC optimize ("Os")
 #endif
 
 /** @brief Has the current receive operation timed out? */
-bool isRxTimeout(void) 
+bool isRxTimeout(void)
 {
   return (millis() - serialReceiveStartTime) > SERIAL_TIMEOUT;
 }
@@ -235,7 +235,7 @@ void flushRXbuffer(void)
 }
 
 /** @brief Reverse the byte order of a uint32_t
- * 
+ *
  * @attention noinline is needed to prevent enlarging callers stack frame, which in turn throws
  * off free ram reporting.
  * */
@@ -249,10 +249,10 @@ static __attribute__((noinline)) uint32_t reverse_bytes(uint32_t i)
 
 // ====================================== Blocking IO Support ================================
 
-void writeByteReliableBlocking(byte value) 
+void writeByteReliableBlocking(byte value)
 {
   // Some platforms (I'm looking at you Teensy 3.5) do not mimic the Arduino 1.0
-  // contract which synchronously blocks. 
+  // contract which synchronously blocks.
   // https://github.com/PaulStoffregen/cores/blob/master/teensy3/usb_primarySerial.c#L215
   while (!primarySerial.availableForWrite()) { /* Wait for the buffer to free up space */ }
   primarySerial.write(value);
@@ -260,7 +260,7 @@ void writeByteReliableBlocking(byte value)
 
 // ====================================== Multibyte Primitive Type IO Support =============================
 
-/** @brief Read from the serial port into the supplied buffer 
+/** @brief Read from the serial port into the supplied buffer
  * @attention The buffer is filled in reverse, since TS comms is little-endian.
 */
 static void readSerialTimeout(char *buffer, size_t length) {
@@ -268,17 +268,17 @@ static void readSerialTimeout(char *buffer, size_t length) {
   // See https://www.pjrc.com/teensy/td_serial.html#singlebytepackets
   while( (length > 0U) && (!isRxTimeout()) )
   {
-    if(primarySerial.available() != 0) { buffer[--length] = (byte)primarySerial.read(); } 
+    if(primarySerial.available() != 0) { buffer[--length] = (byte)primarySerial.read(); }
   }
 }
 
 /**
  * @brief Reads an integral type, timing out if necessary
- * 
- * @tparam TIntegral The integral type. E.g. uint16_t 
+ *
+ * @tparam TIntegral The integral type. E.g. uint16_t
  */
 template <typename TIntegral>
-static __attribute__((noinline)) TIntegral readSerialIntegralTimeout(void) 
+static __attribute__((noinline)) TIntegral readSerialIntegralTimeout(void)
 {
   // We use type punning to read into a buffer and convert to the appropriate type
   union {
@@ -293,7 +293,7 @@ static __attribute__((noinline)) TIntegral readSerialIntegralTimeout(void)
   return buffer.value;
 }
 
-/** @brief Write a uint32_t to Serial 
+/** @brief Write a uint32_t to Serial
  * @returns The value as transmitted on the wire
 */
 static uint32_t serialWrite(uint32_t value)
@@ -323,8 +323,8 @@ static uint16_t writeNonBlocking(const byte *buffer, size_t length)
 {
   uint16_t bytesTransmitted = 0;
 
-  while (bytesTransmitted<length 
-        && primarySerial.availableForWrite() != 0 
+  while (bytesTransmitted<length
+        && primarySerial.availableForWrite() != 0
         // Just in case
         && primarySerial.write(buffer[bytesTransmitted]) == 1)
   {
@@ -351,10 +351,10 @@ static size_t writeNonBlocking(size_t start, uint32_t value)
 
 
 /** @brief Send the buffer, followed by it's CRC
- * 
+ *
  * This is supposed to be called multiple times for the same buffer until
  * it's all sent.
- * 
+ *
  * @param buffer The buffer
  * @param start Index into the buffer to start sending at. [0, length)
  * @param length Total size of the buffer
@@ -366,7 +366,7 @@ static uint16_t sendBufferAndCrcNonBlocking(const byte *buffer, size_t start, si
   {
     start = start + writeNonBlocking(buffer+start, length-start);
   }
-  
+
   if (start>=length && start<length+sizeof(crc_t))
   {
     start = start + writeNonBlocking(start-length, CRC32_serial.crc32(buffer, length));
@@ -376,12 +376,12 @@ static uint16_t sendBufferAndCrcNonBlocking(const byte *buffer, size_t start, si
 }
 
 /** @brief Start sending the shared serialPayload buffer.
- * 
+ *
  * ::serialStatusFlag will be signal the result of the send:<br>
  * ::serialStatusFlag == SERIAL_INACTIVE: send is complete <br>
  * ::serialStatusFlag == SERIAL_TRANSMIT_INPROGRESS: partial send, subsequent calls to continueSerialTransmission
  * will finish sending serialPayload
- * 
+ *
  * @param payloadLength How many bytes to send [0, sizeof(serialPayload))
 */
 static void sendSerialPayloadNonBlocking(uint16_t payloadLength)
@@ -397,10 +397,10 @@ static void sendSerialPayloadNonBlocking(uint16_t payloadLength)
 // ====================================== TS Message Support =============================
 
 /** @brief Send a message to TS containing only a return code.
- * 
+ *
  * This is used when TS asks for an action to happen (E.g. start a logger) or
  * to signal an error condition to TS
- * 
+ *
  * @attention This is a blocking operation
  */
 static void sendReturnCodeMsg(byte returnCode)
@@ -412,12 +412,12 @@ static void sendReturnCodeMsg(byte returnCode)
 
 // ====================================== Command/Action Support =============================
 
-// The functions in this section are abstracted out to prevent enlarging callers stack frame, 
+// The functions in this section are abstracted out to prevent enlarging callers stack frame,
 // which in turn throws off free ram reporting.
 
 /**
  * @brief Update a pages contents from a buffer
- * 
+ *
  * @param pageNum The index of the page to update
  * @param offset Offset into the page
  * @param buffer The buffer to read from
@@ -442,7 +442,7 @@ static bool updatePageValues(uint8_t pageNum, uint16_t offset, const byte *buffe
 
 /**
  * @brief Loads a pages contents into a buffer
- * 
+ *
  * @param pageNum The index of the page to update
  * @param offset Offset into the page
  * @param buffer The buffer to read from
@@ -463,11 +463,11 @@ static void loadPageValuesToBuffer(uint8_t pageNum, uint16_t offset, byte *buffe
  * E.g. tuning sw command 'A' (Send all values) will send data from field number 0, LOG_ENTRY_SIZE fields.
  */
 static void generateLiveValues(uint16_t offset, uint16_t packetLength)
-{  
-  if(firstCommsRequest) 
-  { 
+{
+  if(firstCommsRequest)
+  {
     firstCommsRequest = false;
-    currentStatus.secl = 0; 
+    currentStatus.secl = 0;
   }
 
   currentStatus.status2 ^= (-currentStatus.hasSync ^ currentStatus.status2) & (1U << BIT_STATUS2_SYNC); //Set the sync bit of the Spark variable to match the hasSync variable
@@ -475,7 +475,7 @@ static void generateLiveValues(uint16_t offset, uint16_t packetLength)
   serialPayload[0] = SERIAL_RC_OK;
   for(uint16_t x=0; x<packetLength; x++)
   {
-    serialPayload[x+1U] = getTSLogEntry(offset+x); 
+    serialPayload[x+1U] = getTSLogEntry(offset+x);
   }
   // Reset any flags that are being used to trigger page refreshes
   BIT_CLEAR(currentStatus.status3, BIT_STATUS3_VSS_REFRESH);
@@ -483,7 +483,7 @@ static void generateLiveValues(uint16_t offset, uint16_t packetLength)
 
 /**
  * @brief Update the oxygen sensor table from serialPayload
- * 
+ *
  * @param offset Offset into serialPayload and the table
  * @param chunkSize Number of bytes available in serialPayload
  */
@@ -495,7 +495,7 @@ static void loadO2CalibrationChunk(uint16_t offset, uint16_t chunkSize)
   uint32_t calibrationCRC = 0U;
 
   //Read through the current chunk (Should be 256 bytes long)
-  // Note there are 2 loops here: 
+  // Note there are 2 loops here:
   //    [x, chunkSize)
   //    [offset, offset+chunkSize)
   for(uint16_t x = 0; x < chunkSize; ++x, ++offset)
@@ -513,8 +513,8 @@ static void loadO2CalibrationChunk(uint16_t offset, uint16_t chunkSize)
     // Subsequent passes through the loop, we need to UPDATE the CRC
     pCrcFun = &FastCRC32::crc32_upd;
   }
- 
-  if( offset >= 1023U ) 
+
+  if( offset >= 1023U )
   {
     //All chunks have been received (1024 values). Finalise the CRC and burn to EEPROM
     storeCalibrationCRC32(O2_CALIBRATION_PAGE, ~calibrationCRC);
@@ -529,7 +529,7 @@ static void loadO2CalibrationChunk(uint16_t offset, uint16_t chunkSize)
 static uint8_t toTemperature(byte lo, byte hi)
 {
   int16_t tempValue = (int16_t)(word(hi, lo)); //Combine the 2 bytes into a single, signed 16-bit value
-  tempValue = tempValue / 10; //TS sends values multiplied by 10 so divide back to whole degrees. 
+  tempValue = tempValue / 10; //TS sends values multiplied by 10 so divide back to whole degrees.
   tempValue = ((tempValue - 32) * 5) / 9; //Convert from F to C
   //Apply the temp offset and check that it results in all values being positive
   return max( temperatureAddOffset(tempValue), (uint8_t)0U );
@@ -537,7 +537,7 @@ static uint8_t toTemperature(byte lo, byte hi)
 
 /**
  * @brief Update a temperature calibration table from serialPayload
-  * 
+  *
  * @param calibrationLength The chunk size received from TS
  * @param calibrationPage Index of the table
  * @param values The table values
@@ -557,9 +557,9 @@ static void processTemperatureCalibrationTableUpdate(uint16_t calibrationLength,
     writeCalibrationPage(calibrationPage);
     sendReturnCodeMsg(SERIAL_RC_OK);
   }
-  else 
-  { 
-    sendReturnCodeMsg(SERIAL_RC_RANGE_ERR); 
+  else
+  {
+    sendReturnCodeMsg(SERIAL_RC_RANGE_ERR);
   }
 }
 

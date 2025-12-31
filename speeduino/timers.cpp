@@ -438,7 +438,7 @@ void oneMSInterval(void)
   //Overdwell check
   uint32_t targetOverdwellTime = micros() - dwellLimit_uS; //Set a target time in the past that all coil charging must have begun after. If the coil charge began before this time, it's been running too long
   bool isCrankLocked = configPage4.ignCranklock && (currentStatus.RPM < currentStatus.crankRPM); //Dwell limiter is disabled during cranking on setups using the locked cranking timing. WE HAVE to do the RPM check here as relying on the engine cranking bit can be potentially too slow in updating
-  if ((configPage4.useDwellLim == 1) && (isCrankLocked != true)) 
+  if ((configPage4.useDwellLim == 1) && (isCrankLocked != true))
   {
     applyOverDwellCheck(ignitionSchedule1, targetOverdwellTime);
 #if IGN_CHANNELS >= 2
@@ -538,10 +538,10 @@ void oneMSInterval(void)
     if ( BIT_CHECK(currentStatus.engine, BIT_ENGINE_RUN) ) { runSecsX10++; }
     else { runSecsX10 = 0; }
 
-    if ( (currentStatus.injPrimed == false) && (seclx10 >= configPage2.primingDelay) && (currentStatus.RPM == 0) && (currentStatus.initialisationComplete == true) ) 
-    { 
-      beginInjectorPriming(); 
-      currentStatus.injPrimed = true; 
+    if ( (currentStatus.injPrimed == false) && (seclx10 >= configPage2.primingDelay) && (currentStatus.RPM == 0) && (currentStatus.initialisationComplete == true) )
+    {
+      beginInjectorPriming();
+      currentStatus.injPrimed = true;
     }
     seclx10++;
   }

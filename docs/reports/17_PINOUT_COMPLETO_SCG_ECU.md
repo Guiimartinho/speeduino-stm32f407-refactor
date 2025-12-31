@@ -741,4 +741,3 @@ Hardware Ready:       YES ✅
 ### Documentação Original:
 - Este documento (17_PINOUT_COMPLETO_SCG_ECU.md)
 - Pinout CSV original (SCG-ECU 2.0 schematic)
-

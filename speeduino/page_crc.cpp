@@ -42,7 +42,7 @@ static inline uint32_t compute_tableaxis_crc(table_axis_iterator it, uint32_t cr
 
 static inline uint32_t compute_table_crc(const page_iterator_t &entity, pCrcCalc calcFunc, FastCRC32 &crcCalc)
 {
-    return compute_tableaxis_crc(y_begin(entity), 
+    return compute_tableaxis_crc(y_begin(entity),
                 compute_tableaxis_crc(x_begin(entity),
                     compute_tablevalues_crc(rows_begin(entity), calcFunc, crcCalc),
                     crcCalc),

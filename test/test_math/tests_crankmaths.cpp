@@ -39,7 +39,7 @@ void test_crankmaths_angletotime_tooth_execute() {
 
 void testCrankMaths()
 {
-  SET_UNITY_FILENAME() {  
+  SET_UNITY_FILENAME() {
     constexpr byte testNameLength = 200;
     char testName[testNameLength];
 

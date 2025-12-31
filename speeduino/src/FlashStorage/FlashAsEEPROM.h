@@ -61,7 +61,7 @@ class EEPROMClass {
     void update(int, uint8_t);
 
     /**
-     * Read AnyTypeOfData from eeprom 
+     * Read AnyTypeOfData from eeprom
      * @param address
      * @return AnyTypeOfData
      */
@@ -74,11 +74,11 @@ class EEPROMClass {
 
     /**
      * Write AnyTypeOfData to eeprom
-     * @param address 
-     * @param AnyTypeOfData 
-     * @return number of bytes written to flash 
+     * @param address
+     * @param AnyTypeOfData
+     * @return number of bytes written to flash
      */
-    template< typename T > const T &put( int idx, const T &t ){        
+    template< typename T > const T &put( int idx, const T &t ){
         const uint8_t *ptr = (const uint8_t*) &t;
         uint16_t e = idx;
         for( int count = sizeof(T) ; count ; --count, ++e )  update(e, *ptr++);

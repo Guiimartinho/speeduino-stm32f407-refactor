@@ -58,13 +58,13 @@ void triggerPri_Nissan360(void)
     curTime = micros();
     curGap = curTime - toothLastToothTime;
     if (curGap < triggerFilterTime) { return; }
-    
+
     toothCurrentCount++;
     BIT_SET(decoderState, BIT_DECODER_VALID_TRIGGER);
-    
+
     toothLastMinusOneToothTime = toothLastToothTime;
     toothLastToothTime = curTime;
-    
+
     if (currentStatus.hasSync == true) {
         if (toothCurrentCount == 361) {
             toothCurrentCount = 1;
@@ -73,7 +73,7 @@ void triggerPri_Nissan360(void)
             currentStatus.startRevolutions++;
         }
         setFilter(curGap);
-        
+
         if (configPage2.perToothIgn == true) {
             int16_t crankAngle = ((toothCurrentCount-1) * 2) + configPage4.triggerAngle;
             if (crankAngle > CRANK_ANGLE_MAX_IGN) {
@@ -91,17 +91,17 @@ void triggerSec_Nissan360(void)
     curTime2 = micros();
     curGap2 = curTime2 - toothLastSecToothTime;
     toothLastSecToothTime = curTime2;
-    
+
     byte trigEdge = (configPage4.TrigEdgeSec == 0) ? LOW : HIGH;
-    
+
     if ((secondaryToothCount == 0) || (READ_SEC_TRIGGER() == trigEdge)) {
         secondaryToothCount = toothCurrentCount;
         return;
     }
-    
+
     byte secondaryDuration = toothCurrentCount - secondaryToothCount;
     uint16_t matchedToothCount = 0;
-    
+
     if (currentStatus.hasSync == false) {
         if (processNissan360Window(secondaryDuration, configPage2.nCylinders, &matchedToothCount)) {
             toothCurrentCount = matchedToothCount;
@@ -144,24 +144,24 @@ int getCrankAngle_Nissan360(void)
     int tempToothLastToothTime;
     int tempToothLastMinusOneToothTime;
     int tempToothCurrentCount;
-    
+
     noInterrupts();
     tempToothLastToothTime = toothLastToothTime;
     tempToothLastMinusOneToothTime = toothLastMinusOneToothTime;
     tempToothCurrentCount = toothCurrentCount;
     lastCrankAngleCalc = micros();
     interrupts();
-    
+
     crankAngle = ((tempToothCurrentCount - 1) * 2) + configPage4.triggerAngle;
     unsigned long halfTooth = (tempToothLastToothTime - tempToothLastMinusOneToothTime) / 2;
     elapsedTime = (lastCrankAngleCalc - tempToothLastToothTime);
     if (elapsedTime > halfTooth) {
         crankAngle += 1;
     }
-    
+
     if (crankAngle >= 720) { crankAngle -= 720; }
     if (crankAngle < 0) { crankAngle += 360; }
-    
+
     return crankAngle;
 }
 

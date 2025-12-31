@@ -19,7 +19,7 @@ static void test_div100_Seed(T seedValue) {
   test_div100<T>((T)seedValue);
   test_div100<T>((T)seedValue+(T)50);
   test_div100<T>((T)seedValue+(T)51);
-  test_div100<T>((T)seedValue+(T)100);  
+  test_div100<T>((T)seedValue+(T)100);
 }
 
 void test_maths_div100_U16(void)
@@ -121,8 +121,8 @@ void test_maths_udiv_32_16(void)
   assert_udiv_32_16(MICROS_PER_MIN, 60000); // 1000 RPM
   assert_udiv_32_16(MICROS_PER_MIN, 54005); // 1111 RPM
   assert_udiv_32_16(MICROS_PER_MIN, 7590);  // 7905 RPM
-  assert_udiv_32_16(MICROS_PER_MIN, 7715);  // 7777 RPM  
-  assert_udiv_32_16(MICROS_PER_MIN, 3333);  // 18000 RPM  
+  assert_udiv_32_16(MICROS_PER_MIN, 7715);  // 7777 RPM
+  assert_udiv_32_16(MICROS_PER_MIN, 3333);  // 18000 RPM
 #endif
 }
 
@@ -147,8 +147,8 @@ void test_maths_udiv_32_16_closest(void)
   assert_udiv_32_16(MICROS_PER_MIN, 60000); // 1000 RPM
   assert_udiv_32_16(MICROS_PER_MIN, 54005); // 1111 RPM
   assert_udiv_32_16(MICROS_PER_MIN, 7590);  // 7905 RPM
-  assert_udiv_32_16(MICROS_PER_MIN, 7715);  // 7777 RPM  
-  assert_udiv_32_16(MICROS_PER_MIN, 3333);  // 18000 RPM  
+  assert_udiv_32_16(MICROS_PER_MIN, 7715);  // 7777 RPM
+  assert_udiv_32_16(MICROS_PER_MIN, 3333);  // 18000 RPM
 #endif
 }
 
@@ -169,7 +169,7 @@ void test_maths_udiv_32_16_perf(void)
     auto nativeTest = [] (uint16_t index, uint32_t &checkSum) { checkSum += (uint32_t)indexToDividend(index) / (uint32_t)index; };
     auto optimizedTest = [] (uint16_t index, uint32_t &checkSum) { checkSum += udiv_32_16(indexToDividend(index), index); };
     auto comparison = compare_executiontime<uint16_t, uint32_t>(iters, start_index, end_index, step, nativeTest, optimizedTest);
-    
+
     // The checksums will be different due to rounding. This is only
     // here to force the compiler to run the loops above
     TEST_ASSERT_INT32_WITHIN(UINT32_MAX/2, comparison.timeA.result, comparison.timeB.result);
@@ -189,7 +189,7 @@ void test_maths_div100_s16_perf(void)
     auto nativeTest = [] (int16_t index, int32_t &checkSum) { checkSum += (int16_t)index / (int16_t)100; };
     auto optimizedTest = [] (int16_t index, int32_t &checkSum) { checkSum += div100(index); };
     auto comparison = compare_executiontime<int16_t, int32_t>(iters, start_index, end_index, step, nativeTest, optimizedTest);
-    
+
     // The checksums will be different due to rounding. This is only
     // here to force the compiler to run the loops above
     TEST_ASSERT_INT32_WITHIN(UINT32_MAX/2, comparison.timeA.result, comparison.timeB.result);
@@ -206,11 +206,11 @@ void test_maths_div10_s16_perf(void)
   constexpr int16_t start_index = -3213;
   constexpr int16_t end_index = 3213;
   constexpr int16_t step = 17;
-  
+
   auto nativeTest = [] (int16_t index, int32_t &checkSum) { checkSum += (int16_t)index / (int16_t)10; };
   auto optimizedTest = [] (int16_t index, int32_t &checkSum) { checkSum += div100((int16_t)(index * 10)); };
   auto comparison = compare_executiontime<int16_t, int32_t>(iters, start_index, end_index, step, nativeTest, optimizedTest);
-  
+
   // The checksums will be different due to rounding. This is only
   // here to force the compiler to run the loops above
   TEST_ASSERT_INT32_WITHIN(UINT32_MAX/2, comparison.timeA.result, comparison.timeB.result);
@@ -230,7 +230,7 @@ void test_maths_div100_s32_perf(void)
     auto nativeTest = [] (int32_t index, int32_t &checkSum) { checkSum += (int32_t)index / (int32_t)100; };
     auto optimizedTest = [] (int32_t index, int32_t &checkSum) { checkSum += div100(index); };
     auto comparison = compare_executiontime<int32_t, int32_t>(iters, start_index, end_index, step, nativeTest, optimizedTest);
-    
+
     // The checksums will be different due to rounding. This is only
     // here to force the compiler to run the loops above
     TEST_ASSERT_INT32_WITHIN(UINT32_MAX/2, comparison.timeA.result, comparison.timeB.result);

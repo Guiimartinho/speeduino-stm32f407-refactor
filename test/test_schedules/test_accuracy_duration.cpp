@@ -77,7 +77,7 @@ void test_accuracy_duration_ign(IgnitionSchedule &schedule)
     schedule.pEndCallback = endCallback;
     setIgnitionSchedule(schedule, TIMEOUT, DURATION);
     while(schedule.Status != OFF) /*Wait*/ ;
-    TEST_ASSERT_UINT32_WITHIN(DELTA, DURATION, end_time - start_time);    
+    TEST_ASSERT_UINT32_WITHIN(DELTA, DURATION, end_time - start_time);
 
 }
 void test_accuracy_duration_ign1(void)

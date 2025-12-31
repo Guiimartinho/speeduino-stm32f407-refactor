@@ -28,11 +28,11 @@
 #endif
 
 void FramClass::assertCS(void)
-{ 
+{
 #ifdef SPI_HAS_TRANSACTION
-  spi->beginTransaction(FRAMSettings); 
+  spi->beginTransaction(FRAMSettings);
 #endif
-  *csPort &= ~(csMask); 
+  *csPort &= ~(csMask);
 }
 
 void FramClass::deassertCS(void)
@@ -140,7 +140,7 @@ void FramClass::begin (uint8_t ssel, SPIClass &_spi)
   clkPin = mosiPin = misoPin = NC;
   csPin = ssel;
   spi = &_spi;
-  
+
   // Set CS pin HIGH and configure it as an output
   csPinInit();
   deassertCS();
@@ -301,7 +301,7 @@ uint32_t FramClass::length(void)
   return FRAM_SIZE;
 }
 
-uint8_t FramClass::spiSend(uint8_t data) 
+uint8_t FramClass::spiSend(uint8_t data)
 {
   uint8_t reply = 0;
   if(clkPin != NC)
@@ -322,7 +322,7 @@ uint8_t FramClass::spiSend(uint8_t data)
 
 /*-----------------------------------------------------------------------------*/
 
-uint16_t FramClass::spiSend16(uint16_t data) 
+uint16_t FramClass::spiSend16(uint16_t data)
 {
   uint16_t reply = 0;
   if(clkPin != NC)
@@ -345,4 +345,3 @@ uint16_t FramClass::spiSend16(uint16_t data)
 
 
 //FramClass Fram;
-

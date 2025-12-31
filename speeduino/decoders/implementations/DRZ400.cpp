@@ -55,11 +55,11 @@ int getCrankAngle_DRZ400(void) {
         tempToothLastToothTime = toothLastToothTime;
         lastCrankAngleCalc = micros();
         interrupts();
-        
+
         crankAngle = (tempToothCurrentCount - 1) + configPage4.triggerAngle;
         elapsedTime = (lastCrankAngleCalc - tempToothLastToothTime);
         crankAngle += timeToAngleDegPerMicroSec(elapsedTime);
-        
+
         if (crankAngle >= 720) { crankAngle -= 720; }
         if (crankAngle < 0) { crankAngle += 360; }
     }

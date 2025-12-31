@@ -129,7 +129,7 @@ class STM32_CAN {
     void enableFIFO(bool status = 1);
     void enableMBInterrupts();
     void disableMBInterrupts();
- 
+
     // These are public because these are also used from interrupts.
     typedef struct RingbufferTypeDef {
       volatile uint16_t head;
@@ -137,7 +137,7 @@ class STM32_CAN {
       uint16_t size;
       volatile CAN_message_t *buffer;
     } RingbufferTypeDef;
-  
+
     RingbufferTypeDef rxRing;
     RingbufferTypeDef txRing;
 
@@ -147,7 +147,7 @@ class STM32_CAN {
   protected:
     uint16_t sizeRxBuffer;
     uint16_t sizeTxBuffer;
-  
+
   private:
     void      initializeFilters();
     bool      isInitialized() { return rx_buffer != 0; }
@@ -160,7 +160,7 @@ class STM32_CAN {
 
     volatile CAN_message_t *rx_buffer;
     volatile CAN_message_t *tx_buffer;
-    
+
     bool     _canIsActive = false;
     CAN_PINS _pins;
 

@@ -87,7 +87,7 @@ uint16_t fixedCrankingOverride = 0;
 bool clutchTrigger;
 bool previousClutchTrigger;
 volatile uint32_t toothHistory[TOOTH_LOG_SIZE]; ///< Tooth trigger history - delta time (in uS) from last tooth (Indexed by @ref toothHistoryIndex)
-volatile uint8_t compositeLogHistory[TOOTH_LOG_SIZE]; 
+volatile uint8_t compositeLogHistory[TOOTH_LOG_SIZE];
 volatile unsigned int toothHistoryIndex = 0; ///< Current index to @ref toothHistory array
 unsigned long currentLoopTime; /**< The time (in uS) that the current mainloop started */
 volatile uint16_t ignitionCount; /**< The count of ignition events that have taken place since the engine started */
@@ -107,7 +107,7 @@ volatile uint32_t seclx10;
 volatile byte HWTest_INJ = 0; /**< Each bit in this variable represents one of the injector channels and it's HW test status */
 volatile byte HWTest_INJ_Pulsed = 0; /**< Each bit in this variable represents one of the injector channels and it's pulsed HW test status */
 volatile byte HWTest_IGN = 0; /**< Each bit in this variable represents one of the ignition channels and it's HW test status */
-volatile byte HWTest_IGN_Pulsed = 0; 
+volatile byte HWTest_IGN_Pulsed = 0;
 byte maxIgnOutputs = 1; /**< Number of ignition outputs being used by the current tune configuration */
 byte maxInjOutputs = 1; /**< Number of injection outputs being used by the current tune configuration */
 
@@ -192,7 +192,7 @@ byte pinFuelPressure;
 byte pinOilPressure;
 byte pinWMIEmpty; // Water tank empty sensor
 byte pinWMIIndicator; // No water indicator bulb
-byte pinWMIEnabled; // ON-OFF output to relay/pump/solenoid 
+byte pinWMIEnabled; // ON-OFF output to relay/pump/solenoid
 byte pinMC33810_1_CS;
 byte pinMC33810_2_CS;
 byte pinSDEnable;

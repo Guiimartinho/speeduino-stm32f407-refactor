@@ -15,14 +15,14 @@ static void __attribute__((noinline)) assert_2nd_spark_is_off(const statuses &cu
     TEST_ASSERT_EQUAL(expectedAdvance, current.advance1);
     TEST_ASSERT_EQUAL(0, current.advance2);
     TEST_ASSERT_EQUAL(current.advance1, current.advance);
-} 
+}
 
 static void __attribute__((noinline)) assert_2nd_spark_is_on(const statuses &current, int8_t expectedAdvance1, int8_t expectedAdvance2, int8_t expectedAdvance) {
     TEST_ASSERT_BIT_HIGH(BIT_STATUS5_SPARK2_ACTIVE, current.status5);
     TEST_ASSERT_EQUAL(expectedAdvance1, current.advance1);
     TEST_ASSERT_EQUAL(expectedAdvance2, current.advance2);
     TEST_ASSERT_EQUAL(expectedAdvance, current.advance);
-} 
+}
 
 static void __attribute__((noinline)) test_mode_off_no_secondary_spark(void) {
     config2 page2 = {};
@@ -45,7 +45,7 @@ static constexpr int16_t CAP_LOAD_LOOKUP_RESULT = 150;
 static constexpr int16_t CAP_LOAD_VALUE = CAP_LOAD_LOOKUP_RESULT-INT16_C(OFFSET_IGNITION);
 
 static void __attribute__((noinline)) setup_test_mode_cap_INT8_MAX(config2 &, config10 &page10, statuses &current, table3d16RpmLoad &lookupTable, uint8_t mode) {
-    page10.spark2Mode = mode;    
+    page10.spark2Mode = mode;
     page10.spark2Algorithm = LOAD_SOURCE_MAP;
     current.advance1 = CAP_ADVANCE1;
     current.advance = current.advance1;
@@ -74,7 +74,7 @@ static constexpr int16_t SIMPLE_LOAD_LOOKUP_RESULT = 68;
 static constexpr int16_t SIMPLE_LOAD_VALUE = SIMPLE_LOAD_LOOKUP_RESULT-INT16_C(OFFSET_IGNITION);
 
 static void __attribute__((noinline)) setup_test_mode_simple(config2 &, config10 &page10, statuses &current, table3d16RpmLoad &lookupTable, uint8_t mode) {
-    page10.spark2Mode = mode;    
+    page10.spark2Mode = mode;
     page10.spark2Algorithm = LOAD_SOURCE_MAP;
     current.advance1 = SIMPLE_ADVANCE1;
     current.advance = current.advance1;
@@ -188,7 +188,7 @@ static void __attribute__((noinline)) test_sparkmode_cond_switch_negative(uint8_
 
     calculateSecondarySpark(page2, page10, lookupTable, current);
 
-    assert_2nd_spark_is_off(current, SIMPLE_ADVANCE1);    
+    assert_2nd_spark_is_off(current, SIMPLE_ADVANCE1);
 }
 
 static void __attribute__((noinline)) test_sparkmode_cond_switch_positive(uint8_t cond, uint16_t trigger) {
@@ -205,27 +205,27 @@ static void __attribute__((noinline)) test_sparkmode_cond_switch_positive(uint8_
 }
 
 static void __attribute__((noinline)) test_sparkmode_cond_switch_rpm(void) {
-    test_sparkmode_cond_switch_positive(SPARK2_CONDITION_RPM, 3499);    
-    test_sparkmode_cond_switch_negative(SPARK2_CONDITION_RPM, 3501);    
-    test_sparkmode_cond_switch_positive(SPARK2_CONDITION_RPM, 3499);    
+    test_sparkmode_cond_switch_positive(SPARK2_CONDITION_RPM, 3499);
+    test_sparkmode_cond_switch_negative(SPARK2_CONDITION_RPM, 3501);
+    test_sparkmode_cond_switch_positive(SPARK2_CONDITION_RPM, 3499);
 }
 
 static void __attribute__((noinline)) test_sparkmode_cond_switch_tps(void) {
-    test_sparkmode_cond_switch_positive(SPARK2_CONDITION_TPS, 49);    
-    test_sparkmode_cond_switch_negative(SPARK2_CONDITION_TPS, 51);    
-    test_sparkmode_cond_switch_positive(SPARK2_CONDITION_TPS, 49);    
+    test_sparkmode_cond_switch_positive(SPARK2_CONDITION_TPS, 49);
+    test_sparkmode_cond_switch_negative(SPARK2_CONDITION_TPS, 51);
+    test_sparkmode_cond_switch_positive(SPARK2_CONDITION_TPS, 49);
 }
 
 static void __attribute__((noinline)) test_sparkmode_cond_switch_map(void) {
-    test_sparkmode_cond_switch_positive(SPARK2_CONDITION_MAP, 49);    
-    test_sparkmode_cond_switch_negative(SPARK2_CONDITION_MAP, 51);    
-    test_sparkmode_cond_switch_positive(SPARK2_CONDITION_MAP, 49);    
+    test_sparkmode_cond_switch_positive(SPARK2_CONDITION_MAP, 49);
+    test_sparkmode_cond_switch_negative(SPARK2_CONDITION_MAP, 51);
+    test_sparkmode_cond_switch_positive(SPARK2_CONDITION_MAP, 49);
 }
 
 static void __attribute__((noinline)) test_sparkmode_cond_switch_ethanol_pct(void) {
-    test_sparkmode_cond_switch_positive(SPARK2_CONDITION_ETH, 49);    
-    test_sparkmode_cond_switch_negative(SPARK2_CONDITION_ETH, 51);    
-    test_sparkmode_cond_switch_positive(SPARK2_CONDITION_ETH, 49);    
+    test_sparkmode_cond_switch_positive(SPARK2_CONDITION_ETH, 49);
+    test_sparkmode_cond_switch_negative(SPARK2_CONDITION_ETH, 51);
+    test_sparkmode_cond_switch_positive(SPARK2_CONDITION_ETH, 49);
 }
 
 static void __attribute__((noinline)) test_sparkmode_input_switch(void) {
@@ -237,7 +237,7 @@ static void __attribute__((noinline)) test_sparkmode_input_switch(void) {
     setup_test_mode_simple(page2, page10, current, lookupTable, SPARK2_MODE_INPUT_SWITCH);
 
     page10.spark2InputPolarity = HIGH;
-    pinSpark2Input = 3;   
+    pinSpark2Input = 3;
     pinMode(pinSpark2Input, OUTPUT);
 
     // On
@@ -269,7 +269,7 @@ void test_calculateSecondarySpark(void)
         RUN_TEST(test_sparkmode_multiply_150);
         RUN_TEST(test_sparkmode_multiply_200);
         RUN_TEST(test_sparkmode_multiply_215);
-        RUN_TEST(test_sparkmode_multiply_cap_INT8_MAX); 
+        RUN_TEST(test_sparkmode_multiply_cap_INT8_MAX);
         RUN_TEST(test_sparkmode_add);
         RUN_TEST(test_sparkmode_add_cap_INT8_MAX);
         RUN_TEST(test_sparkmode_cond_switch_rpm);

@@ -5,7 +5,7 @@
     BackupSramAsEEPROM::BackupSramAsEEPROM(){
           //Enable the power interface clock
           RCC->APB1ENR |= RCC_APB1ENR_PWREN;
-        
+
           //Enable the backup SRAM clock by setting BKPSRAMEN bit i
           RCC->AHB1ENR |= RCC_AHB1ENR_BKPSRAMEN;
 
@@ -34,7 +34,7 @@
             /* ERROR : the last byte is outside the backup SRAM region */
             return -1;
           }
-        
+
           /* disable backup domain write protection */
           //Set the Disable Backup Domain write protection (DBP) bit in PWR power control register
           //PWR->CR |= PWR_CR_DBP;
@@ -42,11 +42,11 @@
           for( i = 0; i < bytes; i++ ) {
             *(base_addr + offset + i) = *(data + i);
           }
-          //Enable write protection backup sram when finished  
+          //Enable write protection backup sram when finished
           //PWR->CR &= ~PWR_CR_DBP;
           return 0;
         }
-        
+
     int8_t BackupSramAsEEPROM::read_byte( uint8_t *data, uint16_t bytes, uint16_t offset ) {
           uint8_t* base_addr = (uint8_t *) BKPSRAM_BASE;
           uint16_t i;
@@ -54,27 +54,27 @@
             /* ERROR : the last byte is outside the backup SRAM region */
             return -1;
           }
-          
+
           for( i = 0; i < bytes; i++ ) {
             *(data + i) = *(base_addr + offset + i);
           }
           return 0;
         }
-  
+
     uint8_t BackupSramAsEEPROM::read(uint16_t address) {
         uint8_t val = 0;
         read_byte(&val, 1, address);
-      
+
         return val;
     }
-    
+
     int8_t BackupSramAsEEPROM::write(uint16_t address, uint8_t val) {
-        write_byte(&val, 1, address);   
+        write_byte(&val, 1, address);
         return 0;
     }
-    
+
     int8_t BackupSramAsEEPROM::update(uint16_t address, uint8_t val) {
-        write_byte(&val, 1, address);   
+        write_byte(&val, 1, address);
         return 0;
     }
 
@@ -82,4 +82,3 @@
 
 
 #endif
-

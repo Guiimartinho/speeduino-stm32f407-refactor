@@ -22,14 +22,14 @@ void setup()
   //test_status_running_to_off();
   test_accuracy_timeout();
   test_accuracy_duration();
-  
+
   UNITY_END(); // stop unit testing
 
 #if defined(SIMULATOR)       // Tell SimAVR we are done
     cli();
     sleep_enable();
     sleep_cpu();
-#endif   
+#endif
 }
 
 void loop()

@@ -32,5 +32,3 @@ void setup() {
 
 void loop() {
 }
-
-

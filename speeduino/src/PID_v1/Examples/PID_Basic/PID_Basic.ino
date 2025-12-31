@@ -27,5 +27,3 @@ void loop()
   myPID.Compute();
   analogWrite(3,Output);
 }
-
-

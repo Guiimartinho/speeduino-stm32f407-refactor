@@ -46,8 +46,8 @@ int8_t correctionDFCOignition(int8_t advance);
 
 uint16_t correctionsDwell(uint16_t dwell);
 
-extern byte activateMAPDOT; //The mapDOT value seen when the MAE was activated. 
-extern byte activateTPSDOT; //The tpsDOT value seen when the MAE was activated. 
+extern byte activateMAPDOT; //The mapDOT value seen when the MAE was activated.
+extern byte activateTPSDOT; //The tpsDOT value seen when the MAE was activated.
 
 extern uint16_t AFRnextCycle;
 extern uint8_t aseTaper;

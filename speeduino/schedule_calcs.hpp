@@ -52,7 +52,7 @@ static inline uint16_t calculateInjectorStartAngle(uint16_t pwDegrees, int16_t i
   // (CRANK_ANGLE_MAX_INJ can be as small as 360/nCylinders. E.g. 45° for 8 cylinder)
 
   uint16_t startAngle = (uint16_t)injAngle + (uint16_t)injChannelDegrees;
-  
+
   while (startAngle<pwDegrees) { startAngle = startAngle + (uint16_t)CRANK_ANGLE_MAX_INJ; } // Avoid underflow
   startAngle = startAngle - pwDegrees; // startAngle guaranteed to be >=0.
   while (startAngle>(uint16_t)CRANK_ANGLE_MAX_INJ) { startAngle = startAngle - (uint16_t)CRANK_ANGLE_MAX_INJ; } // Clamp to 0<=startAngle<=CRANK_ANGLE_MAX_INJ
@@ -88,12 +88,12 @@ static inline uint32_t calculateInjectorTimeout(const FuelSchedule &schedule, in
   int16_t delta = openAngle - crankAngle;
 
   if(delta > 0) { tempTimeout = angleToTimeMicroSecPerDegree((uint16_t)delta); }
-  else if ( (schedule.Status == RUNNING) || (schedule.Status == OFF)) 
+  else if ( (schedule.Status == RUNNING) || (schedule.Status == OFF))
   {
     while(delta < 0) { delta += CRANK_ANGLE_MAX_INJ; }
     tempTimeout = angleToTimeMicroSecPerDegree((uint16_t)delta);
   }
-  
+
   return tempTimeout;
 }
 
@@ -186,15 +186,15 @@ static inline void calculateIgnitionTrailingRotary(uint16_t dwellAngle, int rota
  * @complexity 2 (nested conditionals with guard clauses)
  * @misra Compliant: 8 effective lines, early return pattern
  */
-static inline uint32_t _calculateIgnitionTimeout(const IgnitionSchedule &schedule, int16_t startAngle, int16_t crankAngle) 
+static inline uint32_t _calculateIgnitionTimeout(const IgnitionSchedule &schedule, int16_t startAngle, int16_t crankAngle)
 {
   int16_t delta = startAngle - crankAngle;
   if (delta < 0)
   {
-    if ((schedule.Status == RUNNING) && (delta>-CRANK_ANGLE_MAX_IGN)) 
-    { 
+    if ((schedule.Status == RUNNING) && (delta>-CRANK_ANGLE_MAX_IGN))
+    {
       // Msut be >0
-      delta = delta + CRANK_ANGLE_MAX_IGN; 
+      delta = delta + CRANK_ANGLE_MAX_IGN;
     }
     else
     {
@@ -226,7 +226,7 @@ static inline uint32_t _calculateIgnitionTimeout(const IgnitionSchedule &schedul
  * @complexity 1 (simple arithmetic with wrap)
  * @misra Compliant: 4 effective lines, trivial helper
  */
-static inline uint16_t _adjustToIgnChannel(int angle, int channelInjDegrees) 
+static inline uint16_t _adjustToIgnChannel(int angle, int channelInjDegrees)
 {
   angle = angle - channelInjDegrees;
   if( angle < 0) { return angle + CRANK_ANGLE_MAX_IGN; }
@@ -260,7 +260,7 @@ static inline uint16_t _adjustToIgnChannel(int angle, int channelInjDegrees)
  */
 static inline uint32_t calculateIgnitionTimeout(const IgnitionSchedule &schedule, int startAngle, int channelIgnDegrees, int crankAngle)
 {
-  if (channelIgnDegrees == 0) 
+  if (channelIgnDegrees == 0)
   {
       return _calculateIgnitionTimeout(schedule, startAngle, crankAngle);
   }
@@ -296,13 +296,13 @@ static inline uint32_t calculateIgnitionTimeout(const IgnitionSchedule &schedule
  * @complexity 1 (simple conditional dispatch)
  * @misra Compliant: 6 effective lines, hardware timer interaction
  */
-inline void adjustCrankAngle(IgnitionSchedule &schedule, int endAngle, int crankAngle) 
+inline void adjustCrankAngle(IgnitionSchedule &schedule, int endAngle, int crankAngle)
 {
-  if( (schedule.Status == RUNNING) ) { 
-    SET_COMPARE(schedule.compare, schedule.counter + uS_TO_TIMER_COMPARE( angleToTimeMicroSecPerDegree( ignitionLimits( (endAngle - crankAngle) ) ) ) ); 
+  if( (schedule.Status == RUNNING) ) {
+    SET_COMPARE(schedule.compare, schedule.counter + uS_TO_TIMER_COMPARE( angleToTimeMicroSecPerDegree( ignitionLimits( (endAngle - crankAngle) ) ) ) );
   }
-  else if(currentStatus.startRevolutions > MIN_CYCLES_FOR_ENDCOMPARE) { 
-    schedule.endCompare = schedule.counter + uS_TO_TIMER_COMPARE( angleToTimeMicroSecPerDegree( ignitionLimits( (endAngle - crankAngle) ) ) ); 
-    schedule.endScheduleSetByDecoder = true; 
+  else if(currentStatus.startRevolutions > MIN_CYCLES_FOR_ENDCOMPARE) {
+    schedule.endCompare = schedule.counter + uS_TO_TIMER_COMPARE( angleToTimeMicroSecPerDegree( ignitionLimits( (endAngle - crankAngle) ) ) );
+    schedule.endScheduleSetByDecoder = true;
   }
 }

@@ -1,10 +1,10 @@
 /** \file comms.h
- * @brief File for handling all serial requests 
+ * @brief File for handling all serial requests
  * @author Josh Stewart
- * 
+ *
  * This file contains all the functions associated with serial comms.
  * This includes sending of live data, sending/receiving current page data, sending CRC values of pages, receiving sensor calibration data etc
- * 
+ *
  */
 
 #ifndef COMMS_LEGACY_H
@@ -15,24 +15,24 @@
  * */
 enum SerialStatus {
   /** No serial comms is in progress */
-  SERIAL_INACTIVE, 
+  SERIAL_INACTIVE,
   /** A partial write is in progress. */
-  SERIAL_TRANSMIT_INPROGRESS, 
+  SERIAL_TRANSMIT_INPROGRESS,
   /** A partial write is in progress (legacy send). */
-  SERIAL_TRANSMIT_INPROGRESS_LEGACY, 
+  SERIAL_TRANSMIT_INPROGRESS_LEGACY,
   /** We are part way through transmitting the tooth log */
-  SERIAL_TRANSMIT_TOOTH_INPROGRESS, 
+  SERIAL_TRANSMIT_TOOTH_INPROGRESS,
   /** We are part way through transmitting the tooth log (legacy send) */
-  SERIAL_TRANSMIT_TOOTH_INPROGRESS_LEGACY, 
+  SERIAL_TRANSMIT_TOOTH_INPROGRESS_LEGACY,
   /** We are part way through transmitting the composite log */
   SERIAL_TRANSMIT_COMPOSITE_INPROGRESS,
   /** We are part way through transmitting the composite log (legacy send) */
   SERIAL_TRANSMIT_COMPOSITE_INPROGRESS_LEGACY,
   /** Whether or not a serial request has only been partially received.
    * This occurs when a the length has been received in the serial buffer,
-   * but not all of the payload or CRC has yet been received. 
-   * 
-   * Expectation is that ::serialReceive is called  until the status reverts 
+   * but not all of the payload or CRC has yet been received.
+   *
+   * Expectation is that ::serialReceive is called  until the status reverts
    * to SERIAL_INACTIVE
   */
   SERIAL_RECEIVE_INPROGRESS,
@@ -45,7 +45,7 @@ extern SerialStatus serialSecondaryStatusFlag;
 
 /**
  * @brief Is a serial write in progress?
- * 
+ *
  * Expectation is that ::serialTransmit is called until this
  * returns false
  */
@@ -60,7 +60,7 @@ inline bool serialTransmitInProgress(void) {
 
 /**
  * @brief Is a non-blocking serial receive operation in progress?
- * 
+ *
  * Expectation is the ::serialReceive is called until this
  * returns false.
  */

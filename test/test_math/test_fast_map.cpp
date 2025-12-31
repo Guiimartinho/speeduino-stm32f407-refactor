@@ -40,6 +40,6 @@ void test_fast_map(void) {
     RUN_TEST(test_fast_map_normal_range);
     RUN_TEST(test_fast_map_edge_cases);
     RUN_TEST(test_fast_map_negative_ranges);
-    RUN_TEST(test_fast_map_reversed_range);    
-  }    
+    RUN_TEST(test_fast_map_reversed_range);
+  }
 }

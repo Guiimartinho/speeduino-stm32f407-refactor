@@ -1,5 +1,5 @@
-/** 
- * @addtogroup table_3d 
+/**
+ * @addtogroup table_3d
  *  @{
  */
 
@@ -69,8 +69,8 @@ public:
     const table3d_axis_t& operator*(void) const
     {
         return *_pStart;
-    }    
-    
+    }
+
 private:
 
     static constexpr int8_t stride_inc = 1;

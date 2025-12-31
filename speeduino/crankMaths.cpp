@@ -2,7 +2,7 @@
 #include "crankMaths.h"
 #include "bit_shifts.h"
 
-#define SECOND_DERIV_ENABLED                0          
+#define SECOND_DERIV_ENABLED                0
 
 //These are only part of the experimental 2nd deriv calcs
 #if SECOND_DERIV_ENABLED!=0
@@ -21,7 +21,7 @@ typedef uint16_t UQ1X15_t;
 static constexpr uint8_t UQ1X15_Shift = 15U;
 
 /** @brief Degrees per uS in UQ1.15 fixed point.
- * 
+ *
  * Ranges from 8 (0.000246) at MIN_RPM to 3542 (0.108) at MAX_RPM
  */
 static UQ1X15_t degreesPerMicro;
@@ -111,7 +111,7 @@ void doCrankSpeedCalcs(void)
       //How fast are we going? Need to know how long (uS) it will take to get from one tooth to the next. We then use that to estimate how far we are between the last tooth and the next one
       //We use a 1st Deriv acceleration prediction, but only when there is an even spacing between primary sensor teeth
       //Any decoder that has uneven spacing has its triggerToothAngle set to 0
-      //THIS IS CURRENTLY DISABLED FOR ALL DECODERS! It needs more work. 
+      //THIS IS CURRENTLY DISABLED FOR ALL DECODERS! It needs more work.
       if( (BIT_CHECK(decoderState, BIT_DECODER_2ND_DERIV)) && (toothHistoryIndex >= 3) && (currentStatus.RPM < 2000) ) //toothHistoryIndex must be greater than or equal to 3 as we need the last 3 entries. Currently this mode only runs below 3000 rpm
       {
         //Only recalculate deltaV if the tooth has changed since last time (DeltaV stays the same until the next tooth)

@@ -4,7 +4,7 @@
 #include "maths.h"
 
 /**
- * @file 
+ * @file
  * @brief Functions for interpolating values from 3D tables. @see get3DTableValue
  */
 
@@ -67,7 +67,7 @@ extern table3d_dim_t find_bin_max(
   table3d_dim_t length,
   table3d_dim_t lastBinMax);
 
-extern table3d_value_t interpolate_3d_value(const xy_values &lookUpValues, 
+extern table3d_value_t interpolate_3d_value(const xy_values &lookUpValues,
                     const xy_coord2d &axisCoords,
                     const table3d_dim_t &axisSize,
                     const table3d_value_t *pValues,
@@ -95,9 +95,9 @@ extern table3d_value_t interpolate_3d_value(const xy_values &lookUpValues,
  *      | X  X  X  X  X  X
  *      |Min            Max
  * </pre>
- * 
+ *
  * Our overall task is to accurately interpolate a value from the table, given X and Y axis values.
- * The x/y values will likely be in-between axis values. The function performs a 2D linear interpolation 
+ * The x/y values will likely be in-between axis values. The function performs a 2D linear interpolation
  * as described in: www.megamanual.com/v22manual/ve_tuner.pdf
  *
  * @note [x|y]Factor are multipliers used to convert the lookup values to the same
@@ -109,7 +109,7 @@ extern table3d_value_t interpolate_3d_value(const xy_values &lookUpValues,
  * @note Instead, we:
  * 1. Divide the axis *lookup value* when searching for the axis bin (no loss of fidelity, since we're comparing bin thresholds). E.g RPM of 2153/100 -> 22
  * 2. Multiply the *axis values* when interpolating the axis position (retain fidelity). E.g. bin [20,25] becomes [2000,2500] which gives a bin position of 31% (instead of 40%)
- * 
+ *
  * @tparam xFactor The factor used to scale the lookup value to/from the same units as the axis values.
  * @tparam yFactor The factor for the Y axis values.
  * @param pValueCache Pointer to the value cache structure.
@@ -121,13 +121,13 @@ extern table3d_value_t interpolate_3d_value(const xy_values &lookUpValues,
  * @return The interpolated value from the table.
  */
 template <uint16_t xFactor, uint16_t yFactor>
-table3d_value_t get3DTableValue(struct table3DGetValueCache *pValueCache, 
+table3d_value_t get3DTableValue(struct table3DGetValueCache *pValueCache,
                     const table3d_dim_t axisSize,
                     const table3d_value_t *pValues,
                     const table3d_axis_t *pXAxis,
                     const table3d_axis_t *pYAxis,
                     const xy_values &lookupValues) {
-  
+
 
   // Check if the lookup values are the same as the last time we looked up a value
   // If they are, we can return the cached value

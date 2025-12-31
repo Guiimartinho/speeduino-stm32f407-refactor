@@ -1,5 +1,5 @@
 /**
- * @file nitrous_control.cpp  
+ * @file nitrous_control.cpp
  * @brief Nitrous oxide injection control implementation
  */
 

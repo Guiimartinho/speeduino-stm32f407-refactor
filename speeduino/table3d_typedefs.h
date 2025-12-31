@@ -1,13 +1,13 @@
-/** 
- * @addtogroup table_3d 
+/**
+ * @addtogroup table_3d
  *  @{
  */
 
 
 /** \file
  * @brief Typedefs for primitive 3D table elements
- * 
- * These used are for consistency across functions that work on 3D table data. 
+ *
+ * These used are for consistency across functions that work on 3D table data.
  * For example:<br>
  * <c>table3d_value_t foo(table3d_axis_t input);</c><br>
  * instead of:<br>
@@ -28,7 +28,7 @@ using table3d_value_t = uint8_t;
 using table3d_axis_t = uint8_t;
 
 /** @brief Core 3d table generation macro
- * 
+ *
  * We have a fixed number of table types: they are defined by this macro.
  * GENERATOR is expected to be another macros that takes at least 3 arguments:
  *    axis length, x-axis domain, y-axis domain

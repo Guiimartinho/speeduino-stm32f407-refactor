@@ -44,8 +44,8 @@
 
 #ifndef word
   #define word(h, l) ((h << 8) | l) //word() function not defined for this platform in the main library
-#endif  
-  
+#endif
+
 #if defined(ARDUINO_BLUEPILL_F103C8) || defined(ARDUINO_BLUEPILL_F103CB) \
   || defined(ARDUINO_BLACKPILL_F401CC) || defined(ARDUINO_BLACKPILL_F411CE)
   //STM32 Pill boards
@@ -75,7 +75,7 @@ extern "C" char* sbrk(int incr); //Used to freeRam
 inline uint32_t  digitalPinToInterrupt(uint32_t Interrupt_pin) { return Interrupt_pin; } //This isn't included in the stm32duino libs (yet)
 #endif
 
-#if defined(USER_BTN) 
+#if defined(USER_BTN)
   #define EEPROM_RESET_PIN USER_BTN //onboard key0 for black STM32F407 boards and blackpills, keep pressed during boot to reset eeprom
 #endif
 
@@ -151,7 +151,7 @@ uint8_t getSystemTemp();
     typedef uint16_t eeprom_address_t;
     #include EEPROM_LIB_H
     extern SPIClass SPI_for_flash; //SPI1_MOSI, SPI1_MISO, SPI1_SCK
- 
+
     //windbond W25Q16 SPI flash EEPROM emulation
     extern EEPROM_Emulation_Config EmulatedEEPROMMconfig;
     extern Flash_SPI_Config SPIconfig;
@@ -357,7 +357,7 @@ static inline void IGN7_TIMER_DISABLE(void) { /* Software PWM - no hardware time
 #define IGN7_COMPARE (TIM4)->CCR3
 #define IGN8_COMPARE (TIM4)->CCR4
 
-  
+
 static inline void FUEL1_TIMER_ENABLE(void) {(TIM3)->CR1 |= TIM_CR1_CEN; (TIM3)->SR = ~TIM_FLAG_CC1; (TIM3)->DIER |= TIM_DIER_CC1IE;}
 static inline void FUEL2_TIMER_ENABLE(void) {(TIM3)->CR1 |= TIM_CR1_CEN; (TIM3)->SR = ~TIM_FLAG_CC2; (TIM3)->DIER |= TIM_DIER_CC2IE;}
 static inline void FUEL3_TIMER_ENABLE(void) {(TIM3)->CR1 |= TIM_CR1_CEN; (TIM3)->SR = ~TIM_FLAG_CC3; (TIM3)->DIER |= TIM_DIER_CC3IE;}
@@ -404,13 +404,13 @@ static inline void IGN8_TIMER_DISABLE(void)  {(TIM4)->DIER &= ~TIM_DIER_CC4IE;}
 ***********************************************************************************************************
 * Auxiliaries
 */
-#define ENABLE_BOOST_TIMER()  (TIM1)->SR = ~TIM_FLAG_CC2; (TIM1)->DIER |= TIM_DIER_CC2IE; (TIM1)->CR1 |= TIM_CR1_CEN;  
+#define ENABLE_BOOST_TIMER()  (TIM1)->SR = ~TIM_FLAG_CC2; (TIM1)->DIER |= TIM_DIER_CC2IE; (TIM1)->CR1 |= TIM_CR1_CEN;
 #define DISABLE_BOOST_TIMER() (TIM1)->DIER &= ~TIM_DIER_CC2IE
 
-#define ENABLE_VVT_TIMER()    (TIM1)->SR = ~TIM_FLAG_CC3; (TIM1)->DIER |= TIM_DIER_CC3IE; (TIM1)->CR1 |= TIM_CR1_CEN;  
+#define ENABLE_VVT_TIMER()    (TIM1)->SR = ~TIM_FLAG_CC3; (TIM1)->DIER |= TIM_DIER_CC3IE; (TIM1)->CR1 |= TIM_CR1_CEN;
 #define DISABLE_VVT_TIMER()   (TIM1)->DIER &= ~TIM_DIER_CC3IE
 
-#define ENABLE_FAN_TIMER()  (TIM1)->SR = ~TIM_FLAG_CC1; (TIM1)->DIER |= TIM_DIER_CC1IE; (TIM1)->CR1 |= TIM_CR1_CEN;  
+#define ENABLE_FAN_TIMER()  (TIM1)->SR = ~TIM_FLAG_CC1; (TIM1)->DIER |= TIM_DIER_CC1IE; (TIM1)->CR1 |= TIM_CR1_CEN;
 #define DISABLE_FAN_TIMER() (TIM1)->DIER &= ~TIM_DIER_CC1IE
 
 #define BOOST_TIMER_COMPARE   (TIM1)->CCR2
@@ -448,7 +448,7 @@ extern HardwareTimer Timer11;
 #endif
 #endif
 
-#if ((STM32_CORE_VERSION_MINOR<=8) & (STM32_CORE_VERSION_MAJOR==1)) 
+#if ((STM32_CORE_VERSION_MINOR<=8) & (STM32_CORE_VERSION_MAJOR==1))
 void oneMSInterval(HardwareTimer*);
 void boostInterrupt(HardwareTimer*);
 void fuelSchedule1Interrupt(HardwareTimer*);

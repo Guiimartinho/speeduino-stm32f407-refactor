@@ -39,24 +39,24 @@ int getCrankAngle_non360(void)
 {
     unsigned long tempToothLastToothTime;
     int tempToothCurrentCount;
-    
+
     noInterrupts();
     tempToothCurrentCount = toothCurrentCount;
     tempToothLastToothTime = toothLastToothTime;
     lastCrankAngleCalc = micros();
     interrupts();
-    
+
     if (tempToothCurrentCount == 0) { tempToothCurrentCount = configPage4.triggerTeeth; }
-    
+
     int crankAngle = (tempToothCurrentCount - 1) * triggerToothAngle;
     crankAngle = (crankAngle / configPage4.TrigAngMul) + configPage4.triggerAngle;
-    
+
     elapsedTime = (lastCrankAngleCalc - tempToothLastToothTime);
     crankAngle += timeToAngleDegPerMicroSec(elapsedTime);
-    
+
     if (crankAngle >= 720) { crankAngle -= 720; }
     if (crankAngle < 0) { crankAngle += 360; }
-    
+
     return crankAngle;
 }
 

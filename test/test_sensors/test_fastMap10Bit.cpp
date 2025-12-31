@@ -21,5 +21,5 @@ void test_fastMap10Bit(void) {
   SET_UNITY_FILENAME() {
     RUN_TEST(test_fastMap10Bit_negative_range);
     RUN_TEST(test_fastMap10Bit_positive_range);
-  }    
+  }
 }

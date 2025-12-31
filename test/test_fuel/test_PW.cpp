@@ -132,7 +132,7 @@ void test_PW_Very_Large_Correction()
   configPage2.aeApplyMode = 0;
 
   uint16_t result = PW(REQ_FUEL, VE, MAP, corrections, injOpen);
-  TEST_ASSERT_UINT16_WITHIN(PW_ALLOWED_ERROR+30, 21670, result); //Additional allowed error here 
+  TEST_ASSERT_UINT16_WITHIN(PW_ALLOWED_ERROR+30, 21670, result); //Additional allowed error here
 }
 
 //Test that unused pulse width values are set to 0

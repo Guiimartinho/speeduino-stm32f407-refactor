@@ -26,7 +26,7 @@ void setup()
     cli();
     sleep_enable();
     sleep_cpu();
-#endif     
+#endif
 }
 
 void loop()

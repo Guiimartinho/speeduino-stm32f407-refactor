@@ -55,7 +55,7 @@ public:
   // This class encapsulates mapping a linear offset to the various parts of a table
   // and exposing the linear offset as an mutable byte.
   //
-  // Tables do not map linearly to the TS page address space, so special 
+  // Tables do not map linearly to the TS page address space, so special
   // handling is necessary (we do not use the normal array layout for
   // performance reasons elsewhere)
   //
@@ -68,12 +68,12 @@ public:
   offset_to_table(table_t *pTable, uint16_t table_offset)
   : _pTable(pTable),
     _table_offset(table_offset)
-  {    
+  {
   }
 
   // Getter
-  inline byte operator*(void) const 
-  { 
+  inline byte operator*(void) const
+  {
     switch (get_table_location())
     {
       case table_location_values:
@@ -105,9 +105,9 @@ public:
     }
     invalidate_cache(&_pTable->get_value_cache);
     return *this;
-  }  
+  }
 
-private: 
+private:
 
   inline byte& get_value_value(void) const
   {
@@ -125,9 +125,9 @@ private:
   }
 
   enum table_location {
-      table_location_values, table_location_xaxis, table_location_yaxis 
+      table_location_values, table_location_xaxis, table_location_yaxis
   };
-  
+
   inline table_location get_table_location(void) const
   {
     if (_table_offset<get_table_value_end<table_t>())
@@ -157,7 +157,7 @@ inline byte get_table_value(page_iterator_t &entity, uint16_t offset)
   #define CTA_GET_TABLE_VALUE(size, xDomain, yDomain, pTable, offset) \
       return *offset_to_table<TABLE3D_TYPENAME_BASE(size, xDomain, yDomain)>((TABLE3D_TYPENAME_BASE(size, xDomain, yDomain)*)pTable, offset);
   #define CTA_GET_TABLE_VALUE_DEFAULT ({ return 0U; })
-  CONCRETE_TABLE_ACTION(entity.table_key, CTA_GET_TABLE_VALUE, CTA_GET_TABLE_VALUE_DEFAULT, entity.pData, (offset-entity.start));  
+  CONCRETE_TABLE_ACTION(entity.table_key, CTA_GET_TABLE_VALUE, CTA_GET_TABLE_VALUE_DEFAULT, entity.pData, (offset-entity.start));
 }
 
 inline byte get_value(page_iterator_t &entity, uint16_t offset)
@@ -178,11 +178,11 @@ inline void set_table_value(page_iterator_t &entity, uint16_t offset, byte new_v
   #define CTA_SET_TABLE_VALUE(size, xDomain, yDomain, pTable, offset, new_value) \
       offset_to_table<TABLE3D_TYPENAME_BASE(size, xDomain, yDomain)>((TABLE3D_TYPENAME_BASE(size, xDomain, yDomain)*)pTable, offset) = new_value; break;
   #define CTA_SET_TABLE_VALUE_DEFAULT ({ })
-  CONCRETE_TABLE_ACTION(entity.table_key, CTA_SET_TABLE_VALUE, CTA_SET_TABLE_VALUE_DEFAULT, entity.pData, (offset-entity.start), new_value);  
+  CONCRETE_TABLE_ACTION(entity.table_key, CTA_SET_TABLE_VALUE, CTA_SET_TABLE_VALUE_DEFAULT, entity.pData, (offset-entity.start), new_value);
 }
 
 inline void set_value(page_iterator_t &entity, byte value, uint16_t offset)
-{    
+{
   if (Raw==entity.type)
   {
     get_raw_location(entity, offset) = value;
@@ -201,7 +201,7 @@ static inline void check_size() {
   static_assert(ini_page_sizes[pageNum] >= min, "Size is off!");
 }
 
-// Since pages are a logical contiguous block, we can automatically compute the 
+// Since pages are a logical contiguous block, we can automatically compute the
 // logical start address of every item: the first one starts at zero, following
 // items must start at the end of the previous.
 #define _ENTITY_START(entityNum) entity ## entityNum ## Start
@@ -214,13 +214,13 @@ static inline void check_size() {
 // ========================= Logical page end processing ===================
 
 // The members of all page_iterator_t instances are compile time constants and
-// thus all page_iterator_t instances *could* be compile time constants. 
+// thus all page_iterator_t instances *could* be compile time constants.
 //
-// If we declare them inline as part of return statements, gcc recognises they 
+// If we declare them inline as part of return statements, gcc recognises they
 // are constants (even without constexpr). Constants need to be stored somewhere:
-// gcc places them in the .data section, which is placed in SRAM :-(. 
+// gcc places them in the .data section, which is placed in SRAM :-(.
 //
-// So we would end up using several hundred bytes of SRAM. 
+// So we would end up using several hundred bytes of SRAM.
 //
 // Instead we use this (and other) intermediate factory function(s) - it provides a barrier that
 // forces GCC to construct the page_iterator_t instance at runtime.
@@ -356,44 +356,44 @@ page_iterator_t map_page_offset_to_entity(uint8_t pageNumber, uint16_t offset)
       CHECK_TABLE(wmiMapPage, offset, &dwellTable, 2)
       END_OF_PAGE(wmiMapPage, 3)
     }
-    
+
     case ignMap2Page:
     {
       CHECK_TABLE(ignMap2Page, offset, &ignitionTable2, 0)
       END_OF_PAGE(ignMap2Page, 1)
     }
 
-    case veSetPage: 
+    case veSetPage:
     {
       CHECK_RAW(veSetPage, offset, &configPage2, sizeof(configPage2), 0)
       END_OF_PAGE(veSetPage, 1)
     }
 
-    case ignSetPage: 
+    case ignSetPage:
     {
       CHECK_RAW(ignSetPage, offset, &configPage4, sizeof(configPage4), 0)
       END_OF_PAGE(ignSetPage, 1)
     }
-    
-    case afrSetPage: 
+
+    case afrSetPage:
     {
       CHECK_RAW(afrSetPage, offset, &configPage6, sizeof(configPage6), 0)
       END_OF_PAGE(afrSetPage, 1)
     }
 
-    case canbusPage:  
+    case canbusPage:
     {
       CHECK_RAW(canbusPage, offset, &configPage9, sizeof(configPage9), 0)
       END_OF_PAGE(canbusPage, 1)
     }
 
-    case warmupPage: 
+    case warmupPage:
     {
       CHECK_RAW(warmupPage, offset, &configPage10, sizeof(configPage10), 0)
       END_OF_PAGE(warmupPage, 1)
     }
 
-    case progOutsPage: 
+    case progOutsPage:
     {
       CHECK_RAW(progOutsPage, offset, &configPage13, sizeof(configPage13), 0)
       END_OF_PAGE(progOutsPage, 1)

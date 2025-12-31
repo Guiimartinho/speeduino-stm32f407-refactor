@@ -1,10 +1,10 @@
 /** \file comms.h
- * @brief File for handling all serial requests 
+ * @brief File for handling all serial requests
  * @author Josh Stewart
- * 
+ *
  * This file contains all the functions associated with serial comms.
  * This includes sending of live data, sending/receiving current page data, sending CRC values of pages, receiving sensor calibration data etc
- * 
+ *
  */
 
 #ifndef COMMS_H
@@ -36,8 +36,8 @@ void serialReceive(void);
  * operation is in progress */
 void serialTransmit(void);
 
-/** @brief Checks whether the current serial command should be timed out 
- * 
+/** @brief Checks whether the current serial command should be timed out
+ *
  * @return true if the serial command has been waiting too long
 */
 bool isRxTimeout(void);

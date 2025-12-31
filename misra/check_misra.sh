@@ -25,7 +25,7 @@ function parse_command_line() {
       -c | --cppcheck) cppcheck_path="$2" ;;
       -q | --quiet) quiet=1 ;;
       -x | --xml) output_xml=1 ;;
-      -*) 
+      -*)
         echo "Unknown option: " $1
         exit 1
         ;;
@@ -70,10 +70,10 @@ cppcheck_parameters=( --inline-suppr
                       -j "$num_cores"
                       -DCORE_AVR=1
                       -D__AVR_ATmega2560__
-                      -DARDUINO_AVR_MEGA2560 
-                      -DF_CPU=16000000L 
-                      -DARDUINO_ARCH_AVR 
-                      -DARDUINO=10808 
+                      -DARDUINO_AVR_MEGA2560
+                      -DF_CPU=16000000L
+                      -DARDUINO_ARCH_AVR
+                      -DARDUINO=10808
                       -DAVR=1
                       # This is defined in the AVR headers, which aren't included.
                       # cppcheck will not do type checking on unknown types.
@@ -96,7 +96,7 @@ if [ $output_xml -eq 1 ]; then
 fi
 
 # There is no way to tell the misra add on to skip certain headers
-# libdivide adds 10+ minutes to each file so rename the folder 
+# libdivide adds 10+ minutes to each file so rename the folder
 # before the scan
 mv "$source_folder"/src/libdivide "$source_folder"/src/_libdivide
 

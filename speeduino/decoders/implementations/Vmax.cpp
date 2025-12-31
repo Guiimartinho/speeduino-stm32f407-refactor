@@ -24,14 +24,14 @@ void triggerPri_Vmax(void) {
     if (curGap >= triggerFilterTime) {
         toothCurrentCount++;
         BIT_SET(decoderState, BIT_DECODER_VALID_TRIGGER);
-        
+
         if (toothCurrentCount >= 121) {
             toothCurrentCount = 1;
             toothOneMinusOneTime = toothOneTime;
             toothOneTime = curTime;
             currentStatus.startRevolutions++;
         }
-        
+
         setFilter(curGap);
         toothLastMinusOneToothTime = toothLastToothTime;
         toothLastToothTime = curTime;
@@ -57,11 +57,11 @@ int getCrankAngle_Vmax(void) {
         tempToothLastToothTime = toothLastToothTime;
         lastCrankAngleCalc = micros();
         interrupts();
-        
+
         crankAngle = ((tempToothCurrentCount - 1) * 3) + configPage4.triggerAngle;
         elapsedTime = (lastCrankAngleCalc - tempToothLastToothTime);
         crankAngle += timeToAngleDegPerMicroSec(elapsedTime);
-        
+
         if (crankAngle >= 720) { crankAngle -= 720; }
         if (crankAngle < 0) { crankAngle += 360; }
     }

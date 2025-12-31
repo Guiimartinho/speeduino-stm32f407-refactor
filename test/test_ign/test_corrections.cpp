@@ -82,7 +82,7 @@ static void test_correctionCrankingFixedTiming_crank_coolant(void) {
     setup_clt_advance_table();
     BIT_SET(currentStatus.engine, BIT_ENGINE_CRANK);
     configPage2.crkngAddCLTAdv = 1;
-    
+
     configPage4.CrankAng = 8;
 
     currentStatus.coolant = temperatureRemoveOffset(65);
@@ -120,11 +120,11 @@ static void test_correctionFlexTiming_table_lookup(void) {
     setup_flexAdv();
 
     TEST_ASSERT_EQUAL(8 + 18 - OFFSET_IGNITION, correctionFlexTiming(8));
-    TEST_ASSERT_EQUAL(18 - OFFSET_IGNITION, currentStatus.flexIgnCorrection);    
+    TEST_ASSERT_EQUAL(18 - OFFSET_IGNITION, currentStatus.flexIgnCorrection);
 
     currentStatus.ethanolPct = 35;
     TEST_ASSERT_EQUAL(-4 + 28 - OFFSET_IGNITION, correctionFlexTiming(-4));
-    TEST_ASSERT_EQUAL(28 - OFFSET_IGNITION, currentStatus.flexIgnCorrection);    
+    TEST_ASSERT_EQUAL(28 - OFFSET_IGNITION, currentStatus.flexIgnCorrection);
 }
 
 static void test_correctionFlexTiming(void) {
@@ -205,7 +205,7 @@ static void test_correctionWMITiming_rpmlow_inactive(void) {
     TEST_ASSERT_EQUAL(8, correctionWMITiming(8));
     TEST_ASSERT_EQUAL(-3, correctionWMITiming(-3));
 }
-   
+
 static void test_correctionWMITiming_maplow_inactive(void) {
     setup_WMIAdv();
     currentStatus.MAP = (configPage10.wmiMAP*2)-1;
@@ -213,14 +213,14 @@ static void test_correctionWMITiming_maplow_inactive(void) {
     TEST_ASSERT_EQUAL(8, correctionWMITiming(8));
     TEST_ASSERT_EQUAL(-3, correctionWMITiming(-3));
 }
-    
+
 static void test_correctionWMITiming_iatlow_inactive(void) {
     setup_WMIAdv();
     currentStatus.IAT = temperatureRemoveOffset(configPage10.wmiIAT) - 1;
 
     TEST_ASSERT_EQUAL(8, correctionWMITiming(8));
     TEST_ASSERT_EQUAL(-3, correctionWMITiming(-3));
-}   
+}
 
 static void test_correctionWMITiming(void) {
     RUN_TEST_P(test_correctionWMITiming_table_lookup);
@@ -281,7 +281,7 @@ static void setup_correctionIdleAdvance(void) {
     TEST_DATA_P uint8_t bins[] = { 30, 40, 50, 60, 70, 80 };
     TEST_DATA_P uint8_t values[] = { 30, 25, 20, 15, 10, 5 };
     populate_2dtable_P(&idleAdvanceTable, values, bins);
-  
+
     configPage2.idleAdvEnabled = IDLEADVANCE_MODE_ADDED;
     configPage2.idleAdvDelay = 5;
     configPage2.idleAdvRPM = 20;
@@ -294,7 +294,7 @@ static void setup_correctionIdleAdvance(void) {
     // int idleRPMdelta = (currentStatus.CLIdleTarget - (currentStatus.RPM / 10) ) + 50;
     currentStatus.CLIdleTarget = 100;
     currentStatus.RPM = (configPage2.idleAdvRPM * 100) - 1U;
-    
+
     setup_idleadv_tps();
     // Run once to initialise internal state
     correctionIdleAdvance(8);
@@ -501,11 +501,11 @@ static void test_correctionNitrous_stage1(void) {
     configPage10.n2o_enable = 1;
     configPage10.n2o_stage1_retard = 5;
     configPage10.n2o_stage2_retard = 0;
-    
+
     currentStatus.nitrous_status = NITROUS_STAGE1;
     TEST_ASSERT_EQUAL(8, correctionNitrous(13));
     TEST_ASSERT_EQUAL(-18, correctionNitrous(-13));
-    
+
     currentStatus.nitrous_status = NITROUS_BOTH;
     TEST_ASSERT_EQUAL(8, correctionNitrous(13));
     TEST_ASSERT_EQUAL(-18, correctionNitrous(-13));
@@ -515,11 +515,11 @@ static void test_correctionNitrous_stage2(void) {
     configPage10.n2o_enable = 1;
     configPage10.n2o_stage1_retard = 0;
     configPage10.n2o_stage2_retard = 5;
-    
+
     currentStatus.nitrous_status = NITROUS_STAGE2;
     TEST_ASSERT_EQUAL(8, correctionNitrous(13));
     TEST_ASSERT_EQUAL(-18, correctionNitrous(-13));
-    
+
     currentStatus.nitrous_status = NITROUS_BOTH;
     TEST_ASSERT_EQUAL(8, correctionNitrous(13));
     TEST_ASSERT_EQUAL(-18, correctionNitrous(-13));
@@ -529,7 +529,7 @@ static void test_correctionNitrous_stageboth(void) {
     configPage10.n2o_enable = 1;
     configPage10.n2o_stage1_retard = 3;
     configPage10.n2o_stage2_retard = 5;
-      
+
     currentStatus.nitrous_status = NITROUS_BOTH;
     TEST_ASSERT_EQUAL(5, correctionNitrous(13));
     TEST_ASSERT_EQUAL(-21, correctionNitrous(-13));
@@ -551,7 +551,7 @@ static void setup_correctionSoftLaunch(void) {
     configPage10.lnchCtrlTPS = 80;
     configPage10.lnchCtrlVss = 50;
     configPage2.vssMode = 2;
-    
+
     currentStatus.clutchTrigger = 1;
     currentStatus.clutchEngagedRPM = ((configPage6.flatSArm) * 100) - 100;
     currentStatus.RPM = ((configPage6.lnchSoftLim) * 100) + 100;
@@ -650,7 +650,7 @@ static void setup_correctionSoftFlatShift(void) {
     configPage6.flatSEnable = 1;
     configPage6.flatSArm = 10;
     configPage6.flatSSoftWin = 10;
-    
+
     currentStatus.clutchTrigger = 1;
     currentStatus.clutchEngagedRPM = ((configPage6.flatSArm) * 100) + 500;
     currentStatus.RPM = currentStatus.clutchEngagedRPM + 600;
@@ -767,7 +767,7 @@ extern table2D_u8_u8_6 dwellVCorrectionTable; ///< 6 bin dwell voltage correctio
 
 static void setup_correctionsDwell(void) {
     initialiseCorrections();
-    
+
     configPage4.sparkDur = 10;
     configPage2.perToothIgn = false;
     configPage4.dwellErrCorrect = 0;
@@ -780,7 +780,7 @@ static void setup_correctionsDwell(void) {
 
     TEST_DATA_P uint8_t bins[] = { 60,  70,  80,  90,  100, 110 };
     TEST_DATA_P uint8_t values[] = { 130, 125, 120, 115, 110, 90 };
-    populate_2dtable_P(&dwellVCorrectionTable, values, bins);   
+    populate_2dtable_P(&dwellVCorrectionTable, values, bins);
 }
 
 static void test_correctionsDwell_nopertooth(void) {

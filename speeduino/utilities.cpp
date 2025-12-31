@@ -402,7 +402,7 @@ void checkProgrammableIO_ORIGINAL(void)
           }
           else { data = ProgrammableIOGetData(dataRequested); }
           data2 = configPage13.secondTarget[y];
-          
+
           if ( (configPage13.operation[y].secondCompType == COMPARATOR_EQUAL) && (data == data2) ) { secondCheck = true; }
           else if ( (configPage13.operation[y].secondCompType == COMPARATOR_NOT_EQUAL) && (data != data2) ) { secondCheck = true; }
           else if ( (configPage13.operation[y].secondCompType == COMPARATOR_GREATER) && (data > data2) ) { secondCheck = true; }
@@ -475,7 +475,7 @@ int16_t ProgrammableIOGetData(uint16_t index)
   {
     if(is2ByteEntry(index)) { result = word(getTSLogEntry(index+1), getTSLogEntry(index)); }
     else { result = getTSLogEntry(index); }
-    
+
     //Special cases for temperatures
     if( (index == 6) || (index == 7) ) { result = temperatureRemoveOffset(result); }
   }

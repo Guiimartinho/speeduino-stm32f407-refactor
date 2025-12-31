@@ -233,4 +233,3 @@ Tested:
 
 Refs: #GPIO-only-ignition #IGN5-IGN7 #STM32F407
 ```
-

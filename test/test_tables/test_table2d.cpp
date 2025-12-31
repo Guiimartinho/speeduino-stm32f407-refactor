@@ -36,7 +36,7 @@ namespace internal
 {
   static const unsigned int FRONT_SIZE = sizeof("static const char* internal::GetTypeNameHelper<T>::GetTypeName() [with T = ") - 1u;
   static const unsigned int BACK_SIZE = sizeof("]") - 1u;
- 
+
   template <typename T>
   struct GetTypeNameHelper
   {
@@ -45,13 +45,13 @@ namespace internal
       static const size_t size = sizeof(__PRETTY_FUNCTION__) - FRONT_SIZE - BACK_SIZE;
       static char typeName[size] = {};
       memcpy(typeName, __PRETTY_FUNCTION__ + FRONT_SIZE, size - 1u);
- 
+
       return typeName;
     }
   };
 }
- 
- 
+
+
 template <typename T>
 const char* GetTypeName(void)
 {
@@ -79,7 +79,7 @@ static void test_table2dLookup_bin_midpoints(void)
     test_table2dLookup(table2d_u16_u8, 50U);
     test_table2dLookup(table2d_u16_u16, 50U);
     test_table2dLookup(table2d_u8_i8, 50U);
-    test_table2dLookup(table2d_i16_u8, 50U);    
+    test_table2dLookup(table2d_i16_u8, 50U);
 }
 
 static void test_table2dLookup_bin_33(void)
@@ -89,7 +89,7 @@ static void test_table2dLookup_bin_33(void)
     test_table2dLookup(table2d_u16_u8, 33U);
     test_table2dLookup(table2d_u16_u16, 33U);
     test_table2dLookup(table2d_u8_i8, 33U);
-    test_table2dLookup(table2d_i16_u8, 33U);    
+    test_table2dLookup(table2d_i16_u8, 33U);
 }
 
 static void test_table2dLookup_bin_66(void)
@@ -99,7 +99,7 @@ static void test_table2dLookup_bin_66(void)
     test_table2dLookup(table2d_u16_u8, 66U);
     test_table2dLookup(table2d_u16_u16, 66U);
     test_table2dLookup(table2d_u8_i8, 66U);
-    test_table2dLookup(table2d_i16_u8, 66U);    
+    test_table2dLookup(table2d_i16_u8, 66U);
 }
 
 template <typename axis_t, typename value_t, uint8_t sizeT>
@@ -121,7 +121,7 @@ static void test_table2dLookup_bin_edges(void)
     test_table2dLookup_bin_edges(table2d_u16_u8);
     test_table2dLookup_bin_edges(table2d_u16_u16);
     test_table2dLookup_bin_edges(table2d_u8_i8);
-    test_table2dLookup_bin_edges(table2d_i16_u8);   
+    test_table2dLookup_bin_edges(table2d_i16_u8);
 }
 
 template <typename axis_t, typename value_t, uint8_t sizeT>
@@ -140,7 +140,7 @@ static void test_table2dLookup_overMax(void)
     test_table2dLookup_overMax(table2d_u16_u8);
     test_table2dLookup_overMax(table2d_u16_u16);
     test_table2dLookup_overMax(table2d_u8_i8);
-    test_table2dLookup_overMax(table2d_i16_u8); 
+    test_table2dLookup_overMax(table2d_i16_u8);
 }
 
 template <typename axis_t, typename value_t, uint8_t sizeT>
@@ -168,7 +168,7 @@ static void test_table2dLookup_underMin(void)
     test_table2dLookup_underMin(table2d_u16_u8);
     test_table2dLookup_underMin(table2d_u16_u16);
     test_table2dLookup_underMin(table2d_u8_i8);
-    test_table2dLookup_underMin(table2d_i16_u8);      
+    test_table2dLookup_underMin(table2d_i16_u8);
 }
 
 
@@ -195,7 +195,7 @@ static void test_lookup_perf(void) {
 
     timer timerA;
     uint32_t paramA = 0;
-    auto nativeTest = [] (uint8_t index, uint32_t &checkSum) { 
+    auto nativeTest = [] (uint8_t index, uint32_t &checkSum) {
         checkSum += table2D_getValue(&table2d_u8_u8, (uint8_t)(table2d_axis_u8[index]+1));
     };
     measure_executiontime<uint8_t, uint32_t&>(iters, start_index, end_index, step, timerA, paramA, nativeTest);
@@ -215,7 +215,7 @@ void testTable2d()
   SET_UNITY_FILENAME() {
     RUN_TEST(test_table2dLookup_overMax);
     RUN_TEST(test_table2dLookup_underMin);
-    RUN_TEST(test_table2d_all_decrementing); 
+    RUN_TEST(test_table2d_all_decrementing);
     RUN_TEST(test_table2dLookup_bin_midpoints);
     RUN_TEST(test_table2dLookup_bin_33);
     RUN_TEST(test_table2dLookup_bin_66);

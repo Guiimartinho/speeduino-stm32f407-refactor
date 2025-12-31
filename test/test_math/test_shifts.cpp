@@ -61,9 +61,9 @@ void test_RShift()
 
 static uint32_t seedValue;
 
-// Force no inline, or compiler will optimize shifts away 
+// Force no inline, or compiler will optimize shifts away
 // (which it won't do in normal operaton when the left shift operand is unknown at compile time.)
-static void __attribute__((noinline)) nativeTest(uint8_t index, uint32_t &checkSum) { 
+static void __attribute__((noinline)) nativeTest(uint8_t index, uint32_t &checkSum) {
     if (index==1U) { checkSum = seedValue; }
     if (index==4U) { checkSum += checkSum >> 4U; }
     if (index==5U) { checkSum += checkSum >> 5U; }
@@ -90,7 +90,7 @@ static void __attribute__((noinline)) optimizedTest(uint8_t index, uint32_t &che
     if (index==13U) { checkSum += rshift<13U>(checkSum); }
     if (index==14U) { checkSum += rshift<14U>(checkSum); }
     if (index==15U) { checkSum += rshift<15U>(checkSum); }
-};      
+};
 
 static void test_rshift_perf(void) {
 #if USE_OPTIMIZED_SHIFTS==1
@@ -103,7 +103,7 @@ static void test_rshift_perf(void) {
 
     TEST_MESSAGE("rshift ");
     auto comparison = compare_executiontime<uint8_t, uint32_t>(iters, start_index, end_index, step, nativeTest, optimizedTest);
-    
+
     // This must be here to force the compiler to run the loops above
     TEST_ASSERT_EQUAL(comparison.timeA.result, comparison.timeB.result);
 

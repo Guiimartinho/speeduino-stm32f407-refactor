@@ -5,7 +5,7 @@
 /**
  * Page count, as defined in the INI file
  */
-uint8_t getPageCount(void); 
+uint8_t getPageCount(void);
 
 /**
  * Page size in bytes
@@ -52,7 +52,7 @@ void setPageValue(  byte pageNum,       /**< [in] The page number to retrieve da
 // over those entities.
 
 // Type of entity
-enum entity_type { 
+enum entity_type {
     Raw,        // A block of memory
     Table,      // A 3D table
     NoEntity,   // No entity, but a valid offset

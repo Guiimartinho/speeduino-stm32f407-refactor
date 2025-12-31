@@ -44,7 +44,7 @@ void initMC33810(void)
 
     SPI.begin();
     //These are the SPI settings per the datasheet
-	SPI.beginTransaction(SPISettings(6000000, MSBFIRST, SPI_MODE0)); 
+	SPI.beginTransaction(SPISettings(6000000, MSBFIRST, SPI_MODE0));
 
     //Set the ignition outputs to GPGD mode
     /*
@@ -79,5 +79,5 @@ void initMC33810(void)
     MC33810_2_ACTIVE();
     SPI.transfer16(cmd);
     MC33810_2_INACTIVE();
-    
+
 }

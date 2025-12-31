@@ -22,7 +22,7 @@
  * SOFTWARE.
  */
 
- 
+
 // CPU-specific implementations of helper functions
 
 #if !defined(KINETISK)
@@ -30,15 +30,15 @@
 #define FastCRC_cpu
 
 //Reverse byte order (16 bit)
-#if defined(__thumb__)  
-static inline __attribute__((always_inline)) 
+#if defined(__thumb__)
+static inline __attribute__((always_inline))
 uint32_t REV16( uint32_t value) //ARM-THUMB
 {
 	asm ("rev16 %0, %1" : "=r" (value) : "r" (value) );
 	return(value);
 }
 #else
-static inline __attribute__((always_inline)) 
+static inline __attribute__((always_inline))
 uint32_t REV16( uint32_t value) //generic
 {
 	return (value >> 8) | ((value & 0xff) << 8);
@@ -50,7 +50,7 @@ uint32_t REV16( uint32_t value) //generic
 
 
 //Reverse byte order (32 bit)
-#if defined(__thumb__) 
+#if defined(__thumb__)
 static inline  __attribute__((always_inline))
 uint32_t REV32( uint32_t value) //ARM-THUMB
 {

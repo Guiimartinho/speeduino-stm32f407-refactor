@@ -40,7 +40,7 @@ static void test_calc_inj_timeout(const inj_test_parameters &parameters)
     sprintf_P(msg, PSTR("PENDING channelAngle: %" PRIu16 ", pw: %" PRIu16 ", crankAngle: %" PRIu16 ", openAngle: %" PRIu16), parameters.channelAngle, parameters.pw, parameters.crankAngle, startAngle);
     TEST_ASSERT_INT32_WITHIN_MESSAGE(1, parameters.pending, calculateInjectorTimeout(schedule, startAngle, parameters.crankAngle), msg);
     */
-    
+
     schedule.Status = RUNNING;
     startAngle = calculateInjectorStartAngle( PWdivTimerPerDegree, parameters.channelAngle, injAngle);
     sprintf_P(msg, PSTR("RUNNING channelAngle: %" PRIu16 ", pw: %" PRIu16 ", crankAngle: %" PRIu16 ", openAngle: %" PRIu16), parameters.channelAngle, parameters.pw, parameters.crankAngle, startAngle);
@@ -64,7 +64,7 @@ static void test_calc_inj_timeout_360()
   setEngineSpeed(4000, 360);
 
   // Expected test values were generated using floating point calculations (in Excel)
-  
+
   static const inj_test_parameters test_data[] PROGMEM = {
     // ChannelAngle (deg), PW (uS), Crank (deg), Expected Pending (uS), Expected Running (uS)
     { 0                  , 3000   , 0          , 11792                , 11792 },
@@ -156,7 +156,7 @@ static void test_calc_inj_timeout_360()
 static void test_calc_inj_timeout_720()
 {
   setEngineSpeed(4000, 720);
-  
+
   // Expected test values were generated using floating point calculations (in Excel)
   static const inj_test_parameters test_data[] PROGMEM = {
     // ChannelAngle (deg), PW (uS), Crank (deg), Expected Pending (uS), Expected Running (uS)
@@ -282,7 +282,7 @@ static void test_calc_inj_timeout_720()
   test_calc_inj_timeout(&test_data[0], &test_data[0]+_countof(test_data));
 }
 
-// 
+//
 void test_calc_inj_timeout(void)
 {
   SET_UNITY_FILENAME() {
