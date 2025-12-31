@@ -1,0 +1,162 @@
+# =============================================================================
+# PRE-COMMIT HOOKS CONFIGURATION - SCG-ECU 2.0
+# =============================================================================
+# Modularização e Adaptação Speeduino para STM32F407VGT6
+# Projeto Base: Speeduino (https://speeduino.com) por Josh Stewart
+#
+# Instalação:
+#   pip install pre-commit
+#   pre-commit install
+#   pre-commit install --hook-type pre-push
+#
+# Execução manual:
+#   pre-commit run --all-files
+#
+# =============================================================================
+
+default_language_version:
+  python: python3
+
+repos:
+  # ===========================================================================
+  # HOOKS PADRÃO - Higiene e Validação Básica
+  # ===========================================================================
+  - repo: https://github.com/pre-commit/pre-commit-hooks
+    rev: v4.5.0
+    hooks:
+      # Higiene de código
+      - id: trailing-whitespace
+        name: "Remove trailing whitespace"
+        exclude: ^(docs/vw/|docs/bmw/|reference/|\.github/workflows/archived/)
+
+      - id: end-of-file-fixer
+        name: "Fix end of file"
+        exclude: ^(docs/vw/|docs/bmw/|reference/|\.github/workflows/archived/)
+
+      - id: mixed-line-ending
+        name: "Fix mixed line endings"
+        args: ['--fix=lf']
+        exclude: ^(docs/vw/|docs/bmw/|reference/|\.github/workflows/archived/)
+
+      # Validação de arquivos
+      - id: check-yaml
+        name: "Check YAML syntax"
+
+      - id: check-json
+        name: "Check JSON syntax"
+
+      - id: check-xml
+        name: "Check XML syntax"
+
+      # Segurança
+      - id: check-added-large-files
+        name: "Check for large files"
+        args: ['--maxkb=500']
+
+      - id: check-merge-conflict
+        name: "Check for merge conflicts"
+
+      - id: check-case-conflict
+        name: "Check for case conflicts"
+
+  # ===========================================================================
+  # CODESPELL - Verificação de Ortografia
+  # ===========================================================================
+  - repo: https://github.com/codespell-project/codespell
+    rev: v2.2.6
+    hooks:
+      - id: codespell
+        name: "Check spelling"
+        args:
+          - --ignore-words=.github/workflows/codespell-ignored-words.txt
+          - --skip=*.bin,*.elf,*.hex,*.map,*.o,*.a,*.lib
+          - --skip=docs/vw/*,docs/bmw/*,reference/*
+          - --skip=libdivide/*,*.min.js,*.min.css
+        files: \.(c|cpp|h|hpp|ino|md|txt|py|yaml|yml)$
+        exclude: ^(docs/vw/|docs/bmw/|reference/doxygen/)
+
+  # ===========================================================================
+  # HOOKS CUSTOMIZADOS - Análise Específica SCG-ECU 2.0
+  # ===========================================================================
+  - repo: local
+    hooks:
+      # -----------------------------------------------------------------------
+      # CHECK NESTING - MISRA C:2012 Rule 15.6 (Máximo 3 níveis)
+      # -----------------------------------------------------------------------
+      - id: check-nesting
+        name: "Check nesting depth (max 3)"
+        entry: python scripts/hooks/check_nesting.py
+        language: python
+        files: \.(c|cpp|h|hpp|ino)$
+        exclude: ^(libdivide/|test/mocks/|docs/|reference/)
+
+      # -----------------------------------------------------------------------
+      # CHECK SECRETS - Detecção de Credentials Hardcoded
+      # -----------------------------------------------------------------------
+      - id: check-secrets
+        name: "Check for hardcoded secrets"
+        entry: python scripts/hooks/check_secrets.py
+        language: python
+        files: \.(c|cpp|h|hpp|ino|py|yaml|yml|json|ini)$
+        exclude: ^(docs/vw/|docs/bmw/|\.github/workflows/archived/)
+
+      # -----------------------------------------------------------------------
+      # CHECK CPPCHECK QUICK - Análise Rápida (warnings críticos)
+      # -----------------------------------------------------------------------
+      - id: check-cppcheck-quick
+        name: "Quick cppcheck analysis"
+        entry: python scripts/run_cppcheck.py --quick
+        language: python
+        files: \.(c|cpp|h|hpp|ino)$
+        exclude: ^(libdivide/|test/|docs/|reference/)
+        pass_filenames: false
+        stages: [commit]
+
+      # -----------------------------------------------------------------------
+      # CHECK INI SYNTAX - Validação TunerStudio INI
+      # -----------------------------------------------------------------------
+      - id: check-ini-syntax
+        name: "Check INI file syntax"
+        entry: python scripts/hooks/check_ini_syntax.py
+        language: python
+        files: \.ini$
+        exclude: ^(platformio\.ini|\.pre-commit-config\.yaml)
+
+  # ===========================================================================
+  # PRE-PUSH HOOKS - Execução antes do push
+  # ===========================================================================
+  - repo: local
+    hooks:
+      # -----------------------------------------------------------------------
+      # UNIT TESTS - Executa testes antes do push
+      # -----------------------------------------------------------------------
+      - id: unit-tests
+        name: "Run unit tests"
+        entry: python scripts/run_tests.py --quick
+        language: python
+        pass_filenames: false
+        stages: [push]
+        verbose: true
+
+      # -----------------------------------------------------------------------
+      # BUILD CHECK - Verifica se compila
+      # -----------------------------------------------------------------------
+      - id: build-check
+        name: "Verify firmware builds"
+        entry: python scripts/run_build.py --check
+        language: python
+        pass_filenames: false
+        stages: [push]
+        verbose: true
+
+# =============================================================================
+# CONFIGURAÇÃO GLOBAL
+# =============================================================================
+ci:
+  autofix_commit_msg: |
+    [pre-commit.ci] auto fixes from hooks
+  autofix_prs: true
+  autoupdate_commit_msg: '[pre-commit.ci] pre-commit autoupdate'
+  autoupdate_schedule: weekly
+  skip: [check-cppcheck-quick, unit-tests, build-check]  # Skip heavy checks in CI
+  submodules: false
