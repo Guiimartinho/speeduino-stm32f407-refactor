@@ -19,6 +19,57 @@
 
 #define CURRENT_DATA_VERSION    25
 
+// Helper: Add offset to entire table values (file scope to reduce nesting)
+static void addOffsetToTable(table3d16RpmLoad* table, int8_t offset)
+{
+  auto table_it = table->values.begin();
+  for(uint8_t x=0; x < table->values.num_rows; x++)
+  {
+    auto row = *table_it;
+    while (!row.at_end()) { *row = *row + offset; ++row; }
+    ++table_it;
+  }
+}
+
+// Helper: Shift table values left (multiply by 2)
+static void shiftTableLeft(table3d8RpmLoad* table)
+{
+  auto table_it = table->values.begin();
+  while (!table_it.at_end())
+  {
+    auto row = *table_it;
+    while (!row.at_end()) { *row = *row << 1; ++row; }
+    ++table_it;
+  }
+}
+
+// Helper: Set all table values to constant
+static void setTableConstant(table3d8RpmLoad* table, uint8_t value)
+{
+  auto table_it = table->values.begin();
+  while (!table_it.at_end())
+  {
+    auto row = *table_it;
+    while (!row.at_end()) { *row = value; ++row; }
+    ++table_it;
+  }
+}
+
+// Helper: Scale rotary split bins by 2 (file scope to reduce nesting)
+static void scaleRotarySplitBins(void)
+{
+  for(uint8_t x = 0; x < 8; x++) { configPage10.rotarySplitBins[x] *= 2; }
+}
+
+// Helper: Update programmable output data indices (file scope to reduce nesting)
+static void updateProgrammableOutputIndices(uint8_t y)
+{
+  if ((configPage13.firstDataIn[y] > 22) && (configPage13.firstDataIn[y] < 240)) { configPage13.firstDataIn[y]++; }
+  if ((configPage13.firstDataIn[y] > 92) && (configPage13.firstDataIn[y] < 240)) { configPage13.firstDataIn[y]++; }
+  if ((configPage13.secondDataIn[y] > 22) && (configPage13.secondDataIn[y] < 240)) { configPage13.secondDataIn[y]++; }
+  if ((configPage13.secondDataIn[y] > 92) && (configPage13.secondDataIn[y] < 240)) { configPage13.secondDataIn[y]++; }
+}
+
 namespace {
   // ==================================================================================
   // EEPROM VERSION UPDATE HANDLERS - FASE C5 REFACTORING
@@ -29,17 +80,7 @@ namespace {
   /** @brief Update from version 2: May 2017 ignition table offset fix (+40) */
   static inline void updateFromVersion_02(void)
   {
-    auto table_it = ignitionTable.values.begin();
-    for(uint8_t x=0; x<ignitionTable.values.num_rows; x++)
-    {
-      auto row = *table_it;
-      while (!row.at_end())
-      {
-        *row = *row + 40;
-        ++row;
-      }
-      ++table_it;
-    }
+    addOffsetToTable(&ignitionTable, 40);
     writeAllConfig();
     storeEEPROMVersion(3);
   }
@@ -395,17 +436,7 @@ namespace {
   /** @brief Update from version 17: VVT accuracy 0.5 + VVT2 + map sample RPM switch */
   static inline void updateFromVersion_17(void)
   {
-    auto table_it = vvtTable.values.begin();
-    while (!table_it.at_end())
-    {
-      auto row = *table_it;
-      while (!row.at_end())
-      {
-        *row = *row << 1;
-        ++row;
-      }
-      ++table_it;
-    }
+    shiftTableLeft(&vvtTable);
 
     configPage10.vvtCLholdDuty = configPage10.vvtCLholdDuty << 1;
     configPage10.vvtCLminDuty = configPage10.vvtCLminDuty << 1;
@@ -477,10 +508,7 @@ namespace {
     multiplyTableLoad(&trim8Table, trim8Table.type_key, 4);
 
     // Rotary split table scaling (if rotary mode)
-    if(configPage4.sparkMode == IGN_MODE_ROTARY)
-    {
-      for(uint8_t x = 0; x < 8; x++) { configPage10.rotarySplitBins[x] *= 2; }
-    }
+    if(configPage4.sparkMode == IGN_MODE_ROTARY) { scaleRotarySplitBins(); }
   }
 
   /**
@@ -571,11 +599,9 @@ namespace {
   static inline void updateFromVersion_19(void)
   {
     if( configPage4.inj4cylPairing > INJ_PAIR_14_23 ) { configPage4.inj4cylPairing = 0; }
-    if( configPage2.nCylinders == 4 )
-    {
-      if ( configPage2.injLayout == INJ_SEQUENTIAL ) { configPage4.inj4cylPairing = INJ_PAIR_13_24; }
-      else { configPage4.inj4cylPairing = INJ_PAIR_14_23; }
-    }
+    bool is4cyl = (configPage2.nCylinders == 4);
+    if (is4cyl && (configPage2.injLayout == INJ_SEQUENTIAL)) { configPage4.inj4cylPairing = INJ_PAIR_13_24; }
+    else if (is4cyl) { configPage4.inj4cylPairing = INJ_PAIR_14_23; }
 
     configPage9.hardRevMode = 1;
     configPage6.tachoMode = 0;
@@ -583,17 +609,7 @@ namespace {
     configPage15.boostDCWhenDisabled = 0;
     configPage15.boostControlEnable = EN_BOOST_CONTROL_BARO;
 
-    auto table_it = boostTableLookupDuty.values.begin();
-    while (!table_it.at_end())
-    {
-      auto row = *table_it;
-      while (!row.at_end())
-      {
-        *row = 50*2;
-        ++row;
-      }
-      ++table_it;
-    }
+    setTableConstant(&boostTableLookupDuty, 100);
 
     auto table_X = boostTableLookupDuty.axisX.begin();
     uint16_t i = 0;
@@ -629,13 +645,7 @@ namespace {
     configPage2.maeMinChange = 2;
     configPage2.decelAmount = 100;
 
-    for (uint8_t y = 0; y < sizeof(configPage13.outputPin); y++)
-    {
-      if ((configPage13.firstDataIn[y] > 22) && (configPage13.firstDataIn[y] < 240)) {configPage13.firstDataIn[y]++;}
-      if ((configPage13.firstDataIn[y] > 92) && (configPage13.firstDataIn[y] < 240)) {configPage13.firstDataIn[y]++;}
-      if ((configPage13.secondDataIn[y] > 22) && (configPage13.secondDataIn[y] < 240)) {configPage13.secondDataIn[y]++;}
-      if ((configPage13.secondDataIn[y] > 92) && (configPage13.secondDataIn[y] < 240)) {configPage13.secondDataIn[y]++;}
-    }
+    for (uint8_t y = 0; y < sizeof(configPage13.outputPin); y++) { updateProgrammableOutputIndices(y); }
 
     configPage15.airConEnable = 0;
     configPage10.oilPressureProtTime = 0;

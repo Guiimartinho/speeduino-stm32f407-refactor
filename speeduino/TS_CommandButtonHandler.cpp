@@ -23,6 +23,30 @@ static bool commandRequiresStoppedEngine(uint16_t buttonCommand)
 }
 
 /**
+ * @brief Calibrate VSS at 60km/h
+ * Handles both Aux/CAN input mode and pulse counting mode
+ */
+static void calibrateVSS60kmh(void)
+{
+  if (configPage2.vssMode == 1)
+  {
+    // Calculate the ratio of VSS reading from Aux/CAN input and actual VSS (assuming that actual VSS is really 60km/h)
+    configPage2.vssPulsesPerKm = (currentStatus.canin[configPage2.vssAuxCh] / 60);
+    writeConfig(veSetPage);
+    BIT_SET(currentStatus.status3, BIT_STATUS3_VSS_REFRESH);
+    return;
+  }
+
+  // Calibrate the actual pulses per distance
+  uint32_t calibrationGap = vssGetPulseGap(0);
+  if (calibrationGap == 0) { return; }
+
+  configPage2.vssPulsesPerKm = MICROS_PER_MIN / calibrationGap;
+  writeConfig(veSetPage);
+  BIT_SET(currentStatus.status3, BIT_STATUS3_VSS_REFRESH);
+}
+
+/**
  * @brief
  *
  * @param buttonCommand The command number of the button that was clicked. See TS_CommendButtonHandler.h for a list of button IDs
@@ -292,26 +316,7 @@ bool TS_CommandButtonsHandler(uint16_t buttonCommand)
 
     //VSS Calibration routines
     case TS_CMD_VSS_60KMH:
-      {
-        if(configPage2.vssMode == 1)
-        {
-          //Calculate the ratio of VSS reading from Aux/CAN input and actual VSS (assuming that actual VSS is really 60km/h).
-          configPage2.vssPulsesPerKm = (currentStatus.canin[configPage2.vssAuxCh] / 60);
-          writeConfig(veSetPage); // Need to manually save the new config value as it will not trigger a burn in tunerStudio due to use of ControllerPriority
-          BIT_SET(currentStatus.status3, BIT_STATUS3_VSS_REFRESH); //Set the flag to trigger the UI reset
-        }
-        else
-        {
-          //Calibrate the actual pulses per distance
-          uint32_t calibrationGap = vssGetPulseGap(0);
-          if( calibrationGap > 0 )
-          {
-            configPage2.vssPulsesPerKm = MICROS_PER_MIN / calibrationGap;
-            writeConfig(veSetPage); // Need to manually save the new config value as it will not trigger a burn in tunerStudio due to use of ControllerPriority
-            BIT_SET(currentStatus.status3, BIT_STATUS3_VSS_REFRESH); //Set the flag to trigger the UI reset
-          }
-        }
-      }
+      calibrateVSS60kmh();
       break;
 
     //Calculate the RPM to speed ratio for each gear

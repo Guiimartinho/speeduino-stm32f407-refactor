@@ -96,6 +96,21 @@ void ledButtonInit(void) {
 }
 
 // ============================================================================
+// HELPER: Mode dispatch
+// ============================================================================
+
+static void ledDispatchModeUpdate(void) {
+  switch (ledSystem.mode) {
+    case LED_MODE_NORMAL: ledUpdateModeNormal(); break;
+    case LED_MODE_SHIFT_LIGHT: ledUpdateModeShiftLight(); break;
+    case LED_MODE_ERROR_CODES: ledUpdateModeErrorCodes(); break;
+    case LED_MODE_TUNING: ledUpdateModeTuning(); break;
+    case LED_MODE_DIAGNOSTIC: ledUpdateModeDiagnostic(); break;
+    default: ledSystem.mode = LED_MODE_NORMAL; break;
+  }
+}
+
+// ============================================================================
 // MAIN UPDATE FUNCTION (call at 100Hz)
 // ============================================================================
 
@@ -119,31 +134,8 @@ void ledButtonUpdate(void) {
     }
 
     // If in configuration menu, handle it
-    if (ledSystem.in_config_menu) {
-      ledUpdateConfigMenu();
-    } else {
-      // Normal mode operation
-      switch (ledSystem.mode) {
-        case LED_MODE_NORMAL:
-          ledUpdateModeNormal();
-          break;
-        case LED_MODE_SHIFT_LIGHT:
-          ledUpdateModeShiftLight();
-          break;
-        case LED_MODE_ERROR_CODES:
-          ledUpdateModeErrorCodes();
-          break;
-        case LED_MODE_TUNING:
-          ledUpdateModeTuning();
-          break;
-        case LED_MODE_DIAGNOSTIC:
-          ledUpdateModeDiagnostic();
-          break;
-        default:
-          ledSystem.mode = LED_MODE_NORMAL;
-          break;
-      }
-    }
+    if (ledSystem.in_config_menu) { ledUpdateConfigMenu(); }
+    else { ledDispatchModeUpdate(); }
 
     // Apply patterns and write outputs
     ledUpdatePatterns();
@@ -159,6 +151,36 @@ void ledButtonUpdate(void) {
 }
 
 // ============================================================================
+// BUTTON STATE MACHINE HELPERS
+// ============================================================================
+
+static inline void classifyPressDuration(unsigned long press_duration) {
+  if (press_duration >= BTN_VLONG_PRESS_MS) { ledSystem.btn_state = BTN_STATE_VLONG_PRESS; return; }
+  if (press_duration >= BTN_LONG_PRESS_MS) { ledSystem.btn_state = BTN_STATE_LONG_PRESS; return; }
+  if (press_duration >= BTN_SHORT_PRESS_MS) { ledSystem.btn_state = BTN_STATE_SHORT_PRESS; }
+}
+
+static inline void evaluateMultiClick(unsigned long now) {
+  if (ledSystem.btn_click_count == 0) { return; }
+  if ((now - ledSystem.btn_press_start) <= BTN_DOUBLE_CLICK_MS) { return; }
+
+  if (ledSystem.btn_click_count >= 3) { ledSystem.btn_state = BTN_STATE_TRIPLE_CLICK; }
+  else if (ledSystem.btn_click_count == 2) { ledSystem.btn_state = BTN_STATE_DOUBLE_CLICK; }
+  ledSystem.btn_click_count = 0;
+}
+
+static inline void handleButtonRelease(unsigned long now) {
+  unsigned long press_duration = now - ledSystem.btn_press_start;
+  classifyPressDuration(press_duration);
+}
+
+static inline void handleButtonPress(unsigned long now) {
+  ledSystem.btn_state = BTN_STATE_PRESSED;
+  ledSystem.btn_press_start = now;
+  ledSystem.btn_click_count++;
+}
+
+// ============================================================================
 // BUTTON STATE MACHINE
 // ============================================================================
 
@@ -167,143 +189,82 @@ void ledButtonUpdateState(void) {
   bool btn_raw = !digitalRead(BTN_MODE);  // Inverted due to INPUT_PULLUP
 
   // Debounce
-  if (btn_raw != ledSystem.btn_current) {
-    ledSystem.btn_debounce_time = now;
-  }
+  if (btn_raw != ledSystem.btn_current) { ledSystem.btn_debounce_time = now; }
 
   if ((now - ledSystem.btn_debounce_time) > BTN_DEBOUNCE_MS) {
-    // Button state has stabilized
     bool btn_new_state = btn_raw;
 
-    // Detect press/release edges
-    if (btn_new_state && !ledSystem.btn_last) {
-      // Button just pressed
-      ledSystem.btn_state = BTN_STATE_PRESSED;
-      ledSystem.btn_press_start = now;
-      ledSystem.btn_click_count++;
-    } else if (!btn_new_state && ledSystem.btn_last) {
-      // Button just released
-      unsigned long press_duration = now - ledSystem.btn_press_start;
-
-      // Classify press type
-      if (press_duration >= BTN_VLONG_PRESS_MS) {
-        ledSystem.btn_state = BTN_STATE_VLONG_PRESS;
-      } else if (press_duration >= BTN_LONG_PRESS_MS) {
-        ledSystem.btn_state = BTN_STATE_LONG_PRESS;
-      } else if (press_duration >= BTN_SHORT_PRESS_MS) {
-        ledSystem.btn_state = BTN_STATE_SHORT_PRESS;
-      }
-    }
+    if (btn_new_state && !ledSystem.btn_last) { handleButtonPress(now); }
+    else if (!btn_new_state && ledSystem.btn_last) { handleButtonRelease(now); }
 
     ledSystem.btn_last = btn_new_state;
   }
 
   ledSystem.btn_current = btn_raw;
+  evaluateMultiClick(now);
+}
 
-  // Check for multi-click patterns
-  if (ledSystem.btn_click_count > 0) {
-    if ((now - ledSystem.btn_press_start) > BTN_DOUBLE_CLICK_MS) {
-      // Time window expired, evaluate clicks
-      if (ledSystem.btn_click_count >= 3) {
-        ledSystem.btn_state = BTN_STATE_TRIPLE_CLICK;
-      } else if (ledSystem.btn_click_count == 2) {
-        ledSystem.btn_state = BTN_STATE_DOUBLE_CLICK;
-      }
-      ledSystem.btn_click_count = 0;
-    }
+// Helper: Handle short press in config menu
+static inline void handleConfigMenuShortPress(void) {
+  if (ledSystem.config_menu_editing) { ledSystem.config_menu_value++; }
+  else { ledSystem.config_menu_option = (ConfigMenuOption_t)((ledSystem.config_menu_option + 1) % CONFIG_MENU_COUNT); }
+}
+
+// Helper: Handle long press in config menu
+static inline void handleConfigMenuLongPress(void) {
+  if (ledSystem.config_menu_editing) { ledSystem.config_menu_editing = false; ledSaveConfig(); }
+  else { ledSystem.config_menu_editing = true; ledSystem.config_menu_value = 0; }
+}
+
+// Helper: Handle button actions in config menu
+static inline void handleConfigMenuButton(void) {
+  switch (ledSystem.btn_state) {
+    case BTN_STATE_SHORT_PRESS: handleConfigMenuShortPress(); break;
+    case BTN_STATE_LONG_PRESS: handleConfigMenuLongPress(); break;
+    case BTN_STATE_VLONG_PRESS: ledSystem.in_config_menu = false; ledSystem.config_menu_editing = false; break;
+    default: break;
+  }
+}
+
+// Helper: Handle button actions in normal mode
+static inline void handleNormalModeButton(void) {
+  switch (ledSystem.btn_state) {
+    case BTN_STATE_SHORT_PRESS:
+      ledSystem.mode = (LedMode_t)((ledSystem.mode + 1) % LED_MODE_COUNT);
+      ledSystem.mode_changed = true;
+      break;
+    case BTN_STATE_LONG_PRESS:
+      ledSystem.mode_saved = ledSystem.mode;
+      ledSaveConfig();
+      ledSetPattern(1, LED_PATTERN_PULSE_SHORT);
+      ledSetPattern(2, LED_PATTERN_PULSE_SHORT);
+      ledSetPattern(3, LED_PATTERN_PULSE_SHORT);
+      break;
+    case BTN_STATE_VLONG_PRESS:
+      ledFactoryReset();
+      ledSetPattern(1, LED_PATTERN_BLINK_VERY_FAST);
+      ledSetPattern(2, LED_PATTERN_BLINK_VERY_FAST);
+      ledSetPattern(3, LED_PATTERN_BLINK_VERY_FAST);
+      break;
+    case BTN_STATE_DOUBLE_CLICK:
+      ledSystem.in_config_menu = true;
+      ledSystem.config_menu_option = CONFIG_MENU_LED_BRIGHTNESS;
+      ledSystem.config_menu_editing = false;
+      break;
+    case BTN_STATE_TRIPLE_CLICK:
+      ledClearAllErrors();
+      ledSetPattern(2, LED_PATTERN_PULSE_LONG);
+      break;
+    default: break;
   }
 }
 
 void ledButtonHandlePress(void) {
-  if (ledSystem.btn_state == BTN_STATE_IDLE) {
-    return;
-  }
+  if (ledSystem.btn_state == BTN_STATE_IDLE) { return; }
 
-  // Handle button actions based on context
-  if (ledSystem.in_config_menu) {
-    // Configuration menu navigation
-    switch (ledSystem.btn_state) {
-      case BTN_STATE_SHORT_PRESS:
-        // Navigate menu options
-        if (ledSystem.config_menu_editing) {
-          // Increment value
-          ledSystem.config_menu_value++;
-        } else {
-          // Next menu option
-          ledSystem.config_menu_option = (ConfigMenuOption_t)((ledSystem.config_menu_option + 1) % CONFIG_MENU_COUNT);
-        }
-        break;
+  if (ledSystem.in_config_menu) { handleConfigMenuButton(); }
+  else { handleNormalModeButton(); }
 
-      case BTN_STATE_LONG_PRESS:
-        // Toggle editing mode or save
-        if (ledSystem.config_menu_editing) {
-          // Save value
-          ledSystem.config_menu_editing = false;
-          ledSaveConfig();
-        } else {
-          // Enter editing
-          ledSystem.config_menu_editing = true;
-          ledSystem.config_menu_value = 0;
-        }
-        break;
-
-      case BTN_STATE_VLONG_PRESS:
-        // Exit config menu
-        ledSystem.in_config_menu = false;
-        ledSystem.config_menu_editing = false;
-        break;
-
-      default:
-        break;
-    }
-  } else {
-    // Normal operation
-    switch (ledSystem.btn_state) {
-      case BTN_STATE_SHORT_PRESS:
-        // Cycle through modes
-        ledSystem.mode = (LedMode_t)((ledSystem.mode + 1) % LED_MODE_COUNT);
-        ledSystem.mode_changed = true;
-        break;
-
-      case BTN_STATE_LONG_PRESS:
-        // Save current mode to EEPROM
-        ledSystem.mode_saved = ledSystem.mode;
-        ledSaveConfig();
-        // Flash all LEDs to confirm save
-        ledSetPattern(1, LED_PATTERN_PULSE_SHORT);
-        ledSetPattern(2, LED_PATTERN_PULSE_SHORT);
-        ledSetPattern(3, LED_PATTERN_PULSE_SHORT);
-        break;
-
-      case BTN_STATE_VLONG_PRESS:
-        // Factory reset
-        ledFactoryReset();
-        // Flash all LEDs rapidly to confirm reset
-        ledSetPattern(1, LED_PATTERN_BLINK_VERY_FAST);
-        ledSetPattern(2, LED_PATTERN_BLINK_VERY_FAST);
-        ledSetPattern(3, LED_PATTERN_BLINK_VERY_FAST);
-        break;
-
-      case BTN_STATE_DOUBLE_CLICK:
-        // Enter configuration menu
-        ledSystem.in_config_menu = true;
-        ledSystem.config_menu_option = CONFIG_MENU_LED_BRIGHTNESS;
-        ledSystem.config_menu_editing = false;
-        break;
-
-      case BTN_STATE_TRIPLE_CLICK:
-        // Clear all error codes
-        ledClearAllErrors();
-        // Flash LED2 (error) to confirm
-        ledSetPattern(2, LED_PATTERN_PULSE_LONG);
-        break;
-
-      default:
-        break;
-    }
-  }
-
-  // Reset button state after handling
   ledSystem.btn_state = BTN_STATE_IDLE;
 }
 
@@ -454,19 +415,16 @@ void ledUpdateModeTuning(void) {
 // MODE 5: DIAGNOSTIC (Sensor status loop)
 // ============================================================================
 
+static inline void diagnosticCycleSensor(unsigned long now) {
+  if (ledSystem.diagnostic_locked) { return; }
+  if ((now - ledSystem.diagnostic_last_switch) < 2000) { return; }
+  ledSystem.diagnostic_sensor_index = (ledSystem.diagnostic_sensor_index + 1) % 6;
+  ledSystem.diagnostic_last_switch = now;
+}
+
 void ledUpdateModeDiagnostic(void) {
   unsigned long now = millis();
-
-  // Auto-cycle through sensors every 2 seconds (unless locked)
-  if (!ledSystem.diagnostic_locked) {
-    if (now - ledSystem.diagnostic_last_switch >= 2000) {
-      ledSystem.diagnostic_sensor_index++;
-      if (ledSystem.diagnostic_sensor_index >= 6) {
-        ledSystem.diagnostic_sensor_index = 0;
-      }
-      ledSystem.diagnostic_last_switch = now;
-    }
-  }
+  diagnosticCycleSensor(now);
 
   // Show current sensor status
   // LED1 (Green) - Sensor ID (blink count)
@@ -593,29 +551,13 @@ void ledApplyPattern(uint8_t led, LedPattern_t pattern, bool *state) {
       break;
 
     case LED_PATTERN_PULSE_SHORT:
-      if (ledSystem.led_pulse_active) {
-        if (now - ledSystem.led_pulse_start < LED_PULSE_SHORT) {
-          *state = true;
-        } else {
-          *state = false;
-          ledSystem.led_pulse_active = false;
-        }
-      } else {
-        *state = false;
-      }
+      *state = ledSystem.led_pulse_active && ((now - ledSystem.led_pulse_start) < LED_PULSE_SHORT);
+      if (ledSystem.led_pulse_active && ((now - ledSystem.led_pulse_start) >= LED_PULSE_SHORT)) { ledSystem.led_pulse_active = false; }
       break;
 
     case LED_PATTERN_PULSE_LONG:
-      if (ledSystem.led_pulse_active) {
-        if (now - ledSystem.led_pulse_start < LED_PULSE_LONG) {
-          *state = true;
-        } else {
-          *state = false;
-          ledSystem.led_pulse_active = false;
-        }
-      } else {
-        *state = false;
-      }
+      *state = ledSystem.led_pulse_active && ((now - ledSystem.led_pulse_start) < LED_PULSE_LONG);
+      if (ledSystem.led_pulse_active && ((now - ledSystem.led_pulse_start) >= LED_PULSE_LONG)) { ledSystem.led_pulse_active = false; }
       break;
 
     case LED_PATTERN_CUSTOM:
@@ -666,17 +608,15 @@ void ledAddError(uint8_t error_code) {
   }
 }
 
+static inline void shiftErrorsDown(uint8_t from_index) {
+  for (uint8_t j = from_index; j < ledSystem.error_count - 1; j++) { ledSystem.error_codes[j] = ledSystem.error_codes[j + 1]; }
+  ledSystem.error_count--;
+  ledSystem.error_codes[ledSystem.error_count] = LED_ERROR_NONE;
+}
+
 void ledClearError(uint8_t error_code) {
   for (uint8_t i = 0; i < ledSystem.error_count; i++) {
-    if (ledSystem.error_codes[i] == error_code) {
-      // Shift remaining errors down
-      for (uint8_t j = i; j < ledSystem.error_count - 1; j++) {
-        ledSystem.error_codes[j] = ledSystem.error_codes[j + 1];
-      }
-      ledSystem.error_count--;
-      ledSystem.error_codes[ledSystem.error_count] = LED_ERROR_NONE;
-      return;
-    }
+    if (ledSystem.error_codes[i] == error_code) { shiftErrorsDown(i); return; }
   }
 }
 

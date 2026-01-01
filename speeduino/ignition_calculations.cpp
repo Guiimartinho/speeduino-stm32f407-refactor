@@ -138,6 +138,22 @@ uint16_t calculateDwell(void)
 }
 
 //=============================================================================
+// IGNITION ANGLE CALCULATION - FILE SCOPE HELPERS
+//=============================================================================
+
+// Helper: Ensure full sync for sequential mode (file scope to reduce nesting)
+static inline void ensureFullSyncForSequential(void)
+{
+  if (CRANK_ANGLE_MAX_IGN != 720) { changeHalfToFullSync(); }
+}
+
+// Helper: Allow half sync for wasted spark mode (file scope to reduce nesting)
+static inline void allowHalfSyncForWastedSpark(void)
+{
+  if (BIT_CHECK(currentStatus.status3, BIT_STATUS3_HALFSYNC) && (CRANK_ANGLE_MAX_IGN != 360)) { changeFullToHalfSync(); }
+}
+
+//=============================================================================
 // IGNITION ANGLE CALCULATION - PRIVATE HELPERS
 //=============================================================================
 
@@ -178,28 +194,17 @@ static void calculate4CylinderAngles(uint16_t dwellAngle)
   #if IGN_CHANNELS >= 4
   if((configPage4.sparkMode == IGN_MODE_SEQUENTIAL) && currentStatus.hasSync)
   {
-    // Sequential mode requires full 720 degree cycle
-    if(CRANK_ANGLE_MAX_IGN != 720) { changeHalfToFullSync(); }
-
+    ensureFullSyncForSequential();
     calculateIgnitionAngle(dwellAngle, channel3IgnDegrees, currentStatus.advance, &ignition3EndAngle, &ignition3StartAngle);
     calculateIgnitionAngle(dwellAngle, channel4IgnDegrees, currentStatus.advance, &ignition4EndAngle, &ignition4StartAngle);
   }
   else if(configPage4.sparkMode == IGN_MODE_ROTARY)
   {
-    // Rotary mode: Calculate trailing spark split from leading
     byte splitDegrees = table2D_getValue(&rotarySplitTable, (uint8_t)currentStatus.ignLoad);
-
-    // The trailing angles are set relative to the leading ones
     calculateIgnitionTrailingRotary(dwellAngle, splitDegrees, ignition1EndAngle, &ignition3EndAngle, &ignition3StartAngle);
     calculateIgnitionTrailingRotary(dwellAngle, splitDegrees, ignition2EndAngle, &ignition4EndAngle, &ignition4StartAngle);
   }
-  else
-  {
-    // Wasted spark mode can use half-sync (360 degrees)
-    if(BIT_CHECK(currentStatus.status3, BIT_STATUS3_HALFSYNC) && (CRANK_ANGLE_MAX_IGN != 360)) {
-      changeFullToHalfSync();
-    }
-  }
+  else { allowHalfSyncForWastedSpark(); }
   #endif
 }
 
@@ -234,20 +239,12 @@ static void calculate6CylinderAngles(uint16_t dwellAngle)
   #if IGN_CHANNELS >= 6
   if((configPage4.sparkMode == IGN_MODE_SEQUENTIAL) && currentStatus.hasSync)
   {
-    // Sequential mode requires full 720 degree cycle
-    if(CRANK_ANGLE_MAX_IGN != 720) { changeHalfToFullSync(); }
-
+    ensureFullSyncForSequential();
     calculateIgnitionAngle(dwellAngle, channel4IgnDegrees, currentStatus.advance, &ignition4EndAngle, &ignition4StartAngle);
     calculateIgnitionAngle(dwellAngle, channel5IgnDegrees, currentStatus.advance, &ignition5EndAngle, &ignition5StartAngle);
     calculateIgnitionAngle(dwellAngle, channel6IgnDegrees, currentStatus.advance, &ignition6EndAngle, &ignition6StartAngle);
   }
-  else
-  {
-    // Wasted spark mode can use half-sync (360 degrees)
-    if(BIT_CHECK(currentStatus.status3, BIT_STATUS3_HALFSYNC) && (CRANK_ANGLE_MAX_IGN != 360)) {
-      changeFullToHalfSync();
-    }
-  }
+  else { allowHalfSyncForWastedSpark(); }
   #endif
 }
 
@@ -286,21 +283,13 @@ static void calculate8CylinderAngles(uint16_t dwellAngle)
   #if IGN_CHANNELS >= 8
   if((configPage4.sparkMode == IGN_MODE_SEQUENTIAL) && currentStatus.hasSync)
   {
-    // Sequential mode requires full 720 degree cycle
-    if(CRANK_ANGLE_MAX_IGN != 720) { changeHalfToFullSync(); }
-
+    ensureFullSyncForSequential();
     calculateIgnitionAngle(dwellAngle, channel5IgnDegrees, currentStatus.advance, &ignition5EndAngle, &ignition5StartAngle);
     calculateIgnitionAngle(dwellAngle, channel6IgnDegrees, currentStatus.advance, &ignition6EndAngle, &ignition6StartAngle);
     calculateIgnitionAngle(dwellAngle, channel7IgnDegrees, currentStatus.advance, &ignition7EndAngle, &ignition7StartAngle);
     calculateIgnitionAngle(dwellAngle, channel8IgnDegrees, currentStatus.advance, &ignition8EndAngle, &ignition8StartAngle);
   }
-  else
-  {
-    // Wasted spark mode can use half-sync (360 degrees)
-    if(BIT_CHECK(currentStatus.status3, BIT_STATUS3_HALFSYNC) && (CRANK_ANGLE_MAX_IGN != 360)) {
-      changeFullToHalfSync();
-    }
-  }
+  else { allowHalfSyncForWastedSpark(); }
   #endif
 }
 
