@@ -149,6 +149,145 @@ static constexpr uint8_t MAX_CYLINDERS = 12U;
 /** @brief MISRA-C: Trigger interrupt not used/invalid */
 static constexpr uint8_t TRIGGER_INTERRUPT_INVALID = 0xFFU;
 
+// =============================================================================
+// HELPER FUNCTIONS - Extracted to reduce nesting (MISRA-C compliance)
+// =============================================================================
+
+/**
+ * @brief Check if sequential or single ignition mode on 4-stroke
+ */
+static inline bool isSeqOrSingle4Stroke(void)
+{
+  bool seqOrSingle = ((configPage4.sparkMode == IGN_MODE_SEQUENTIAL) || (configPage4.sparkMode == IGN_MODE_SINGLE));
+  return seqOrSingle && (configPage2.strokes == FOUR_STROKE);
+}
+
+/**
+ * @brief Configure port injection timing (forces nSquirts=2)
+ */
+static inline void configurePortInjection3Cyl(void)
+{
+  if (configPage2.injType != INJ_TYPE_PORT) { return; }
+  currentStatus.nSquirts = 2;
+  CRANK_ANGLE_MAX_INJ = (configPage2.strokes == FOUR_STROKE) ? 360U : 180U;
+}
+
+/**
+ * @brief Set all injection channels to simultaneous (0 degrees)
+ */
+static inline void setSimultaneousInjection3(void)
+{
+  if (configPage2.injTiming) { return; }
+  channel1InjDegrees = 0;
+  channel2InjDegrees = 0;
+  channel3InjDegrees = 0;
+}
+
+/**
+ * @brief Adjust 3-cyl injection angles based on nSquirts
+ */
+static inline void adjustNSquirtsAngles3Cyl(void)
+{
+  if (currentStatus.nSquirts <= 2) { return; }
+  channel2InjDegrees = (channel2InjDegrees * 2U) / currentStatus.nSquirts;
+  channel3InjDegrees = (channel3InjDegrees * 2U) / currentStatus.nSquirts;
+}
+
+/**
+ * @brief Set all 4-cyl injection channels to simultaneous (0 degrees)
+ */
+static inline void setSimultaneousInjection4(void)
+{
+  if (configPage2.injTiming) { return; }
+  channel1InjDegrees = 0;
+  channel2InjDegrees = 0;
+  channel3InjDegrees = 0;
+  channel4InjDegrees = 0;
+}
+
+/**
+ * @brief Adjust 4-cyl injection angles based on nSquirts
+ */
+static inline void adjustNSquirtsAngles4Cyl(void)
+{
+  if (currentStatus.nSquirts <= 2) { return; }
+  channel2InjDegrees = (channel2InjDegrees * 2U) / currentStatus.nSquirts;
+  channel3InjDegrees = (channel3InjDegrees * 2U) / currentStatus.nSquirts;
+  channel4InjDegrees = (channel4InjDegrees * 2U) / currentStatus.nSquirts;
+}
+
+/**
+ * @brief Set all 5-cyl injection channels to simultaneous (0 degrees)
+ */
+static inline void setSimultaneousInjection5(void)
+{
+  if (configPage2.injTiming) { return; }
+  channel1InjDegrees = 0;
+  channel2InjDegrees = 0;
+  channel3InjDegrees = 0;
+  channel4InjDegrees = 0;
+  channel5InjDegrees = 0;
+}
+
+/**
+ * @brief Set all 6-cyl injection channels to simultaneous (0 degrees)
+ */
+static inline void setSimultaneousInjection6(void)
+{
+  if (configPage2.injTiming) { return; }
+  channel1InjDegrees = 0;
+  channel2InjDegrees = 0;
+  channel3InjDegrees = 0;
+  channel4InjDegrees = 0;
+  channel5InjDegrees = 0;
+  channel6InjDegrees = 0;
+}
+
+/**
+ * @brief Adjust 6-cyl injection angles based on nSquirts
+ */
+static inline void adjustNSquirtsAngles6Cyl(void)
+{
+  if (currentStatus.nSquirts <= 2) { return; }
+  channel2InjDegrees = (channel2InjDegrees * 2U) / currentStatus.nSquirts;
+  channel3InjDegrees = (channel3InjDegrees * 2U) / currentStatus.nSquirts;
+  channel4InjDegrees = (channel4InjDegrees * 2U) / currentStatus.nSquirts;
+  channel5InjDegrees = (channel5InjDegrees * 2U) / currentStatus.nSquirts;
+  channel6InjDegrees = (channel6InjDegrees * 2U) / currentStatus.nSquirts;
+}
+
+/**
+ * @brief Set all 8-cyl injection channels to simultaneous (0 degrees)
+ */
+static inline void setSimultaneousInjection8(void)
+{
+  if (configPage2.injTiming) { return; }
+  channel1InjDegrees = 0;
+  channel2InjDegrees = 0;
+  channel3InjDegrees = 0;
+  channel4InjDegrees = 0;
+  channel5InjDegrees = 0;
+  channel6InjDegrees = 0;
+  channel7InjDegrees = 0;
+  channel8InjDegrees = 0;
+}
+
+/**
+ * @brief Adjust 8-cyl injection angles based on nSquirts
+ */
+static inline void adjustNSquirtsAngles8Cyl(void)
+{
+  if (currentStatus.nSquirts <= 2) { return; }
+  uint8_t div = currentStatus.nSquirts;
+  channel2InjDegrees = (channel2InjDegrees * 2U) / div;
+  channel3InjDegrees = (channel3InjDegrees * 2U) / div;
+  channel4InjDegrees = (channel4InjDegrees * 2U) / div;
+  channel5InjDegrees = (channel5InjDegrees * 2U) / div;
+  channel6InjDegrees = (channel6InjDegrees * 2U) / div;
+  channel7InjDegrees = (channel7InjDegrees * 2U) / div;
+  channel8InjDegrees = (channel8InjDegrees * 2U) / div;
+}
+
 /**
  * Configure cylinder-specific timing parameters based on engine configuration.
  *
@@ -243,96 +382,83 @@ static void configureCylinderTimings_2Cyl(void)
  */
 static void configureCylinderTimings_3Cyl_Ignition(void)
 {
-  if (configPage2.engineType == EVEN_FIRE)
-  {
-    // Sequential and single modes run over 720° crank (4-stroke only)
-    if (((configPage4.sparkMode == IGN_MODE_SEQUENTIAL) || (configPage4.sparkMode == IGN_MODE_SINGLE)) && (configPage2.strokes == FOUR_STROKE))
-    {
-      channel2IgnDegrees = 240;
-      channel3IgnDegrees = 480;
-      CRANK_ANGLE_MAX_IGN = 720;
-    }
-    else
-    {
-      channel2IgnDegrees = 120;
-      channel3IgnDegrees = 240;
-    }
-  }
-  else
-  {
-    // Odd-fire engine: use custom angles from config
+  if (configPage2.engineType != EVEN_FIRE) {
     channel2IgnDegrees = configPage2.oddfire2;
     channel3IgnDegrees = configPage2.oddfire3;
+    return;
   }
+
+  // Even-fire: sequential/single modes run over 720° crank (4-stroke only)
+  if (isSeqOrSingle4Stroke()) {
+    channel2IgnDegrees = 240;
+    channel3IgnDegrees = 480;
+    CRANK_ANGLE_MAX_IGN = 720;
+  } else {
+    channel2IgnDegrees = 120;
+    channel3IgnDegrees = 240;
+  }
+}
+
+/**
+ * @brief Configure injection angles for 3-cylinder paired/semi-sequential mode.
+ */
+static void configure3CylPairedInjection(void)
+{
+  channel1InjDegrees = 0;
+  channel2InjDegrees = 120;
+  channel3InjDegrees = 240;
+
+  // Port injection: force nSquirts=2
+  configurePortInjection3Cyl();
+
+  // Adjust angles based on number of squirts
+  adjustNSquirtsAngles3Cyl();
+
+  // Simultaneous: all squirts at same time
+  setSimultaneousInjection3();
+}
+
+/**
+ * @brief Configure injection angles for 3-cylinder sequential mode.
+ */
+static void configure3CylSequentialInjection(void)
+{
+  currentStatus.nSquirts = 1;
+
+  if (configPage2.strokes == TWO_STROKE) {
+    channel1InjDegrees = 0;
+    channel2InjDegrees = 120;
+    channel3InjDegrees = 240;
+    CRANK_ANGLE_MAX_INJ = 360;
+    return;
+  }
+
+  req_fuel_uS = req_fuel_uS * 2;
+  channel1InjDegrees = 0;
+  channel2InjDegrees = 240;
+  channel3InjDegrees = 480;
+  CRANK_ANGLE_MAX_INJ = 720;
 }
 
 /**
  * @brief Configure injection angles for 3-cylinder engine.
  *
  * Sets up injection timing for paired, semi-sequential, and sequential modes.
- * Handles port vs body injection, squirt count adjustments, and simultaneous timing.
  *
- * @note MISRA-C compliant helper: 49 lines, C:7, N:2
+ * @note MISRA-C compliant: max nesting 2
  */
 static void configureCylinderTimings_3Cyl_Injection(void)
 {
-  // Paired or semi-sequential: alternating injection
-  if ((configPage2.injLayout == INJ_SEMISEQUENTIAL) || (configPage2.injLayout == INJ_PAIRED))
-  {
-    channel1InjDegrees = 0;
-    channel2InjDegrees = 120;
-    channel3InjDegrees = 240;
+  bool isPairedOrSemi = (configPage2.injLayout == INJ_SEMISEQUENTIAL) || (configPage2.injLayout == INJ_PAIRED);
 
-    if (configPage2.injType == INJ_TYPE_PORT)
-    {
-      // Force nSquirts=2 for port injection (prevent TS forcing value to 3)
-      currentStatus.nSquirts = 2;
-      if (configPage2.strokes == FOUR_STROKE) { CRANK_ANGLE_MAX_INJ = 360; }
-      else { CRANK_ANGLE_MAX_INJ = 180; }
-    }
+  if (isPairedOrSemi) { configure3CylPairedInjection(); return; }
 
-    // Adjust angles based on number of squirts
-    if (currentStatus.nSquirts > 2)
-    {
-      channel2InjDegrees = (channel2InjDegrees * 2) / currentStatus.nSquirts;
-      channel3InjDegrees = (channel3InjDegrees * 2) / currentStatus.nSquirts;
-    }
+  if (configPage2.injLayout == INJ_SEQUENTIAL) { configure3CylSequentialInjection(); return; }
 
-    if (!configPage2.injTiming)
-    {
-      // Simultaneous: all squirts at same time
-      channel1InjDegrees = 0;
-      channel2InjDegrees = 0;
-      channel3InjDegrees = 0;
-    }
-  }
-  else if (configPage2.injLayout == INJ_SEQUENTIAL)
-  {
-    currentStatus.nSquirts = 1;
-
-    if (configPage2.strokes == TWO_STROKE)
-    {
-      channel1InjDegrees = 0;
-      channel2InjDegrees = 120;
-      channel3InjDegrees = 240;
-      CRANK_ANGLE_MAX_INJ = 360;
-    }
-    else
-    {
-      req_fuel_uS = req_fuel_uS * 2;
-      channel1InjDegrees = 0;
-      channel2InjDegrees = 240;
-      channel3InjDegrees = 480;
-      CRANK_ANGLE_MAX_INJ = 720;
-    }
-  }
-  else
-  {
-    // Fallback: use default paired angles
-    channel1InjDegrees = 0;
-    channel2InjDegrees = 120;
-    channel3InjDegrees = 240;
-  }
+  // Fallback: use default paired angles
+  channel1InjDegrees = 0;
+  channel2InjDegrees = 120;
+  channel3InjDegrees = 240;
 }
 
 /**
@@ -378,76 +504,75 @@ static void configureCylinderTimings_3Cyl(void)
 }
 
 /**
+ * @brief Configure 4-cyl even-fire sequential ignition (720°)
+ */
+static inline void configure4CylSeqIgnition(void)
+{
+  if (!isSeqOrSingle4Stroke()) { return; }
+  channel3IgnDegrees = 360;
+  channel4IgnDegrees = 540;
+  CRANK_ANGLE_MAX_IGN = 720;
+  maxIgnOutputs = 4;
+}
+
+/**
+ * @brief Configure 4-cyl rotary ignition
+ */
+static inline void configure4CylRotaryIgnition(void)
+{
+  if (configPage4.sparkMode != IGN_MODE_ROTARY) { return; }
+  channel3IgnDegrees = 0;
+  channel4IgnDegrees = 180;
+  maxIgnOutputs = 4;
+  configPage4.IgInv = GOING_LOW;
+}
+
+/**
  * @brief Configure ignition angles for 4-cylinder engine.
  *
- * Sets up channel degrees for even-fire, odd-fire, sequential, and rotary modes.
- * Updates maxIgnOutputs based on ignition mode.
- *
- * @note MISRA-C compliant helper: 29 lines, C:4, N:2
+ * @note MISRA-C compliant: max nesting 2
  */
 static void configureCylinderTimings_4Cyl_Ignition(void)
 {
-  if (configPage2.engineType == EVEN_FIRE)
-  {
-    channel2IgnDegrees = 180;
-
-    if ((configPage4.sparkMode == IGN_MODE_SEQUENTIAL) && (configPage2.strokes == FOUR_STROKE))
-    {
-      channel3IgnDegrees = 360;
-      channel4IgnDegrees = 540;
-      CRANK_ANGLE_MAX_IGN = 720;
-      maxIgnOutputs = 4;
-    }
-    if (configPage4.sparkMode == IGN_MODE_ROTARY)
-    {
-      // Rotary: ign 3/4 schedules trail ign 1/2, use same degrees
-      channel3IgnDegrees = 0;
-      channel4IgnDegrees = 180;
-      maxIgnOutputs = 4;
-      configPage4.IgInv = GOING_LOW; // Rotary always uses Going Low
-    }
-  }
-  else
-  {
+  if (configPage2.engineType != EVEN_FIRE) {
     // Odd-fire engine: use custom angles from config
     channel2IgnDegrees = configPage2.oddfire2;
     channel3IgnDegrees = configPage2.oddfire3;
     channel4IgnDegrees = configPage2.oddfire4;
     maxIgnOutputs = 4;
+    return;
   }
+
+  // Even-fire engine
+  channel2IgnDegrees = 180;
+  configure4CylSeqIgnition();
+  configure4CylRotaryIgnition();
+}
+
+/**
+ * @brief Configure 4-cyl paired/semi-sequential injection
+ */
+static void configure4CylPairedInjection(void)
+{
+  channel2InjDegrees = 180;
+  setSimultaneousInjection4();
+  adjustNSquirtsAngles4Cyl();
 }
 
 /**
  * @brief Configure injection angles for 4-cylinder engine.
  *
- * Sets up injection timing for paired, semi-sequential, and sequential modes.
- * Adjusts for simultaneous vs alternating injection, number of squirts.
- *
- * @note MISRA-C compliant helper: 33 lines, C:5, N:2
+ * @note MISRA-C compliant: max nesting 2
  */
 static void configureCylinderTimings_4Cyl_Injection(void)
 {
-  // Semi-sequential, paired, or 2-stroke: alternating injection
-  if ((configPage2.injLayout == INJ_SEMISEQUENTIAL) || (configPage2.injLayout == INJ_PAIRED) || (configPage2.strokes == TWO_STROKE))
-  {
-    channel2InjDegrees = 180;
+  bool isPairedOrSemi = (configPage2.injLayout == INJ_SEMISEQUENTIAL) ||
+                        (configPage2.injLayout == INJ_PAIRED) ||
+                        (configPage2.strokes == TWO_STROKE);
 
-    if (!configPage2.injTiming)
-    {
-      // Simultaneous: all squirts at same time
-      channel1InjDegrees = 0;
-      channel2InjDegrees = 0;
-    }
-    else if (currentStatus.nSquirts > 2)
-    {
-      // Adjust angles based on number of squirts
-      channel2InjDegrees = (channel2InjDegrees * 2) / currentStatus.nSquirts;
-    }
-    // Else: default values already correct
-  }
-  else if (configPage2.injLayout == INJ_SEQUENTIAL)
-  {
-    // Sequential: 4 independent outputs at 720° operation
+  if (isPairedOrSemi) { configure4CylPairedInjection(); return; }
+
+  if (configPage2.injLayout == INJ_SEQUENTIAL) {
     channel2InjDegrees = 180;
     channel3InjDegrees = 360;
     channel4InjDegrees = 540;
@@ -455,12 +580,11 @@ static void configureCylinderTimings_4Cyl_Injection(void)
     CRANK_ANGLE_MAX_INJ = 720;
     currentStatus.nSquirts = 1;
     req_fuel_uS = req_fuel_uS * 2;
+    return;
   }
-  else
-  {
-    // Fallback: use default paired mode
-    maxInjOutputs = 2;
-  }
+
+  // Fallback: use default paired mode
+  maxInjOutputs = 2;
 }
 
 /**
@@ -544,45 +668,43 @@ static void configureCylinderTimings_5Cyl_Ignition(void)
 }
 
 /**
+ * @brief Set 5-cyl alternating injection angles (72° intervals)
+ */
+static void set5CylAlternatingAngles(void)
+{
+  channel1InjDegrees = 0;
+  channel2InjDegrees = 72;
+  channel3InjDegrees = 144;
+  channel4InjDegrees = 216;
+  #if (INJ_CHANNELS >= 5)
+  channel5InjDegrees = 288;
+  #endif
+}
+
+/**
+ * @brief Configure 5-cyl paired/semi-sequential injection
+ */
+static void configure5CylPairedInjection(void)
+{
+  set5CylAlternatingAngles();
+  setSimultaneousInjection5();
+}
+
+/**
  * @brief Configure injection angles for 5-cylinder engine.
  *
- * Handles simultaneous, alternating, and sequential injection modes.
- * Sequential requires 5 injection channels for full operation.
- *
- * @note MISRA-C compliant helper: 39 lines, C:3, N:2
+ * @note MISRA-C compliant: max nesting 2
  */
 static void configureCylinderTimings_5Cyl_Injection(void)
 {
-  // Paired, semi-sequential, or 2-stroke: alternating injection
-  if ((configPage2.injLayout == INJ_SEMISEQUENTIAL) || (configPage2.injLayout == INJ_PAIRED) || (configPage2.strokes == TWO_STROKE))
-  {
-    if (!configPage2.injTiming)
-    {
-      // Simultaneous: all squirts at same time
-      channel1InjDegrees = 0;
-      channel2InjDegrees = 0;
-      channel3InjDegrees = 0;
-      channel4InjDegrees = 0;
-      #if (INJ_CHANNELS >= 5)
-      channel5InjDegrees = 0;
-      #endif
-    }
-    else
-    {
-      // Alternating: 72° intervals
-      channel1InjDegrees = 0;
-      channel2InjDegrees = 72;
-      channel3InjDegrees = 144;
-      channel4InjDegrees = 216;
-      #if (INJ_CHANNELS >= 5)
-      channel5InjDegrees = 288;
-      #endif
-    }
-  }
+  bool isPairedOrSemi = (configPage2.injLayout == INJ_SEMISEQUENTIAL) ||
+                        (configPage2.injLayout == INJ_PAIRED) ||
+                        (configPage2.strokes == TWO_STROKE);
+
+  if (isPairedOrSemi) { configure5CylPairedInjection(); return; }
+
   #if INJ_CHANNELS >= 5
-  else if (configPage2.injLayout == INJ_SEQUENTIAL)
-  {
-    // Sequential: 5 independent outputs at 720° operation
+  if (configPage2.injLayout == INJ_SEQUENTIAL) {
     channel1InjDegrees = 0;
     channel2InjDegrees = 144;
     channel3InjDegrees = 288;
@@ -645,36 +767,28 @@ static void configureCylinderTimings_6Cyl_Ignition(void)
 }
 
 /**
+ * @brief Configure 6-cyl paired/semi-sequential injection
+ */
+static void configure6CylPairedInjection(void)
+{
+  channel1InjDegrees = 0;
+  channel2InjDegrees = 120;
+  channel3InjDegrees = 240;
+
+  adjustNSquirtsAngles3Cyl();
+  setSimultaneousInjection3();
+}
+
+/**
  * @brief Configure injection angles for 6-cylinder engine.
  *
- * Handles paired, semi-sequential (3 outputs at 120° intervals), and
- * sequential modes (6 outputs at 120° intervals over 720°).
- *
- * @note MISRA-C compliant helper: 43 lines, C:4, N:2
+ * @note MISRA-C compliant: max nesting 2
  */
 static void configureCylinderTimings_6Cyl_Injection(void)
 {
-  // Paired or semi-sequential: alternating injection (3 outputs)
-  if ((configPage2.injLayout == INJ_SEMISEQUENTIAL) || (configPage2.injLayout == INJ_PAIRED))
-  {
-    channel1InjDegrees = 0;
-    channel2InjDegrees = 120;
-    channel3InjDegrees = 240;
+  bool isPairedOrSemi = (configPage2.injLayout == INJ_SEMISEQUENTIAL) || (configPage2.injLayout == INJ_PAIRED);
 
-    if (!configPage2.injTiming)
-    {
-      // Simultaneous: all squirts at same time
-      channel1InjDegrees = 0;
-      channel2InjDegrees = 0;
-      channel3InjDegrees = 0;
-    }
-    else if (currentStatus.nSquirts > 2)
-    {
-      // Adjust angles based on number of squirts
-      channel2InjDegrees = (channel2InjDegrees * 2) / currentStatus.nSquirts;
-      channel3InjDegrees = (channel3InjDegrees * 2) / currentStatus.nSquirts;
-    }
-  }
+  if (isPairedOrSemi) { configure6CylPairedInjection(); }
 
   #if INJ_CHANNELS >= 6
   if (configPage2.injLayout == INJ_SEQUENTIAL)
@@ -691,26 +805,29 @@ static void configureCylinderTimings_6Cyl_Injection(void)
     currentStatus.nSquirts = 1;
     req_fuel_uS = req_fuel_uS * 2;
   }
-  else if (configPage10.stagingEnabled == true)
-  {
-    // Staging enabled for paired/semi-sequential
-    maxInjOutputs = 6;
+  #endif
 
-    if ((configPage2.injLayout == INJ_SEQUENTIAL) || (configPage2.injLayout == INJ_SEMISEQUENTIAL))
-    {
-      // Sequential/semi-sequential staging requires 7+ channels
-      #if INJ_CHANNELS >= 7
-        maxInjOutputs = 7;
-        channel5InjDegrees = channel1InjDegrees;
-        channel6InjDegrees = channel2InjDegrees;
-        channel7InjDegrees = channel3InjDegrees;
-        channel8InjDegrees = channel4InjDegrees;
-      #else
-        // Not enough channels for staging - no staging output active
-        maxInjOutputs = 6;
-      #endif
-    }
-  }
+}
+
+/**
+ * @brief Configure 6-cyl staging outputs
+ */
+static void configureCylinderTimings_6Cyl_Staging(void)
+{
+  if (configPage10.stagingEnabled != true) { return; }
+  if (configPage2.injLayout == INJ_SEQUENTIAL) { return; }
+
+  maxInjOutputs = 6;
+
+  bool isSeqOrSemi = (configPage2.injLayout == INJ_SEQUENTIAL) || (configPage2.injLayout == INJ_SEMISEQUENTIAL);
+  if (!isSeqOrSemi) { return; }
+
+  #if INJ_CHANNELS >= 7
+  maxInjOutputs = 7;
+  channel5InjDegrees = channel1InjDegrees;
+  channel6InjDegrees = channel2InjDegrees;
+  channel7InjDegrees = channel3InjDegrees;
+  channel8InjDegrees = channel4InjDegrees;
   #endif
 }
 
@@ -727,8 +844,11 @@ static void configureCylinderTimings_6Cyl(void)
   // Configure ignition timing (wasted vs sequential)
   configureCylinderTimings_6Cyl_Ignition();
 
-  // Configure injection timing (paired, semi-sequential, sequential, staging)
+  // Configure injection timing (paired, semi-sequential, sequential)
   configureCylinderTimings_6Cyl_Injection();
+
+  // Configure staging outputs
+  configureCylinderTimings_6Cyl_Staging();
 }
 
 /**
@@ -762,44 +882,32 @@ static void configureCylinderTimings_8Cyl_Ignition(void)
 }
 
 /**
+ * @brief Configure 8-cyl paired/semi-sequential injection
+ */
+static void configure8CylPairedInjection(void)
+{
+  channel1InjDegrees = 0;
+  channel2InjDegrees = 90;
+  channel3InjDegrees = 180;
+  channel4InjDegrees = 270;
+
+  setSimultaneousInjection4();
+  adjustNSquirtsAngles4Cyl();
+}
+
+/**
  * @brief Configure injection angles for 8-cylinder engine.
  *
- * Paired/semi-sequential: 4 outputs at 90° intervals (alternating or simultaneous)
- * Sequential: 8 independent outputs at 90° intervals over 720°
- *
- * @note MISRA-C compliant helper: 43 lines, C:4, N:2
+ * @note MISRA-C compliant: max nesting 2
  */
 static void configureCylinderTimings_8Cyl_Injection(void)
 {
-  // Paired or semi-sequential: alternating injection (4 outputs)
-  if ((configPage2.injLayout == INJ_SEMISEQUENTIAL) || (configPage2.injLayout == INJ_PAIRED))
-  {
-    channel1InjDegrees = 0;
-    channel2InjDegrees = 90;
-    channel3InjDegrees = 180;
-    channel4InjDegrees = 270;
+  bool isPairedOrSemi = (configPage2.injLayout == INJ_SEMISEQUENTIAL) || (configPage2.injLayout == INJ_PAIRED);
 
-    if (!configPage2.injTiming)
-    {
-      // Simultaneous: all squirts at same time
-      channel1InjDegrees = 0;
-      channel2InjDegrees = 0;
-      channel3InjDegrees = 0;
-      channel4InjDegrees = 0;
-    }
-    else if (currentStatus.nSquirts > 2)
-    {
-      // Adjust angles based on number of squirts
-      channel2InjDegrees = (channel2InjDegrees * 2) / currentStatus.nSquirts;
-      channel3InjDegrees = (channel3InjDegrees * 2) / currentStatus.nSquirts;
-      channel4InjDegrees = (channel4InjDegrees * 2) / currentStatus.nSquirts;
-    }
-  }
+  if (isPairedOrSemi) { configure8CylPairedInjection(); return; }
 
   #if INJ_CHANNELS >= 8
-  else if (configPage2.injLayout == INJ_SEQUENTIAL)
-  {
-    // Sequential: 8 independent outputs at 720° operation
+  if (configPage2.injLayout == INJ_SEQUENTIAL) {
     channel1InjDegrees = 0;
     channel2InjDegrees = 90;
     channel3InjDegrees = 180;
@@ -1710,10 +1818,10 @@ static void initialiseAll_FuelIgnition(void)
   configureCylinderTimings();
   currentStatus.status3 |= currentStatus.nSquirts << BIT_STATUS3_NSQUIRTS1;
 
-  if( (currentStatus.nSquirts == 3) || (currentStatus.nSquirts == 5) )
-  {
-    if(configPage2.strokes == FOUR_STROKE) { CRANK_ANGLE_MAX_INJ = (720U / currentStatus.nSquirts); }
-  }
+  // Odd squirts (3 or 5) on 4-stroke need special CRANK_ANGLE_MAX_INJ
+  bool oddSquirts = (currentStatus.nSquirts == 3) || (currentStatus.nSquirts == 5);
+  bool fourStroke = (configPage2.strokes == FOUR_STROKE);
+  if (oddSquirts && fourStroke) { CRANK_ANGLE_MAX_INJ = (720U / currentStatus.nSquirts); }
 
   configureInjectionLayout();
   configureIgnitionMode();
