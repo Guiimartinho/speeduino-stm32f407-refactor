@@ -289,88 +289,74 @@ void sendCANBroadcast(uint8_t frequency)
 //=============================================================================
 
 /**
+ * @brief Convert lambda to AFR with overflow protection
+ */
+static inline uint8_t lambdaToAFR(uint32_t rawLambda)
+{
+  uint32_t afr = (rawLambda * configPage2.stoich) / 10000U;
+  return (afr > 250U) ? 250U : (uint8_t)(afr & 0xFFU);
+}
+
+/**
+ * @brief Store AFR value based on CAN message ID
+ */
+static inline void storeO2Value(uint32_t msgId, uint8_t afrValue)
+{
+  if (msgId == 0x190U) { currentStatus.O2 = afrValue; }
+  else if (msgId == 0x192U) { currentStatus.O2_2 = afrValue; }
+}
+
+/**
+ * @brief Send RusEFI heater enable message
+ */
+static inline void sendRusEFIHeaterMsg(void)
+{
+  outMsg.id = 0xEF50000;
+  outMsg.flags.extended = 1;
+  outMsg.len = 2;
+  outMsg.buf[0] = currentStatus.battery10;
+  outMsg.buf[1] = BIT_CHECK(currentStatus.engine, BIT_ENGINE_RUN) ? 0x1 : 0x0;
+  Can0.write(outMsg);
+  outMsg.flags.extended = 0;
+}
+
+/**
+ * @brief Process RusEFI CAN wideband lambda message
+ */
+static inline void processRusEFILambda(void)
+{
+  sendRusEFIHeaterMsg();
+
+  bool isValidId = (inMsg.id == 0x190U) || (inMsg.id == 0x192U);
+  if (!isValidId) { return; }
+
+  bool isLambdaValid = (inMsg.buf[1] == 0x1U);
+  if (!isLambdaValid) { return; }
+
+  uint32_t rawLambda = word(inMsg.buf[3], inMsg.buf[2]);
+  storeO2Value(inMsg.id, lambdaToAFR(rawLambda));
+}
+
+/**
+ * @brief Process AEM X-Series UEGO CAN lambda message
+ */
+static inline void processAEMLambda(void)
+{
+  if (inMsg.id != 0x180U) { return; }
+  if (!BIT_CHECK(inMsg.buf[6], 7)) { return; }
+
+  uint32_t rawLambda = word(inMsg.buf[0], inMsg.buf[1]);
+  uint32_t afr = (rawLambda * configPage2.stoich) / 10000U;
+  currentStatus.O2 = (afr > UINT8_MAX) ? UINT8_MAX : (uint8_t)afr;
+}
+
+/**
  * @brief Receive lambda data from external CAN wideband O2 controller
- *
- * @details Supports two wideband protocols:
- *
- * **1. RusEFI CAN Wideband:**
- * - TX to WBO2: 0xEF50000 (battery voltage, heater enable)
- * - RX from WBO2: 0x190 (O2 primary), 0x192 (O2 secondary)
- * - Lambda format: uint16_t * 0.0001 (10000 = lambda 1.0)
- * - Converts lambda to AFR using stoich ratio
- *
- * **2. AEM 30-0300 X-Series UEGO:**
- * - RX from gauge: 0x180
- * - Lambda format: uint16_t * 0.0001 (10000 = lambda 1.0)
- * - Validity check: Bit 7 of buf[6]
- *
- * Algorithm:
- * 1. Check configPage2.canWBO for active protocol
- * 2. For RusEFI: Send battery voltage and heater enable every call
- * 3. If RX message ID matches, extract lambda value
- * 4. Validate lambda (check validity bit)
- * 5. Convert: AFR = (lambda * stoich) / 10000
- * 6. Clamp to uint8_t range (0-255) to prevent overflow
- * 7. Store in currentStatus.O2 or currentStatus.O2_2
- *
- * @note Called from main loop after CAN_read() returns message
- * @note Must check inMsg.id to determine if message is from WBO2
- * @note RusEFI requires periodic TX to keep heater active
- * @note AEM is RX-only (no TX required)
- *
- * @complexity 4 (nested conditionals, multi-byte unpacking, math)
- * @misra Compliant: Overflow protection with clamps and validity checks
  */
 void receiveCANwbo()
 {
-  if(configPage2.canWBO == CAN_WBO_RUSEFI) //RusEFI CAN Wideband supported: https://github.com/mck1117/wideband
-  {
-    outMsg.id = 0xEF50000;
-    outMsg.flags.extended = 1;
-    outMsg.len = 2;
-    outMsg.buf[0] = currentStatus.battery10; // We don't do any conversion since factor is 0.1 and speeduino value is x10
-    outMsg.buf[1] = BIT_CHECK(currentStatus.engine, BIT_ENGINE_RUN) ? 0x1 : 0x0; // Enable heater once engine is running (ie. above cranking rpm), this condition can be changed to CLT above certain temp and so on.
-    Can0.write(outMsg);
-    outMsg.flags.extended = 0; //Make sure to set this back to standard to avoid future problems
-    if ((inMsg.id == 0x190 || inMsg.id == 0x192))
-    {
-      uint32_t inLambda;
-      inLambda = (word(inMsg.buf[3], inMsg.buf[2])); // Combining 2 bytes of data into single variable factor is 0.0001 so lambda 1 comes in as 10K
-      if(inMsg.buf[1] == 0x1) // Checking if lambda is valid
-      {
-        inLambda = (inLambda * configPage2.stoich) / 10000; // Multiplying lambda by stoich ratio to get AFR and dividing it by 10000 to get correct value
-        switch(inMsg.id)
-        {
-          case 0x190:
-          if (inLambda > 250) { currentStatus.O2 = 250; } //Check if we don't overflow the 8bit O2 variable
-          else { currentStatus.O2 = inLambda & 0xFF; }
-          break;
-
-          case 0x192:
-          if (inLambda > 250) { currentStatus.O2_2 = 250; } //Check if we don't overflow the 8bit O2 variable
-          else { currentStatus.O2_2 = inLambda & 0xFF; }
-          break;
-
-          default:
-          break;
-        }
-      }
-    }
-  }
-  else if(configPage2.canWBO == CAN_WBO_AEM) //AEM 30-0300 X-Series UEGO Gauge
-  {
-    if(inMsg.id == 0x180)  //AEM wideband default ID1 message id
-    {
-      uint32_t inLambda;
-      inLambda = (word(inMsg.buf[0], inMsg.buf[1])); //Combining 2 bytes of data into single variable factor is 0.0001 so lambda 1 comes in as 10K
-      if(BIT_CHECK(inMsg.buf[6], 7)) //Checking if lambda is valid
-      {
-        inLambda = (inLambda * configPage2.stoich) / 10000; //Multiplying lambda by stoich ratio to get AFR and dividing it by 10000 to get correct value
-        if (inLambda > UINT8_MAX) { currentStatus.O2 = UINT8_MAX; } //Check if we don't overflow the 8bit O2 variable
-        else { currentStatus.O2 = inLambda; }
-      }
-    }
-  }
+  if (configPage2.canWBO == CAN_WBO_RUSEFI) { processRusEFILambda(); return; }
+  if (configPage2.canWBO == CAN_WBO_AEM) { processAEMLambda(); }
 }
 
 //=============================================================================
@@ -624,43 +610,53 @@ void DashMessage(uint16_t DashMessageID)
   }
 }
 
+/**
+ * @brief Check if message is OBD broadcast or ECU-specific
+ */
+static inline bool isOBDAddress(void)
+{
+  uint16_t ecuAddr = uint16_t(configPage9.obd_address + TS_CAN_OFFSET);
+  return (inMsg.id == ecuAddr) || (inMsg.id == 0x7DFU);
+}
+
+/**
+ * @brief Handle OBD mode 1 (realtime data) request
+ */
+static inline void handleOBDMode01(void)
+{
+  obd_response(inMsg.buf[1], inMsg.buf[2], 0);
+  outMsg.id = 0x7E8;
+  Can0.write(outMsg);
+}
+
+/**
+ * @brief Handle OBD mode 22h (custom data) request
+ */
+static inline void handleOBDMode22(void)
+{
+  obd_response(inMsg.buf[1], inMsg.buf[2], inMsg.buf[3]);
+  outMsg.id = 0x7E8;
+  Can0.write(outMsg);
+}
+
+/**
+ * @brief Handle OBD mode 9 (vehicle info) request - VIN/ECU name
+ */
+static inline void handleOBDMode09(void)
+{
+  // TODO: VIN (inMsg.buf[2] == 0x02) - 17 char sent in 5 messages
+  // TODO: ECU name (inMsg.buf[2] == 0x0A) - 20 ASCII chars
+}
+
 void can_Command(void)
 {
-  if ( (inMsg.id == uint16_t(configPage9.obd_address + TS_CAN_OFFSET))  || (inMsg.id == 0x7DF))
-  {
-    // The address is the speeduino specific ecu canbus address
-    // or the 0x7df(2015 dec) broadcast address
-    if (inMsg.buf[1] == 0x01)
-    {
-      // PID mode 0 , realtime data stream
-      obd_response(inMsg.buf[1], inMsg.buf[2], 0);     // get the obd response based on the data in byte2
-      outMsg.id = (0x7E8);       //((configPage9.obd_address + 0x100)+ 8);
-      Can0.write(outMsg);       // send the 8 bytes of obd data
-    }
-    if (inMsg.buf[1] == 0x22)
-    {
-      // PID mode 22h , custom mode , non standard data
-      obd_response(inMsg.buf[1], inMsg.buf[2], inMsg.buf[3]);     // get the obd response based on the data in byte2
-      outMsg.id = (0x7E8); //configPage9.obd_address+8);
-      Can0.write(outMsg);       // send the 8 bytes of obd data
-    }
-  }
-  if (inMsg.id == uint16_t(configPage9.obd_address + TS_CAN_OFFSET))
-  {
-    // The address is only the speeduino specific ecu canbus address
-    if (inMsg.buf[1] == 0x09)
-    {
-      // PID mode 9 , vehicle information request
-      if (inMsg.buf[2] == 02)
-      {
-        //send the VIN number , 17 char long VIN sent in 5 messages.
-      }
-      else if (inMsg.buf[2] == 0x0A)
-      {
-      //code 20: send 20 ascii characters with ECU name , "ECU -SpeeduinoXXXXXX" , change the XXXXXX ONLY as required.
-      }
-    }
-  }
+  if (!isOBDAddress()) { return; }
+
+  if (inMsg.buf[1] == 0x01U) { handleOBDMode01(); }
+  if (inMsg.buf[1] == 0x22U) { handleOBDMode22(); }
+
+  bool isEcuSpecific = (inMsg.id == uint16_t(configPage9.obd_address + TS_CAN_OFFSET));
+  if (isEcuSpecific && (inMsg.buf[1] == 0x09U)) { handleOBDMode09(); }
 }
 
 // This routine builds the realtime data into packets that the obd requesting device can understand. This is only used by teensy and stm32 with onboard canbus
@@ -784,7 +780,7 @@ void obd_response(uint8_t PIDmode, uint8_t requestedPIDlow, uint8_t requestedPID
         // TPS percentage, range is 0 to 100 percent, formula == 100/255 A
         // Faster math with possible to be off by 1(0.329%)
         obdcalcA = (327u * currentStatus.TPS) >> 8; //327 * 200 = 0xFF78
-        if (obdcalcA > UINT8_MAX){ obdcalcA = UINT8_MAX;}
+        obdcalcA = (obdcalcA > UINT8_MAX) ? UINT8_MAX : obdcalcA;
         outMsg.buf[0] =  0x03;                    // sending 3 bytes
         outMsg.buf[1] =  0x41;                    // Same as query, except that 40h is added to the mode value. So:41h = show current data ,42h = freeze frame ,etc.
         outMsg.buf[2] =  0x11;                    // pid code
@@ -931,7 +927,7 @@ void obd_response(uint8_t PIDmode, uint8_t requestedPIDlow, uint8_t requestedPID
       case 82:        //PID-0x52 Ethanol fuel % , range is 0 to 100% , formula == (100/255)A
         //Ethanol sensor output can be above 100, add a check to avoid it
         obdcalcA = (655u * currentStatus.ethanolPct) >> 8; //655 * 100 = 0xFFDC
-        if (obdcalcA > UINT8_MAX){ obdcalcA = UINT8_MAX;}
+        obdcalcA = (obdcalcA > UINT8_MAX) ? UINT8_MAX : obdcalcA;
         outMsg.buf[0] =  0x03;                       // sending 3 byte
         outMsg.buf[1] =  0x41;                       // Same as query, except that 40h is added to the mode value. So:41h = show current data ,42h = freeze frame ,etc.
         outMsg.buf[2] =  0x52;                       // pid code
@@ -973,67 +969,59 @@ void obd_response(uint8_t PIDmode, uint8_t requestedPIDlow, uint8_t requestedPID
   }
   else if (PIDmode == 0x22)
   {
-    // these are custom PID  not listed in the SAE std .
-    if (requestedPIDhigh == 0x77)
+    // Custom PID not listed in SAE std - Aux/CAN channel data
+    bool isAuxChannel = (requestedPIDhigh == 0x77U) && (requestedPIDlow >= 0x01U) && (requestedPIDlow <= 0x10U);
+    if (isAuxChannel)
     {
-      if ((requestedPIDlow >= 0x01) && (requestedPIDlow <= 0x10))
-      {
-          // PID 0x01 (1 dec) to 0x10 (16 dec)
-          // Aux data / can data IN Channel 1 - 16
-          outMsg.buf[0] =  0x06;                                               // sending 8 bytes
-          outMsg.buf[1] =  0x62;                                               // Same as query, except that 40h is added to the mode value. So:62h = custom mode
-          outMsg.buf[2] =  requestedPIDlow;                                 // PID code
-          outMsg.buf[3] =  0x77;                                               // PID code
-          outMsg.buf[4] =  lowByte(currentStatus.canin[requestedPIDlow-1]);   // A
-          outMsg.buf[5] =  highByte(currentStatus.canin[requestedPIDlow-1]);  // B
-          outMsg.buf[6] =  0x00;                                               // C
-          outMsg.buf[7] =  0x00;                                               // D
-      }
+      // PID 0x01-0x10: Aux/CAN data IN Channel 1-16
+      outMsg.buf[0] =  0x06;
+      outMsg.buf[1] =  0x62;
+      outMsg.buf[2] =  requestedPIDlow;
+      outMsg.buf[3] =  0x77;
+      outMsg.buf[4] =  lowByte(currentStatus.canin[requestedPIDlow-1]);
+      outMsg.buf[5] =  highByte(currentStatus.canin[requestedPIDlow-1]);
+      outMsg.buf[6] =  0x00;
+      outMsg.buf[7] =  0x00;
     }
-    // this allows to get any value out of current status array.
-    else if (requestedPIDhigh == 0x78)
+    // PID 0x78xx: Get any value from currentStatus array
+    else if (requestedPIDhigh == 0x78U)
     {
-      int16_t tempValue;
-      tempValue = ProgrammableIOGetData(requestedPIDlow);
-      outMsg.buf[0] =  0x06;                 // sending 6 bytes
-      outMsg.buf[1] =  0x62;                 // Same as query, except that 40h is added to the mode value. So:62h = custom mode
-      outMsg.buf[2] =  requestedPIDlow;      // PID code
-      outMsg.buf[3] =  0x78;                 // PID code
-      outMsg.buf[4] =  lowByte(tempValue);   // A
-      outMsg.buf[5] =  highByte(tempValue);  // B
+      int16_t tempValue = ProgrammableIOGetData(requestedPIDlow);
+      outMsg.buf[0] =  0x06;
+      outMsg.buf[1] =  0x62;
+      outMsg.buf[2] =  requestedPIDlow;
+      outMsg.buf[3] =  0x78;
+      outMsg.buf[4] =  lowByte(tempValue);
+      outMsg.buf[5] =  highByte(tempValue);
       outMsg.buf[6] =  0x00;
       outMsg.buf[7] =  0x00;
     }
   }
 }
 
+/**
+ * @brief Get CAN input value (1 or 2 bytes) with endianness handling
+ */
+static inline uint16_t getCANInputValue(uint8_t channelIdx)
+{
+  uint8_t startByte = configPage9.caninput_source_start_byte[channelIdx];
+  bool isTwoByte = BIT_CHECK(configPage9.caninput_source_num_bytes, channelIdx);
+
+  if (!isTwoByte) { return inMsg.buf[startByte]; }
+
+  bool isLittleEndian = (configPage9.caninputEndianess == 1U);
+  if (isLittleEndian) { return (inMsg.buf[startByte]) | (inMsg.buf[startByte + 1] << 8); }
+  return (inMsg.buf[startByte] << 8) | (inMsg.buf[startByte + 1]);
+}
+
 void readAuxCanBus()
 {
   for (int i = 0; i < 16; i++)
   {
-    uint16_t channelAddress = (configPage9.caninput_source_can_address[i] + TS_CAN_OFFSET);
-    if (inMsg.id == channelAddress ) //Filters frame ID
-    {
+    uint16_t channelAddress = configPage9.caninput_source_can_address[i] + TS_CAN_OFFSET;
+    if (inMsg.id != channelAddress) { continue; }
 
-      if (!BIT_CHECK(configPage9.caninput_source_num_bytes, i))
-      {
-        // Gets the one-byte value from the Data Field.
-        currentStatus.canin[i] = inMsg.buf[configPage9.caninput_source_start_byte[i]];
-      }
-      else
-      {
-        if (configPage9.caninputEndianess == 1)
-        {
-          //Gets the two-byte value from the Data Field in Litlle Endian.
-          currentStatus.canin[i] = ((inMsg.buf[configPage9.caninput_source_start_byte[i]]) | (inMsg.buf[configPage9.caninput_source_start_byte[i] + 1] << 8));
-        }
-        else
-        {
-          //Gets the two-byte value from the Data Field in Big Endian.
-          currentStatus.canin[i] = ((inMsg.buf[configPage9.caninput_source_start_byte[i]] << 8) | (inMsg.buf[configPage9.caninput_source_start_byte[i] + 1]));
-        }
-      }
-    }
+    currentStatus.canin[i] = getCANInputValue(i);
   }
 }
 #endif

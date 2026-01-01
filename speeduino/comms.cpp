@@ -875,26 +875,27 @@ static void handleCommand_t(void) {
   }
 }
 
+/**
+ * @brief Print reset message if inactive
+ */
+static inline void printResetMsg(const __FlashStringHelper* msg) {
+  #ifndef SMALL_FLASH_MODE
+  if (serialStatusFlag == SERIAL_INACTIVE) { primarySerial.println(msg); }
+  #endif
+}
+
 /** @brief Handler for 'U' command - Reset Arduino
- *  @complexity Low (C=3, N=3)
+ *  @complexity Low (C=2, N=2)
  */
 static void handleCommand_U(void) {
-  if (resetControl != RESET_CONTROL_DISABLED) {
-    #ifndef SMALL_FLASH_MODE
-    if (serialStatusFlag == SERIAL_INACTIVE) {
-      primarySerial.println(F("Comms halted. Next byte will reset the Arduino."));
-    }
-    #endif
-
-    while (primarySerial.available() == 0) { }
-    digitalWrite(pinResetControl, LOW);
-  } else {
-    #ifndef SMALL_FLASH_MODE
-    if (serialStatusFlag == SERIAL_INACTIVE) {
-      primarySerial.println(F("Reset control is currently disabled."));
-    }
-    #endif
+  if (resetControl == RESET_CONTROL_DISABLED) {
+    printResetMsg(F("Reset control is currently disabled."));
+    return;
   }
+
+  printResetMsg(F("Comms halted. Next byte will reset the Arduino."));
+  while (primarySerial.available() == 0) { }
+  digitalWrite(pinResetControl, LOW);
 }
 
 // ============================================================================
@@ -976,8 +977,17 @@ static void handleCommand_r_ReadDirectory(void) {
   sendSerialPayloadNonBlocking(payloadIndex + 2);
 }
 
+/**
+ * @brief Calculate sectors to send (max 4 at a time)
+ */
+static inline int32_t calcSectorsToSend(void) {
+  if (SDreadNumSectors <= SDreadCompletedSectors) { return 0; }
+  int32_t remaining = SDreadNumSectors - SDreadCompletedSectors;
+  return (remaining > 4) ? 4 : remaining;
+}
+
 /** @brief Sub-handler: Read file data from SD card
- *  @complexity Medium (C=3, N=3)
+ *  @complexity Medium (C=2, N=2)
  */
 static void handleCommand_r_ReadFileData(uint16_t SD_arg1) {
   serialPayload[0] = SERIAL_RC_OK;
@@ -985,29 +995,35 @@ static void handleCommand_r_ReadFileData(uint16_t SD_arg1) {
   serialPayload[2] = lowByte(SD_arg1);
 
   uint32_t currentSector = SDreadStartSector + (SD_arg1 * 4);
-
-  int32_t numSectorsToSend = 0;
-  if (SDreadNumSectors > SDreadCompletedSectors) {
-    numSectorsToSend = SDreadNumSectors - SDreadCompletedSectors;
-    if (numSectorsToSend > 4) { // Maximum 4 sectors at a time
-      numSectorsToSend = 4;
-    }
-  }
+  int32_t numSectorsToSend = calcSectorsToSend();
   SDreadCompletedSectors += numSectorsToSend;
 
-  if (numSectorsToSend <= 0) {
-    sendReturnCodeMsg(SERIAL_RC_OK);
-  } else {
-    readSDSectors(&serialPayload[3], currentSector, numSectorsToSend);
-    sendSerialPayloadNonBlocking(numSectorsToSend * SD_SECTOR_SIZE + 3);
-  }
+  if (numSectorsToSend <= 0) { sendReturnCodeMsg(SERIAL_RC_OK); return; }
+
+  readSDSectors(&serialPayload[3], currentSector, numSectorsToSend);
+  sendSerialPayloadNonBlocking(numSectorsToSend * SD_SECTOR_SIZE + 3);
 }
 
 #endif // COMMS_SD
 
+#ifdef COMMS_SD
+/**
+ * @brief Dispatch SD read operations for 'r' command
+ */
+static void dispatchSDRead(uint8_t cmd, uint16_t SD_arg1, uint16_t SD_arg2) {
+  if (cmd == SD_RTC_PAGE) { handleCommand_r_ReadRTC(); return; }
+
+  bool isStatCmd = (SD_arg1 == SD_READ_STAT_ARG1) && (SD_arg2 == SD_READ_STAT_ARG2);
+  bool isDirCmd = (SD_arg1 == SD_READ_DIR_ARG1) && (SD_arg2 == SD_READ_DIR_ARG2);
+
+  if (cmd == SD_READWRITE_PAGE && isStatCmd) { handleCommand_r_ReadSDStatus(); return; }
+  if (cmd == SD_READWRITE_PAGE && isDirCmd) { handleCommand_r_ReadDirectory(); return; }
+  if (cmd == SD_READFILE_PAGE && (SD_arg2 == SD_READ_COMP_ARG2)) { handleCommand_r_ReadFileData(SD_arg1); }
+}
+#endif
+
 /** @brief Handler for 'r' command - Optimized output channels
- *  @complexity Medium (C=6, N=3) - decomposed from C=12, N=5
- *  @note Original 133 lines reduced to 46 lines via sub-handlers
+ *  @complexity Medium (C=4, N=2)
  */
 static void handleCommand_r(void) {
   uint8_t cmd = serialPayload[2];
@@ -1031,21 +1047,7 @@ static void handleCommand_r(void) {
 #ifdef COMMS_SD
   uint16_t SD_arg1 = word(serialPayload[3], serialPayload[4]);
   uint16_t SD_arg2 = word(serialPayload[5], serialPayload[6]);
-
-  // SD card operations
-  if (cmd == SD_RTC_PAGE) {
-    handleCommand_r_ReadRTC();
-  } else if (cmd == SD_READWRITE_PAGE) {
-    if ((SD_arg1 == SD_READ_STAT_ARG1) && (SD_arg2 == SD_READ_STAT_ARG2)) {
-      handleCommand_r_ReadSDStatus();
-    } else if ((SD_arg1 == SD_READ_DIR_ARG1) && (SD_arg2 == SD_READ_DIR_ARG2)) {
-      handleCommand_r_ReadDirectory();
-    }
-  } else if (cmd == SD_READFILE_PAGE) {
-    if (SD_arg2 == SD_READ_COMP_ARG2) {
-      handleCommand_r_ReadFileData(SD_arg1);
-    }
-  }
+  dispatchSDRead(cmd, SD_arg1, SD_arg2);
 #endif
 }
 
@@ -1142,39 +1144,45 @@ static void handleCommand_w_SetRTC(void) {
   sendReturnCodeMsg(SERIAL_RC_OK);
 }
 
+/** @brief Dispatch SD write operations based on arguments
+ *  @complexity Low (C=8, N=2) - flat dispatch with early returns
+ */
+static void dispatchSDWrite(uint8_t cmd, uint16_t SD_arg1, uint16_t SD_arg2) {
+  bool isRtcWriteCmd = (cmd == SD_RTC_PAGE) && (SD_arg1 == SD_RTC_WRITE_ARG1) && (SD_arg2 == SD_RTC_WRITE_ARG2);
+  if (isRtcWriteCmd) { handleCommand_w_SetRTC(); return; }
+  if (cmd == SD_RTC_PAGE) { return; }
+  if (cmd != SD_READWRITE_PAGE) { return; }
+
+  bool isDoCmd = (SD_arg1 == SD_WRITE_DO_ARG1) && (SD_arg2 == SD_WRITE_DO_ARG2);
+  if (isDoCmd) { handleCommand_w_SD_DO(); return; }
+
+  bool isDirCmd = (SD_arg1 == SD_WRITE_DIR_ARG1) && (SD_arg2 == SD_WRITE_DIR_ARG2);
+  if (isDirCmd) { handleCommand_w_SetDirChunk(); return; }
+
+  bool isFormatCmd = (SD_arg1 == SD_WRITE_READ_SEC_ARG1) && (SD_arg2 == SD_WRITE_READ_SEC_ARG2);
+  if (isFormatCmd) { handleCommand_w_FormatSD(); return; }
+
+  bool isEraseCmd = (SD_arg1 == SD_ERASEFILE_ARG1) && (SD_arg2 == SD_ERASEFILE_ARG2);
+  if (isEraseCmd) { handleCommand_w_EraseFile(); return; }
+
+  bool isSpdTestCmd = (SD_arg1 == SD_SPD_TEST_ARG1) && (SD_arg2 == SD_SPD_TEST_ARG2);
+  if (isSpdTestCmd) { sendReturnCodeMsg(SERIAL_RC_OK); return; }
+
+  bool isPrepReadCmd = (SD_arg1 == SD_WRITE_COMP_ARG1) && (SD_arg2 == SD_WRITE_COMP_ARG2);
+  if (isPrepReadCmd) { handleCommand_w_PrepareRead(); }
+}
+
 #endif // COMMS_SD
 
 /** @brief Handler for 'w' command - Write/SD operations
- *  @complexity Medium (C=6, N=3) - decomposed from C=10, N=5
- *  @note Original 130 lines reduced to 42 lines via sub-handlers
+ *  @complexity Low (C=1, N=1) - delegates to dispatchSDWrite
  */
 static void handleCommand_w(void) {
 #ifdef COMMS_SD
   uint8_t cmd = serialPayload[2];
   uint16_t SD_arg1 = word(serialPayload[3], serialPayload[4]);
   uint16_t SD_arg2 = word(serialPayload[5], serialPayload[6]);
-
-  if (cmd == SD_READWRITE_PAGE) {
-    if ((SD_arg1 == SD_WRITE_DO_ARG1) && (SD_arg2 == SD_WRITE_DO_ARG2)) {
-      handleCommand_w_SD_DO();
-    } else if ((SD_arg1 == SD_WRITE_DIR_ARG1) && (SD_arg2 == SD_WRITE_DIR_ARG2)) {
-      handleCommand_w_SetDirChunk();
-    } else if ((SD_arg1 == SD_WRITE_READ_SEC_ARG1) && (SD_arg2 == SD_WRITE_READ_SEC_ARG2)) {
-      handleCommand_w_FormatSD();
-    } else if ((SD_arg1 == SD_WRITE_WRITE_SEC_ARG1) && (SD_arg2 == SD_WRITE_WRITE_SEC_ARG2)) {
-      // SD write sector command - not implemented
-    } else if ((SD_arg1 == SD_ERASEFILE_ARG1) && (SD_arg2 == SD_ERASEFILE_ARG2)) {
-      handleCommand_w_EraseFile();
-    } else if ((SD_arg1 == SD_SPD_TEST_ARG1) && (SD_arg2 == SD_SPD_TEST_ARG2)) {
-      sendReturnCodeMsg(SERIAL_RC_OK); // Speed test not implemented
-    } else if ((SD_arg1 == SD_WRITE_COMP_ARG1) && (SD_arg2 == SD_WRITE_COMP_ARG2)) {
-      handleCommand_w_PrepareRead();
-    }
-  } else if (cmd == SD_RTC_PAGE) {
-    if ((SD_arg1 == SD_RTC_WRITE_ARG1) && (SD_arg2 == SD_RTC_WRITE_ARG2)) {
-      handleCommand_w_SetRTC();
-    }
-  }
+  dispatchSDWrite(cmd, SD_arg1, SD_arg2);
 #endif
 }
 
@@ -1234,37 +1242,40 @@ static bool handleNewCommandReceive(void) {
   return false; // Timeout
 }
 
+/** @brief Validate CRC and process command
+ *  @complexity Low (C=3, N=2)
+ *  @return true if CRC valid and command processed, false on error
+ */
+static bool validateCrcAndProcess(void) {
+  uint32_t incomingCrc = readSerialIntegralTimeout<uint32_t>();
+  serialStatusFlag = SERIAL_INACTIVE;
+
+  if (isRxTimeout()) { return false; }
+
+  uint32_t expectedCrc = CRC32_serial.crc32(serialPayload, serialPayloadLength);
+  if (incomingCrc != expectedCrc) { sendReturnCodeMsg(SERIAL_RC_CRC_ERR); flushRXbuffer(); return false; }
+
+  processSerialCommand();
+  BIT_CLEAR(currentStatus.status4, BIT_STATUS4_ALLOW_LEGACY_COMMS);
+  return true;
+}
+
+/** @brief Process one byte of serial payload
+ *  @complexity Low (C=2, N=1)
+ *  @return true if still receiving, false if complete
+ */
+static inline bool receivePayloadByte(void) {
+  if (serialBytesRxTx < serialPayloadLength) { serialPayload[serialBytesRxTx++] = (byte)primarySerial.read(); return true; }
+  validateCrcAndProcess();
+  return false;
+}
+
 /** @brief Receive serial payload bytes and validate CRC
- *  @complexity Medium (C=5, N=4) - reduced from original N=5
+ *  @complexity Low (C=2, N=2) - reduced via receivePayloadByte helper
  *  @note Processes as many bytes as available without blocking
  */
 static void handleSerialPayloadReceive(void) {
-  while ((primarySerial.available() > 0) && (serialStatusFlag == SERIAL_RECEIVE_INPROGRESS)) {
-    // Still receiving payload bytes
-    if (serialBytesRxTx < serialPayloadLength) {
-      serialPayload[serialBytesRxTx] = (byte)primarySerial.read();
-      ++serialBytesRxTx;
-    }
-    // Payload complete, read and validate CRC
-    else {
-      uint32_t incomingCrc = readSerialIntegralTimeout<uint32_t>();
-      serialStatusFlag = SERIAL_INACTIVE;
-
-      // Guard: CRC read timeout
-      if (isRxTimeout()) {
-        return; // Timeout handler will catch this
-      }
-
-      // Validate CRC
-      if (incomingCrc == CRC32_serial.crc32(serialPayload, serialPayloadLength)) {
-        processSerialCommand();
-        BIT_CLEAR(currentStatus.status4, BIT_STATUS4_ALLOW_LEGACY_COMMS);
-      } else {
-        sendReturnCodeMsg(SERIAL_RC_CRC_ERR);
-        flushRXbuffer();
-      }
-    }
-  }
+  while ((primarySerial.available() > 0) && (serialStatusFlag == SERIAL_RECEIVE_INPROGRESS)) { receivePayloadByte(); }
 }
 
 /** @brief Handle serial receive timeout

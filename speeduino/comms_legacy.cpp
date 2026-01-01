@@ -283,6 +283,184 @@ static bool isMap(void) {
 // - Total: 38 handler functions for 38 commands
 // ============================================================================
 
+// =============================================================================
+// HELPER FUNCTIONS - Extracted to reduce nesting (MISRA-C compliance)
+// =============================================================================
+
+/**
+ * @brief Convert ASCII hex digit to binary page number
+ * @param asciiChar The ASCII character to convert
+ * @return The converted binary page number
+ */
+static inline byte convertAsciiToPage(byte asciiChar)
+{
+  if ((asciiChar >= '0') && (asciiChar <= '9')) { return asciiChar - 48; }
+  if ((asciiChar >= 'a') && (asciiChar <= 'f')) { return asciiChar - 87; }
+  if ((asciiChar >= 'A') && (asciiChar <= 'F')) { return asciiChar - 55; }
+  return asciiChar;
+}
+
+/**
+ * @brief Write EEPROM byte with timeout handling
+ * @param addr EEPROM address
+ * @return true if byte written successfully, false on timeout
+ */
+static inline bool writeEEPROMByteWithTimeout(uint16_t addr)
+{
+  while ((primarySerial.available() == 0) && (!isRxTimeout())) { delay(1); }
+  if (!primarySerial.available()) { return false; }
+  EEPROMWriteRaw(addr, primarySerial.read());
+  return true;
+}
+
+/**
+ * @brief Receive all EEPROM bytes from serial
+ * @return true if all bytes received, false on timeout
+ */
+static bool receiveAllEEPROMBytes(uint16_t eepromSize)
+{
+  for (uint16_t x = 0; x < eepromSize; x++) {
+    if (!writeEEPROMByteWithTimeout(x)) { return false; }
+  }
+  return true;
+}
+
+/**
+ * @brief Print message if serial is inactive (for reset control)
+ */
+static inline void printIfInactive(SerialStatus status, const __FlashStringHelper* msg)
+{
+#ifndef SMALL_FLASH_MODE
+  if (status == SERIAL_INACTIVE) { primarySerial.println(msg); }
+#else
+  (void)status;
+  (void)msg;
+#endif
+}
+
+/**
+ * @brief Handle MAP page write (3 bytes required)
+ * @return true if handled, false if not enough data
+ */
+static inline bool handleMapPageWrite(void)
+{
+  if (primarySerial.available() < 3) { return false; }
+  byte offset1 = primarySerial.read();
+  byte offset2 = primarySerial.read();
+  valueOffset = word(offset2, offset1);
+  setPageValue(currentPage, valueOffset, primarySerial.read());
+  return true;
+}
+
+/**
+ * @brief Handle non-MAP page write (2 bytes required)
+ * @return true if handled, false if not enough data
+ */
+static inline bool handleNonMapPageWrite(void)
+{
+  if (primarySerial.available() < 2) { return false; }
+  valueOffset = primarySerial.read();
+  setPageValue(currentPage, valueOffset, primarySerial.read());
+  return true;
+}
+
+/**
+ * @brief Print pre-padding spaces for value display
+ */
+static inline void printValuePrepadding(byte value)
+{
+  if (value < 100) { primarySerial.print(F(" ")); }
+  if (value < 10) { primarySerial.print(F(" ")); }
+}
+
+/**
+ * @brief Send secondary serial protocol confirmation
+ */
+static inline void sendSecondaryConfirmation(byte cmd)
+{
+  if (cmd == 0x30) { secondarySerial.write("r"); secondarySerial.write(cmd); return; }
+  if (cmd == 0x31) { secondarySerial.write("A"); return; }
+  if (cmd == 0x32) { secondarySerial.write("n"); secondarySerial.write(cmd); secondarySerial.write(NEW_CAN_PACKET_SIZE); }
+}
+
+/**
+ * @brief Start new chunk request (for case 'M')
+ * @return true if chunk request started, false if not enough data
+ */
+static inline bool startChunkRequest(Stream &targetPort)
+{
+  if (targetPort.available() < 7) { return false; }
+
+  byte offset1, offset2, length1, length2;
+  targetPort.read(); // First byte can be ignored
+  currentPage = targetPort.read();
+  offset1 = targetPort.read();
+  offset2 = targetPort.read();
+  valueOffset = word(offset2, offset1);
+  length1 = targetPort.read();
+  length2 = targetPort.read();
+  chunkSize = word(length2, length1);
+  chunkPending = true;
+  chunkComplete = 0;
+  return true;
+}
+
+/**
+ * @brief Process chunk data (for case 'M')
+ */
+static inline void processChunkData(Stream &targetPort, SerialStatus &targetStatusFlag)
+{
+  while ((targetPort.available() > 0) && (chunkComplete < chunkSize)) {
+    setPageValue(currentPage, (valueOffset + chunkComplete), targetPort.read());
+    chunkComplete++;
+  }
+  if (chunkComplete >= chunkSize) { targetStatusFlag = SERIAL_INACTIVE; chunkPending = false; }
+}
+
+/**
+ * @brief Read page data and send (for case 'p')
+ */
+static inline void readAndSendPageData(Stream &targetPort, SerialStatus &targetStatusFlag)
+{
+  if (targetPort.available() < 6) { return; }
+
+  byte offset1, offset2, length1, length2;
+  int length;
+  byte tempPage;
+
+  targetPort.read(); // First byte can be ignored
+  tempPage = targetPort.read();
+  offset1 = targetPort.read();
+  offset2 = targetPort.read();
+  valueOffset = word(offset2, offset1);
+  length1 = targetPort.read();
+  length2 = targetPort.read();
+  length = word(length2, length1);
+
+  for (int i = 0; i < length; i++) { targetPort.write(getPageValue(tempPage, valueOffset + i)); }
+  targetStatusFlag = SERIAL_INACTIVE;
+}
+
+/**
+ * @brief Handle output channels command (for case 'r')
+ */
+static inline void handleOutputChannelsCmd(Stream &targetPort, SerialStatus &targetStatusFlag)
+{
+  if (targetPort.available() < 6) { return; }
+
+  targetPort.read(); // Read $tsCanId
+  byte cmd = targetPort.read();
+
+  uint16_t offset, length;
+  byte tmp = targetPort.read();
+  offset = word(targetPort.read(), tmp);
+  tmp = targetPort.read();
+  length = word(targetPort.read(), tmp);
+
+  targetStatusFlag = SERIAL_INACTIVE;
+  if (cmd == 0x30) { sendValues(offset, length, cmd, targetPort, targetStatusFlag); }
+}
+
 namespace {
 
 static void handleCommand_A(void) {
@@ -401,33 +579,15 @@ static void handleCommand_O(void) {
       primarySerial.write(1); //TS needs an acknowledgement that this was received. I don't know if this is the correct response, but it seems to work
 }
 
-/** @brief Handler for 'P' command
- *  @complexity Estimate: 23 lines
+/** @brief Handler for 'P' command - Set current page
+ *  @complexity Low (C=2, N=2) - Uses convertAsciiToPage helper
  */
 static void handleCommand_P(void) {
-// set the current page
-      //This is a legacy function and is no longer used by TunerStudio. It is maintained for compatibility with other systems
-      //A 2nd byte of data is required after the 'P' specifying the new page number.
-      serialStatusFlag = SERIAL_COMMAND_INPROGRESS_LEGACY;
+  serialStatusFlag = SERIAL_COMMAND_INPROGRESS_LEGACY;
+  if (primarySerial.available() == 0) { return; }
 
-      if (primarySerial.available() > 0)
-      {
-        currentPage = primarySerial.read();
-        //This converts the ASCII number char into binary. Note that this will break everything if there are ever more than 48 pages (48 = asci code for '0')
-        if ((currentPage >= '0') && (currentPage <= '9')) // 0 - 9
-        {
-          currentPage -= 48;
-        }
-        else if ((currentPage >= 'a') && (currentPage <= 'f')) // 10 - 15
-        {
-          currentPage -= 87;
-        }
-        else if ((currentPage >= 'A') && (currentPage <= 'F'))
-        {
-          currentPage -= 55;
-        }
-        serialStatusFlag = SERIAL_INACTIVE;
-      }
+  currentPage = convertAsciiToPage(primarySerial.read());
+  serialStatusFlag = SERIAL_INACTIVE;
 }
 
 /** @brief Handler for 'X' command
@@ -493,44 +653,23 @@ static void handleCommand_d(void) {
 }
 
 /** @brief Handler for 'g' command - Receive EEPROM dump from user
- *  @complexity Medium (C=5, N=4)
- *  @note Receives raw EEPROM values via serial and writes to EEPROM
+ *  @complexity Low (C=3, N=2) - Uses receiveAllEEPROMBytes helper
  */
 static void handleCommand_g(void) {
   serialStatusFlag = SERIAL_COMMAND_INPROGRESS_LEGACY;
 
   // Guard: Wait for size header (2 bytes + comma = 3 bytes)
   while ((primarySerial.available() < 3) && (!isRxTimeout())) { delay(1); }
-
-  if (primarySerial.available() < 3) {
-    serialStatusFlag = SERIAL_INACTIVE;
-    return;
-  }
+  if (primarySerial.available() < 3) { serialStatusFlag = SERIAL_INACTIVE; return; }
 
   // Read EEPROM size from packet
   uint16_t eepromSize = word(primarySerial.read(), primarySerial.read());
 
   // Guard: Validate EEPROM size
-  if (eepromSize != getEEPROMSize()) {
-    primarySerial.println(F("ERR; Incorrect EEPROM size"));
-    serialStatusFlag = SERIAL_INACTIVE;
-    return;
-  }
+  if (eepromSize != getEEPROMSize()) { primarySerial.println(F("ERR; Incorrect EEPROM size")); serialStatusFlag = SERIAL_INACTIVE; return; }
 
-  // Receive and write EEPROM bytes
-  for (uint16_t x = 0; x < eepromSize; x++) {
-    // Wait for next byte (with timeout)
-    while ((primarySerial.available() == 0) && (!isRxTimeout())) { delay(1); }
-
-    if (primarySerial.available()) {
-      EEPROMWriteRaw(x, primarySerial.read());
-    } else {
-      // Timeout - abort write
-      serialStatusFlag = SERIAL_INACTIVE;
-      return;
-    }
-  }
-
+  // Receive and write EEPROM bytes using helper
+  receiveAllEEPROMBytes(eepromSize);
   serialStatusFlag = SERIAL_INACTIVE;
 }
 
@@ -691,25 +830,17 @@ static void handleCommand_t(void) {
 }
 
 /** @brief Handler for 'U' command - Reset Arduino (firmware update prep)
- *  @complexity Low (C=3, N=2)
+ *  @complexity Low (C=2, N=2) - Uses printIfInactive helper
  */
 static void handleCommand_U(void) {
-  if (resetControl != RESET_CONTROL_DISABLED) {
-    #ifndef SMALL_FLASH_MODE
-    if (serialStatusFlag == SERIAL_INACTIVE) {
-      primarySerial.println(F("Comms halted. Next byte will reset the Arduino."));
-    }
-    #endif
-
-    while (primarySerial.available() == 0) { }
-    digitalWrite(pinResetControl, LOW);
-  } else {
-    #ifndef SMALL_FLASH_MODE
-    if (serialStatusFlag == SERIAL_INACTIVE) {
-      primarySerial.println(F("Reset control is currently disabled."));
-    }
-    #endif
+  if (resetControl == RESET_CONTROL_DISABLED) {
+    printIfInactive(serialStatusFlag, F("Reset control is currently disabled."));
+    return;
   }
+
+  printIfInactive(serialStatusFlag, F("Comms halted. Next byte will reset the Arduino."));
+  while (primarySerial.available() == 0) { }
+  digitalWrite(pinResetControl, LOW);
 }
 
 /** @brief Handler for 'V' command - Send VE table and constants
@@ -720,28 +851,13 @@ static void handleCommand_V(void) {
 }
 
 /** @brief Handler for 'W' command - Write single VE byte
- *  @complexity Low (C=4, N=3)
+ *  @complexity Low (C=3, N=2) - Uses handleMapPageWrite/handleNonMapPageWrite helpers
  */
 static void handleCommand_W(void) {
   serialStatusFlag = SERIAL_COMMAND_INPROGRESS_LEGACY;
 
-  if (isMap()) {
-    // MAP pages (>255 bytes) require 3 bytes
-    if (primarySerial.available() < 3) { return; }
-
-    byte offset1 = primarySerial.read();
-    byte offset2 = primarySerial.read();
-    valueOffset = word(offset2, offset1);
-    setPageValue(currentPage, valueOffset, primarySerial.read());
-    serialStatusFlag = SERIAL_INACTIVE;
-  } else {
-    // Non-MAP pages require 2 bytes
-    if (primarySerial.available() < 2) { return; }
-
-    valueOffset = primarySerial.read();
-    setPageValue(currentPage, valueOffset, primarySerial.read());
-    serialStatusFlag = SERIAL_INACTIVE;
-  }
+  bool success = isMap() ? handleMapPageWrite() : handleNonMapPageWrite();
+  if (success) { serialStatusFlag = SERIAL_INACTIVE; }
 }
 
 /** @brief Handler for 'w' command - Write page chunk (legacy, not supported)
@@ -934,153 +1050,46 @@ void legacySerialHandler(byte cmd, Stream &targetPort, SerialStatus &targetStatu
 {
   switch (cmd)
   {
-
-    case 'b': // New EEPROM burn command to only burn a single page at a time
+    case 'b': // EEPROM burn command
+    case 'B': // Compatibility mode burn
       targetStatusFlag = SERIAL_COMMAND_INPROGRESS_LEGACY;
+      if (targetPort.available() >= 2) { targetPort.read(); writeConfig(targetPort.read()); targetStatusFlag = SERIAL_INACTIVE; }
+      break;
 
-      if (targetPort.available() >= 2)
-      {
-        targetPort.read(); //Ignore the first table value, it's always 0
-        writeConfig(targetPort.read());
+    case 'd': // Send CRC32 hash
+      targetStatusFlag = SERIAL_COMMAND_INPROGRESS_LEGACY;
+      if (targetPort.available() >= 2) {
+        targetPort.read();
+        uint32_t CRC32_val = calculatePageCRC32(targetPort.read());
+        targetPort.write((CRC32_val >> 24) & 255);
+        targetPort.write((CRC32_val >> 16) & 255);
+        targetPort.write((CRC32_val >> 8) & 255);
+        targetPort.write(CRC32_val & 255);
         targetStatusFlag = SERIAL_INACTIVE;
       }
       break;
 
-    case 'B': // AS above but for the serial compatibility mode.
+    case 'M': // Chunk write
       targetStatusFlag = SERIAL_COMMAND_INPROGRESS_LEGACY;
-
-      if (targetPort.available() >= 2)
-      {
-        targetPort.read(); //Ignore the first table value, it's always 0
-        writeConfig(targetPort.read());
-        targetStatusFlag = SERIAL_INACTIVE;
-      }
+      if (!chunkPending) { startChunkRequest(targetPort); }
+      if (chunkPending) { processChunkData(targetPort, targetStatusFlag); }
       break;
 
-    case 'd':
+    case 'p': // Read page data
       targetStatusFlag = SERIAL_COMMAND_INPROGRESS_LEGACY;
-
-      if (targetPort.available() >= 2)
-      {
-        targetPort.read(); //Ignore the first byte value, it's always 0
-        uint32_t CRC32_val = calculatePageCRC32( targetPort.read() );
-
-        //Split the 4 bytes of the CRC32 value into individual bytes and send
-        targetPort.write( ((CRC32_val >> 24) & 255) );
-        targetPort.write( ((CRC32_val >> 16) & 255) );
-        targetPort.write( ((CRC32_val >> 8) & 255) );
-        targetPort.write( (CRC32_val & 255) );
-
-        targetStatusFlag = SERIAL_INACTIVE;
-      }
+      readAndSendPageData(targetPort, targetStatusFlag);
       break;
 
-    case 'M':
-      targetStatusFlag = SERIAL_COMMAND_INPROGRESS_LEGACY;
-
-      if(chunkPending == false)
-      {
-        //This means it's a new request
-        //7 bytes required:
-        //2 - Page identifier
-        //2 - offset
-        //2 - Length
-        //1 - 1st New value
-        if(targetPort.available() >= 7)
-        {
-          byte offset1, offset2, length1, length2;
-
-          targetPort.read(); // First byte of the page identifier can be ignored. It's always 0
-          currentPage = targetPort.read();
-          //currentPage = 1;
-          offset1 = targetPort.read();
-          offset2 = targetPort.read();
-          valueOffset = word(offset2, offset1);
-          length1 = targetPort.read();
-          length2 = targetPort.read();
-          chunkSize = word(length2, length1);
-
-          //Regular page data
-          chunkPending = true;
-          chunkComplete = 0;
-        }
-      }
-      //This CANNOT be an else of the above if statement as chunkPending gets set to true above
-      if(chunkPending == true)
-      {
-        while( (targetPort.available() > 0) && (chunkComplete < chunkSize) )
-        {
-          setPageValue(currentPage, (valueOffset + chunkComplete), targetPort.read());
-          chunkComplete++;
-        }
-        if(chunkComplete >= chunkSize) { targetStatusFlag = SERIAL_INACTIVE; chunkPending = false; }
-      }
-      break;
-
-    case 'p':
-      targetStatusFlag = SERIAL_COMMAND_INPROGRESS_LEGACY;
-
-      //6 bytes required:
-      //2 - Page identifier
-      //2 - offset
-      //2 - Length
-      if(targetPort.available() >= 6)
-      {
-        byte offset1, offset2, length1, length2;
-        int length;
-        byte tempPage;
-
-        targetPort.read(); // First byte of the page identifier can be ignored. It's always 0
-        tempPage = targetPort.read();
-        //currentPage = 1;
-        offset1 = targetPort.read();
-        offset2 = targetPort.read();
-        valueOffset = word(offset2, offset1);
-        length1 = targetPort.read();
-        length2 = targetPort.read();
-        length = word(length2, length1);
-        for(int i = 0; i < length; i++)
-        {
-          targetPort.write( getPageValue(tempPage, valueOffset + i) );
-        }
-
-        targetStatusFlag = SERIAL_INACTIVE;
-      }
-      break;
-
-    case 'Q': // send code version
+    case 'Q': // Send code version
       targetPort.print(F("speeduino 202504-dev"));
       break;
 
-    case 'r': //New format for the optimised OutputChannels
+    case 'r': // Output channels
       targetStatusFlag = SERIAL_COMMAND_INPROGRESS_LEGACY;
-      byte cmd;
-      if (targetPort.available() >= 6)
-      {
-        targetPort.read(); //Read the $tsCanId
-        cmd = targetPort.read(); // read the command
-
-        uint16_t offset, length;
-        byte tmp;
-        tmp = targetPort.read();
-        offset = word(targetPort.read(), tmp);
-        tmp = targetPort.read();
-        length = word(targetPort.read(), tmp);
-
-        targetStatusFlag = SERIAL_INACTIVE;
-
-        if(cmd == 0x30) //Send output channels command 0x30 is 48dec
-        {
-          sendValues(offset, length, cmd, targetPort, targetStatusFlag);
-        }
-        else
-        {
-          //No other r/ commands are supported in legacy mode
-        }
-      }
+      handleOutputChannelsCmd(targetPort, targetStatusFlag);
       break;
 
-    case 'S': // send code version
+    case 'S': // Send signature
       targetPort.print(F("Speeduino 2025.04-dev"));
       break;
   }
@@ -1100,70 +1109,30 @@ void legacySerialHandler(byte cmd, Stream &targetPort, SerialStatus &targetStatu
 void sendValues(uint16_t offset, uint16_t packetLength, byte cmd, Stream &targetPort, SerialStatus &targetStatusFlag) { sendValues(offset, packetLength, cmd, targetPort, targetStatusFlag, &getTSLogEntry); } //Defaults to using the standard TS log function
 void sendValues(uint16_t offset, uint16_t packetLength, byte cmd, Stream &targetPort, SerialStatus &targetStatusFlag, uint8_t (*logFunction)(uint16_t))
 {
-  if (&targetPort == &secondarySerial)
-  {
-    //Using Secondary serial, check if selected protocol requires the echo back of the command
-    if( (configPage9.secondarySerialProtocol == SECONDARY_SERIAL_PROTO_GENERIC_FIXED) || (configPage9.secondarySerialProtocol == SECONDARY_SERIAL_PROTO_GENERIC_INI) || (configPage9.secondarySerialProtocol == SECONDARY_SERIAL_PROTO_REALDASH))
-    {
-        if (cmd == 0x30)
-        {
-          secondarySerial.write("r");         //confirm cmd type
-          secondarySerial.write(cmd);
-        }
-        else if (cmd == 0x31)
-        {
-          secondarySerial.write("A");         // confirm command type
-        }
-        else if (cmd == 0x32)
-        {
-          secondarySerial.write("n");                       // confirm command type
-          secondarySerial.write(cmd);                       // send command type  , 0x32 (dec50) is ascii '0'
-          secondarySerial.write(NEW_CAN_PACKET_SIZE);       // send the packet size the receiving device should expect.
-        }
-    }
-  }
-  else
-  {
-    if(firstCommsRequest)
-    {
-      firstCommsRequest = false;
-      currentStatus.secl = 0;
-    }
-  }
+  // Handle secondary serial protocol confirmation
+  bool isSecondary = (&targetPort == &secondarySerial);
+  bool needsConfirm = (configPage9.secondarySerialProtocol == SECONDARY_SERIAL_PROTO_GENERIC_FIXED) ||
+                      (configPage9.secondarySerialProtocol == SECONDARY_SERIAL_PROTO_GENERIC_INI) ||
+                      (configPage9.secondarySerialProtocol == SECONDARY_SERIAL_PROTO_REALDASH);
 
-  //
+  if (isSecondary && needsConfirm) { sendSecondaryConfirmation(cmd); }
+  else if (!isSecondary && firstCommsRequest) { firstCommsRequest = false; currentStatus.secl = 0; }
+
   targetStatusFlag = SERIAL_TRANSMIT_INPROGRESS_LEGACY;
-  currentStatus.status2 ^= (-currentStatus.hasSync ^ currentStatus.status2) & (1U << BIT_STATUS2_SYNC); //Set the sync bit of the Spark variable to match the hasSync variable
+  currentStatus.status2 ^= (-currentStatus.hasSync ^ currentStatus.status2) & (1U << BIT_STATUS2_SYNC);
 
   for(byte x=0; x<packetLength; x++)
   {
-    bool bufferFull = false;
-
-    //targetPort.write(getTSLogEntry(offset+x));
     targetPort.write(logFunction(offset+x));
 
-    if( (&targetPort == &Serial) )
-    {
-      //If the transmit buffer is full, wait for it to clear. This cannot be used with Read Dash as it will cause a timeout
-      if(targetPort.availableForWrite() < 1) { bufferFull = true; }
-    }
-
-    //Check whether the tx buffer still has space
-    if(bufferFull == true)
-    {
-      //tx buffer is full. Store the current state so it can be resumed later
-      logItemsTransmitted = offset + x + 1;
-      inProgressLength = packetLength - x - 1;
-      return;
-    }
-
+    // Check buffer on primary serial only
+    bool bufferFull = ((&targetPort == &Serial) && (targetPort.availableForWrite() < 1));
+    if(bufferFull) { logItemsTransmitted = offset + x + 1; inProgressLength = packetLength - x - 1; return; }
   }
 
   targetStatusFlag = SERIAL_INACTIVE;
   while(targetPort.available()) { targetPort.read(); }
-  // Reset any flags that are being used to trigger page refreshes
   BIT_CLEAR(currentStatus.status3, BIT_STATUS3_VSS_REFRESH);
-
 }
 
 void sendValuesLegacy(void)
@@ -1399,14 +1368,7 @@ namespace {
 
   void serial_print_prepadding(byte value)
   {
-    if (value < 100)
-    {
-      primarySerial.print(F(" "));
-      if (value < 10)
-      {
-        primarySerial.print(F(" "));
-      }
-    }
+    printValuePrepadding(value);
   }
 
   void serial_print_prepadded_value(byte value)
@@ -1573,58 +1535,49 @@ void sendPageASCII(void)
 }
 
 
+/**
+ * @brief Receive O2 calibration data (1024 8-bit values, use every 32nd)
+ */
+static void receiveO2Calibration(void)
+{
+  for (int x = 0; x < 1024; x++) {
+    while (primarySerial.available() < 1) { }
+    uint8_t tempValue = (uint8_t)primarySerial.read();
+    if ((x % 32) == 0) { o2CalibrationTable.values[(x/32)] = (byte)tempValue; o2CalibrationTable.axis[(x/32)] = x; }
+  }
+}
+
+/**
+ * @brief Receive temperature calibration data (32 16-bit values)
+ */
+static void receiveTemperatureCalibration(table2D_u16_u16_32 *pTargetTable)
+{
+  for (uint16_t x = 0; x < 32; x++) {
+    while (primarySerial.available() < 2) { }
+    byte tempBuffer[2];
+    tempBuffer[0] = primarySerial.read();
+    tempBuffer[1] = primarySerial.read();
+
+    int16_t tempValue = (int16_t)(word(tempBuffer[1], tempBuffer[0]));
+    tempValue = div(tempValue, 10).quot;
+    tempValue = ((tempValue - 32) * 5) / 9;
+
+    pTargetTable->values[x] = temperatureAddOffset(tempValue);
+    pTargetTable->axis[x] = (x * 32U);
+    writeCalibration();
+  }
+}
+
 /** Processes an incoming stream of calibration data (for CLT, IAT or O2) from TunerStudio.
  * Result is store in EEPROM and memory.
- *
  * @param tableID - calibration table to process. 0 = Coolant Sensor. 1 = IAT Sensor. 2 = O2 Sensor.
  */
 void receiveCalibration(byte tableID)
 {
-  if(tableID == 2)
-  {
-    //O2 calibration. Comes through as 1024 8-bit values of which we use every 32nd
-    for (int x = 0; x < 1024; x++)
-    {
-      while ( primarySerial.available() < 1 ) {}
-      uint8_t tempValue = (uint8_t)primarySerial.read();
+  if (tableID == 2) { receiveO2Calibration(); writeCalibration(); return; }
 
-      if( (x % 32) == 0)
-      {
-        o2CalibrationTable.values[(x/32)] = (byte)tempValue; //O2 table stores 8 bit values
-        o2CalibrationTable.axis[(x/32)] = x;
-      }
-
-    }
-  }
-  else
-  {
-    table2D_u16_u16_32 *pTargetTable;
-    if (tableID == 0)
-    {
-      pTargetTable = &cltCalibrationTable;
-    }
-    else
-    {
-      pTargetTable = &iatCalibrationTable;
-    }
-    //Temperature calibrations are sent as 32 16-bit values
-    for (uint16_t x = 0; x < 32; x++)
-    {
-      while ( primarySerial.available() < 2 ) {}
-      byte tempBuffer[2];
-      tempBuffer[0] = primarySerial.read();
-      tempBuffer[1] = primarySerial.read();
-
-      int16_t tempValue = (int16_t)(word(tempBuffer[1], tempBuffer[0])); //Combine the 2 bytes into a single, signed 16-bit value
-      tempValue = div(tempValue, 10).quot; //TS sends values multiplied by 10 so divide back to whole degrees.
-      tempValue = ((tempValue - 32) * 5) / 9; //Convert from F to C
-
-      pTargetTable->values[x] = temperatureAddOffset(tempValue);
-      pTargetTable->axis[x] = (x * 32U);
-      writeCalibration();
-    }
-  }
-
+  table2D_u16_u16_32 *pTargetTable = (tableID == 0) ? &cltCalibrationTable : &iatCalibrationTable;
+  receiveTemperatureCalibration(pTargetTable);
   writeCalibration();
 }
 
@@ -1660,44 +1613,39 @@ void sendToothLog_legacy(byte startOffset) /* Blocking */
   }
 }
 
+/**
+ * @brief Send single composite log entry
+ * @return true if buffer full (pause), false to continue
+ */
+static inline bool sendCompositeLogEntry(uint8_t index)
+{
+  if (primarySerial.availableForWrite() < 4) { logItemsTransmitted = index; return true; }
+
+  uint32_t time = toothHistory[index];
+  primarySerial.write(time >> 24);
+  primarySerial.write(time >> 16);
+  primarySerial.write(time >> 8);
+  primarySerial.write(time);
+  primarySerial.write(compositeLogHistory[index]);
+  return false;
+}
+
 void sendCompositeLog_legacy(byte startOffset) /* Non-blocking */
 {
-  if (BIT_CHECK(currentStatus.status1, BIT_STATUS1_TOOTHLOG1READY)) //Sanity check. Flagging system means this should always be true
-  {
-      serialStatusFlag = SERIAL_TRANSMIT_COMPOSITE_INPROGRESS_LEGACY;
-
-      for (uint8_t x = startOffset; x < TOOTH_LOG_SIZE; ++x)
-      {
-        //Check whether the tx buffer still has space
-        if(primarySerial.availableForWrite() < 4)
-        {
-          //tx buffer is full. Store the current state so it can be resumed later
-          logItemsTransmitted = x;
-          return;
-        }
-
-        uint32_t inProgressCompositeTime = toothHistory[x]; //This combined runtime (in us) that the log was going for by this record)
-
-        primarySerial.write(inProgressCompositeTime >> 24);
-        primarySerial.write(inProgressCompositeTime >> 16);
-        primarySerial.write(inProgressCompositeTime >> 8);
-        primarySerial.write(inProgressCompositeTime);
-
-        primarySerial.write(compositeLogHistory[x]); //The status byte (Indicates the trigger edge, whether it was a pri/sec pulse, the sync status)
-      }
-      BIT_CLEAR(currentStatus.status1, BIT_STATUS1_TOOTHLOG1READY);
-      toothHistoryIndex = 0;
-      serialStatusFlag = SERIAL_INACTIVE;
-  }
-  else
-  {
-    //TunerStudio has timed out, send a LOG of all 0s
-    for(uint16_t x = 0U; x < (5U*TOOTH_LOG_SIZE); ++x)
-    {
-      primarySerial.write(static_cast<byte>(0x00)); //GCC9 fix
-    }
+  if (!BIT_CHECK(currentStatus.status1, BIT_STATUS1_TOOTHLOG1READY)) {
+    for (uint16_t x = 0U; x < (5U*TOOTH_LOG_SIZE); ++x) { primarySerial.write(static_cast<byte>(0x00)); }
     serialStatusFlag = SERIAL_INACTIVE;
+    return;
   }
+
+  serialStatusFlag = SERIAL_TRANSMIT_COMPOSITE_INPROGRESS_LEGACY;
+  for (uint8_t x = startOffset; x < TOOTH_LOG_SIZE; ++x) {
+    if (sendCompositeLogEntry(x)) { return; }
+  }
+
+  BIT_CLEAR(currentStatus.status1, BIT_STATUS1_TOOTHLOG1READY);
+  toothHistoryIndex = 0;
+  serialStatusFlag = SERIAL_INACTIVE;
 }
 
 void testComm(void)

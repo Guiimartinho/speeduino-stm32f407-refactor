@@ -46,17 +46,13 @@ void handleSecondarySerial(void)
 void handleCANComms(void)
 {
   #if defined(NATIVE_CAN_AVAILABLE)
-    if(configPage9.enable_intcan == 1) // Use internal CAN module
+    if(configPage9.enable_intcan != 1) { return; } // Use internal CAN module
+    // Check local CAN module
+    while(CAN_read())
     {
-      // Check local CAN module
-      while(CAN_read())
-      {
-        can_Command();
-        readAuxCanBus();
-        if(configPage2.canWBO > 0) {
-          receiveCANwbo();
-        }
-      }
+      can_Command();
+      readAuxCanBus();
+      if(configPage2.canWBO > 0) { receiveCANwbo(); }
     }
   #endif
 }

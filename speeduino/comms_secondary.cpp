@@ -35,6 +35,49 @@ SECONDARY_SERIAL_T* pSecondarySerial;
 #pragma GCC optimize ("Os")
 #endif
 
+/**
+ * @brief Get high byte for 2-byte CAN input value
+ */
+static inline uint8_t getCANInputHighByte(const uint8_t* data, uint8_t channelIdx)
+{
+  bool isTwoByte = BIT_CHECK(configPage9.caninput_source_num_bytes, channelIdx) > 0U;
+  if (!isTwoByte) { return 0U; }
+
+  uint8_t startByte = configPage9.caninput_source_start_byte[channelIdx] & 7U;
+  if (startByte >= 7U) { return 0U; }  // Can't have 2-byte starting at byte 7
+
+  return data[startByte + 1U];
+}
+
+/**
+ * @brief Process CAN interface 'G' reply command data
+ */
+static inline void processCANReplyData(uint8_t destChannel)
+{
+  uint8_t Gdata[8];
+  for (uint8_t i = 0; i < 8; i++) { Gdata[i] = secondarySerial.read(); }
+
+  uint8_t startByte = configPage9.caninput_source_start_byte[destChannel] & 7U;
+  uint8_t Glow = Gdata[startByte];
+  uint8_t Ghigh = getCANInputHighByte(Gdata, destChannel);
+
+  currentStatus.canin[destChannel] = (Ghigh << 8) | Glow;
+}
+
+/**
+ * @brief Handle CAN reply 'G' command
+ */
+static inline void handleCANReplyCommand(void)
+{
+  serialSecondaryStatusFlag = SERIAL_COMMAND_INPROGRESS_LEGACY;
+  if (secondarySerial.available() < 9) { return; }
+
+  serialSecondaryStatusFlag = SERIAL_INACTIVE;
+  uint8_t cmdSuccessful = secondarySerial.read();
+  uint8_t destChannel = secondarySerial.read();
+  if (cmdSuccessful != 0U) { processCANReplyData(destChannel); }
+}
+
 void secondserial_Command(void)
 {
   //If the selected protocol is Tuner Studio then everything is routed via the primary serial functions but with the output diverted to the secondary serial interface
@@ -70,43 +113,8 @@ void secondserial_Command(void)
       legacySerialHandler(currentSecondaryCommand, secondarySerial, serialSecondaryStatusFlag);
       break;
 
-    case 'G': // this is the reply command sent by the Can interface
-      serialSecondaryStatusFlag = SERIAL_COMMAND_INPROGRESS_LEGACY;
-      byte destcaninchannel;
-      if (secondarySerial.available() >= 9)
-      {
-        serialSecondaryStatusFlag = SERIAL_INACTIVE;
-        uint8_t cmdSuccessful = secondarySerial.read();        //0 == fail,  1 == good.
-        destcaninchannel = secondarySerial.read();  // the input channel that requested the data value
-        if (cmdSuccessful != 0)
-        {                                 // read all 8 bytes of data.
-          uint8_t Gdata[9];
-          uint8_t Glow, Ghigh;
-
-          for (byte Gx = 0; Gx < 8; Gx++) // first two are the can address the data is from. next two are the can address the data is for.then next 1 or two bytes of data
-          {
-            Gdata[Gx] = secondarySerial.read();
-          }
-          Glow = Gdata[(configPage9.caninput_source_start_byte[destcaninchannel]&7)];
-          if ((BIT_CHECK(configPage9.caninput_source_num_bytes,destcaninchannel) > 0))  //if true then num bytes is 2
-          {
-            if ((configPage9.caninput_source_start_byte[destcaninchannel]&7) < 8)   //you can't have a 2 byte value starting at byte 7(8 on the list)
-            {
-              Ghigh = Gdata[((configPage9.caninput_source_start_byte[destcaninchannel]&7)+1)];
-            }
-            else { Ghigh = 0; }
-          }
-        else
-        {
-          Ghigh = 0;
-        }
-
-        currentStatus.canin[destcaninchannel] = (Ghigh<<8) | Glow;
-      }
-
-        else{}  //continue as command request failed and/or data/device was not available
-
-      }
+    case 'G': // Reply command from CAN interface
+      handleCANReplyCommand();
       break;
 
     case 'k':   //placeholder for new can interface (toucan etc) commands
