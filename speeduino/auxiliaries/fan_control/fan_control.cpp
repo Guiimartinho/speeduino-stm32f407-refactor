@@ -9,61 +9,35 @@
 #include "../../units.h"
 #include "../../table2d.h"
 
-namespace speeduino {
-namespace fan {
-
-// Anonymous namespace for private implementation
-namespace {
-
-// Fan PWM state (only used on platforms with PWM_FAN_AVAILABLE)
-#if defined(PWM_FAN_AVAILABLE)
-struct FanPWMState {
-    volatile bool pwm_state;
-    uint16_t pwm_max_count;
-    volatile uint16_t pwm_cur_value;
-    long pwm_value;
-};
-
-static FanPWMState pwm_state;
-#endif
-
-// Fan table (declared in auxiliaries.h, accessed from global scope)
-using ::fanPWMTable;
+// =============================================================================
+// PRIVATE IMPLEMENTATION - Static helpers (file scope)
+// =============================================================================
+// Note: Uses global PWM variables from auxiliaries.h:
+// - fan_pwm_state, fan_pwm_max_count, fan_pwm_cur_value, fan_pwm_value
 
 /**
  * @brief Check if fan is permitted to run
- * @details Checks engine running status and fanWhenOff config
- * @return true if fan allowed to run
  */
-static bool isFanPermitted(void) {
-    // Fan when off enabled?
-    if (configPage2.fanWhenOff == 1U) {
-        return true;
-    }
-
-    // Otherwise requires engine running
+static inline bool isFanPermitted(void)
+{
+    if (configPage2.fanWhenOff == 1U) { return true; }
     return BIT_CHECK(currentStatus.engine, BIT_ENGINE_RUN);
 }
 
 /**
  * @brief Check if A/C requires fan activation
- * @details A/C can force fan on for radiator airflow
- * @return true if A/C requests fan
  */
-static bool acRequestsFan(void) {
-    // Guard clause: A/C fan integration disabled?
-    if (configPage15.airConTurnsFanOn != 1U) {
-        return false;
-    }
-
-    // Check if A/C is turning on
+static inline bool acRequestsFan(void)
+{
+    if (configPage15.airConTurnsFanOn != 1U) { return false; }
     return BIT_CHECK(currentStatus.airConStatus, BIT_AIRCON_TURNING_ON);
 }
 
 /**
  * @brief Turn fan on (digital mode)
  */
-static void turnFanOn(void) {
+static inline void turnFanOn(void)
+{
     FAN_ON();
     BIT_SET(currentStatus.status4, BIT_STATUS4_FAN);
 }
@@ -71,185 +45,159 @@ static void turnFanOn(void) {
 /**
  * @brief Turn fan off (digital mode)
  */
-static void turnFanOff(void) {
+static inline void turnFanOff(void)
+{
     FAN_OFF();
     BIT_CLEAR(currentStatus.status4, BIT_STATUS4_FAN);
 }
 
 /**
- * @brief Handle digital (on/off) fan control
- * @details Uses temperature thresholds with hysteresis
+ * @brief Check if cranking with fan disabled
  */
-static void updateDigitalMode(void) {
-    const int16_t onTemp = temperatureRemoveOffset(configPage6.fanSP);
-    const int16_t offTemp = onTemp - configPage6.fanHyster;
+static inline bool isCrankingFanDisabled(void)
+{
+    return BIT_CHECK(currentStatus.engine, BIT_ENGINE_CRANK) && (configPage2.fanWhenCranking == 0U);
+}
 
-    // Guard clause: fan not permitted?
-    if (!isFanPermitted()) {
-        turnFanOff();
+/**
+ * @brief Disable fan with zero duty (PWM mode)
+ */
+static inline void disableFanPWM(void)
+{
+    currentStatus.fanDuty = 0U;
+    BIT_CLEAR(currentStatus.status4, BIT_STATUS4_FAN);
+#if defined(PWM_FAN_AVAILABLE)
+    DISABLE_FAN_TIMER();
+#endif
+}
+
+/**
+ * @brief Apply A/C minimum duty if required
+ */
+static inline uint8_t applyACMinDuty(uint8_t duty)
+{
+    if (!acRequestsFan()) { return duty; }
+    return (duty < configPage15.airConPwmFanMinDuty) ? configPage15.airConPwmFanMinDuty : duty;
+}
+
+/**
+ * @brief Handle digital (on/off) fan control
+ */
+static void updateDigitalMode(void)
+{
+    int16_t onTemp = temperatureRemoveOffset(configPage6.fanSP);
+    int16_t offTemp = onTemp - configPage6.fanHyster;
+
+    if (!isFanPermitted()) { turnFanOff(); return; }
+
+    bool tempRequiresFan = (currentStatus.coolant >= onTemp);
+    bool acRequiresFan = acRequestsFan();
+
+    if (!tempRequiresFan && !acRequiresFan)
+    {
+        if (currentStatus.coolant <= offTemp) { turnFanOff(); }
         return;
     }
 
-    // Check if fan should be on
-    const bool tempRequiresFan = (currentStatus.coolant >= onTemp);
-    const bool acRequiresFan = acRequestsFan();
+    if (isCrankingFanDisabled()) { turnFanOff(); return; }
 
-    // Guard clause: neither temp nor A/C requires fan?
-    if (!tempRequiresFan && !acRequiresFan) {
-        // Check if below off temperature
-        if (currentStatus.coolant <= offTemp) {
-            turnFanOff();
-        }
-        return;
-    }
-
-    // Fan needed - check cranking disable
-    if (BIT_CHECK(currentStatus.engine, BIT_ENGINE_CRANK) &&
-        (configPage2.fanWhenCranking == 0U)) {
-        // User disabled fan during cranking
-        turnFanOff();
-        return;
-    }
-
-    // All checks passed - turn fan on
     turnFanOn();
 }
 
 /**
- * @brief Handle PWM fan control
- * @details Duty cycle from table or A/C minimum
+ * @brief Handle PWM fan output states
  */
-static void updatePWMMode(void) {
-    // Guard clause: fan not permitted?
-    if (!isFanPermitted()) {
-        currentStatus.fanDuty = 0U;
-        BIT_CLEAR(currentStatus.status4, BIT_STATUS4_FAN);
+static void handlePWMOutput(void)
+{
 #if defined(PWM_FAN_AVAILABLE)
-        DISABLE_FAN_TIMER();
-#endif
-        return;
-    }
+    fan_pwm_value = halfPercentage(currentStatus.fanDuty, fan_pwm_max_count);
 
-    // Guard clause: cranking and fan disabled during cranking?
-    if (BIT_CHECK(currentStatus.engine, BIT_ENGINE_CRANK) &&
-        (configPage2.fanWhenCranking == 0U)) {
-        currentStatus.fanDuty = 0U;
-        BIT_CLEAR(currentStatus.status4, BIT_STATUS4_FAN);
-#if defined(PWM_FAN_AVAILABLE)
-        DISABLE_FAN_TIMER();
-#endif
-        return;
-    }
+    if (currentStatus.fanDuty == 0U) { FAN_OFF(); BIT_CLEAR(currentStatus.status4, BIT_STATUS4_FAN); DISABLE_FAN_TIMER(); return; }
+    if (currentStatus.fanDuty >= 200U) { FAN_ON(); BIT_SET(currentStatus.status4, BIT_STATUS4_FAN); DISABLE_FAN_TIMER(); return; }
 
-    // Normal operation - read duty from table
-    uint8_t tempFanDuty = table2D_getValue(&fanPWMTable,
-                                           temperatureAddOffset(currentStatus.coolant));
-
-    // Check if A/C requires minimum duty
-    if (acRequestsFan()) {
-        if (tempFanDuty < configPage15.airConPwmFanMinDuty) {
-            tempFanDuty = configPage15.airConPwmFanMinDuty;
-        }
-    }
-
-    currentStatus.fanDuty = tempFanDuty;
-
-#if defined(PWM_FAN_AVAILABLE)
-    // Update PWM value
-    pwm_state.pwm_value = halfPercentage(currentStatus.fanDuty, pwm_state.pwm_max_count);
-
-    // Handle 0% duty
-    if (currentStatus.fanDuty == 0U) {
-        FAN_OFF();
-        BIT_CLEAR(currentStatus.status4, BIT_STATUS4_FAN);
-        DISABLE_FAN_TIMER();
-        return;
-    }
-
-    // Handle 100% duty
-    if (currentStatus.fanDuty >= 200U) {
-        FAN_ON();
-        BIT_SET(currentStatus.status4, BIT_STATUS4_FAN);
-        DISABLE_FAN_TIMER();
-        return;
-    }
-
-    // Variable duty (0-100%)
     ENABLE_FAN_TIMER();
     BIT_SET(currentStatus.status4, BIT_STATUS4_FAN);
 #else
-    // Platform without PWM - fallback to digital
-    if (currentStatus.fanDuty > 0U) {
-        FAN_ON();
-        BIT_SET(currentStatus.status4, BIT_STATUS4_FAN);
-    } else {
-        FAN_OFF();
-        BIT_CLEAR(currentStatus.status4, BIT_STATUS4_FAN);
-    }
+    if (currentStatus.fanDuty > 0U) { FAN_ON(); BIT_SET(currentStatus.status4, BIT_STATUS4_FAN); }
+    else { FAN_OFF(); BIT_CLEAR(currentStatus.status4, BIT_STATUS4_FAN); }
 #endif
 }
 
-} // anonymous namespace
+/**
+ * @brief Handle PWM fan control
+ */
+static void updatePWMMode(void)
+{
+    if (!isFanPermitted()) { disableFanPWM(); return; }
+    if (isCrankingFanDisabled()) { disableFanPWM(); return; }
 
-// Public interface implementation
+    uint8_t tempFanDuty = table2D_getValue(&fanPWMTable, temperatureAddOffset(currentStatus.coolant));
+    currentStatus.fanDuty = applyACMinDuty(tempFanDuty);
 
-bool initialise(void) {
-    // Setup fan pin
+    handlePWMOutput();
+}
+
+/**
+ * @brief Internal initialise implementation
+ */
+static bool fan_initialise_impl(void)
+{
     fan_pin_port = portOutputRegister(digitalPinToPort(pinFan));
     fan_pin_mask = digitalPinToBitMask(pinFan);
 
-    // Initial state: fan OFF
     FAN_OFF();
     BIT_CLEAR(currentStatus.status4, BIT_STATUS4_FAN);
     currentStatus.fanDuty = 0U;
 
 #if defined(PWM_FAN_AVAILABLE)
-    // Disable timer initially
     DISABLE_FAN_TIMER();
-
-    // Setup PWM if enabled
-    if (configPage2.fanEnable == 2U) {
+    if (configPage2.fanEnable == 2U)
+    {
 #if defined(CORE_TEENSY)
-        pwm_state.pwm_max_count = (uint16_t)(MICROS_PER_SEC / (32U * configPage6.fanFreq * 2U));
+        fan_pwm_max_count = (uint16_t)(MICROS_PER_SEC / (32U * configPage6.fanFreq * 2U));
 #endif
-        pwm_state.pwm_value = 0;
+        fan_pwm_value = 0;
     }
 #endif
 
     return true;
 }
 
-void update(void) {
-    // Dispatch based on fan mode
-    if (configPage2.fanEnable == 1U) {
-        updateDigitalMode();
-    } else if (configPage2.fanEnable == 2U) {
-        updatePWMMode();
-    }
-    // Mode 0 = disabled, do nothing
+/**
+ * @brief Internal update implementation
+ */
+static void fan_update_impl(void)
+{
+    if (configPage2.fanEnable == 1U) { updateDigitalMode(); }
+    else if (configPage2.fanEnable == 2U) { updatePWMMode(); }
 }
 
-void forceOff(void) {
+/**
+ * @brief Internal forceOff implementation
+ */
+static void fan_forceOff_impl(void)
+{
     turnFanOff();
     currentStatus.fanDuty = 0U;
-
 #if defined(PWM_FAN_AVAILABLE)
     DISABLE_FAN_TIMER();
-    pwm_state.pwm_value = 0;
+    fan_pwm_value = 0;
 #endif
 }
 
-uint8_t getDuty(void) {
-    return currentStatus.fanDuty;
-}
+// =============================================================================
+// PUBLIC API - Namespace wrapper functions
+// =============================================================================
 
-bool isActive(void) {
-    return BIT_CHECK(currentStatus.status4, BIT_STATUS4_FAN);
-}
+namespace speeduino {
+namespace fan {
 
-FanMode getMode(void) {
-    return static_cast<FanMode>(configPage2.fanEnable);
-}
+bool initialise(void) { return fan_initialise_impl(); }
+void update(void) { fan_update_impl(); }
+void forceOff(void) { fan_forceOff_impl(); }
+uint8_t getDuty(void) { return currentStatus.fanDuty; }
+bool isActive(void) { return BIT_CHECK(currentStatus.status4, BIT_STATUS4_FAN); }
+FanMode getMode(void) { return static_cast<FanMode>(configPage2.fanEnable); }
 
 } // namespace fan
 } // namespace speeduino
@@ -261,16 +209,15 @@ FanMode getMode(void) {
  * @note Called by hardware timer interrupt
  */
 void fanInterrupt(void) {
-    if (speeduino::fan::pwm_state.pwm_state == true) {
+    if (fan_pwm_state == true) {
         FAN_OFF();
-        FAN_TIMER_COMPARE = FAN_TIMER_COUNTER +
-            (speeduino::fan::pwm_state.pwm_max_count - speeduino::fan::pwm_state.pwm_cur_value);
-        speeduino::fan::pwm_state.pwm_state = false;
+        FAN_TIMER_COMPARE = FAN_TIMER_COUNTER + (fan_pwm_max_count - fan_pwm_cur_value);
+        fan_pwm_state = false;
     } else {
         FAN_ON();
-        FAN_TIMER_COMPARE = FAN_TIMER_COUNTER + speeduino::fan::pwm_state.pwm_value;
-        speeduino::fan::pwm_state.pwm_cur_value = speeduino::fan::pwm_state.pwm_value;
-        speeduino::fan::pwm_state.pwm_state = true;
+        FAN_TIMER_COMPARE = FAN_TIMER_COUNTER + fan_pwm_value;
+        fan_pwm_cur_value = fan_pwm_value;
+        fan_pwm_state = true;
     }
 }
 #endif

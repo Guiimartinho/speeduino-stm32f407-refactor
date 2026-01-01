@@ -14,39 +14,32 @@
 #include "../../auxiliaries.h"
 #include "../../timers.h"
 
-namespace speeduino {
-namespace vvt {
-
-// VVT PWM state (declared in auxiliaries.h, accessed from global scope)
-using ::vvt1_pwm_value;
-using ::vvt2_pwm_value;
-using ::vvt1_pwm_cur_value;
-using ::vvt2_pwm_cur_value;
-using ::vvt1_pwm_state;
-using ::vvt2_pwm_state;
-using ::vvt1_max_pwm;
-using ::vvt2_max_pwm;
-using ::nextVVT;
-using ::vvt_pwm_max_count;
+// =============================================================================
+// PRIVATE IMPLEMENTATION - Static helpers (file scope)
+// =============================================================================
 
 /**
- * @brief VVT interrupt state machine states
+ * @brief Check if VVT1 should be active
  */
-enum class VVTInterruptState : uint8_t {
-    BOTH_IDLE = 0U,    ///< Both channels idle, ready to start
-    VVT1_FALLING = 1U, ///< VVT1 falling edge
-    VVT2_FALLING = 2U, ///< VVT2 falling edge
-    BOTH_FALLING = 3U  ///< Both channels falling edge
-};
+static inline bool isVVT1Active(void)
+{
+    return (vvt1_pwm_value != 0) && (vvt1_max_pwm == false);
+}
+
+/**
+ * @brief Check if VVT2 should be active
+ */
+static inline bool isVVT2Active(void)
+{
+    return (vvt2_pwm_value != 0) && (vvt2_max_pwm == false);
+}
 
 /**
  * @brief Start VVT1 PWM (rising edge)
  */
-static inline void startVVT1(void) {
-    // Guard clause: already at 0%
-    if ((vvt1_pwm_value == 0) || (vvt1_max_pwm == true)) {
-        return;
-    }
+static inline void startVVT1(void)
+{
+    if (!isVVT1Active()) { return; }
 
 #if defined(CORE_TEENSY41)
     VVT1_PIN_OFF();
@@ -59,11 +52,9 @@ static inline void startVVT1(void) {
 /**
  * @brief Start VVT2 PWM (rising edge)
  */
-static inline void startVVT2(void) {
-    // Guard clause: already at 0%
-    if ((vvt2_pwm_value == 0) || (vvt2_max_pwm == true)) {
-        return;
-    }
+static inline void startVVT2(void)
+{
+    if (!isVVT2Active()) { return; }
 
 #if defined(CORE_TEENSY41)
     VVT2_PIN_OFF();
@@ -74,14 +65,27 @@ static inline void startVVT2(void) {
 }
 
 /**
+ * @brief Check if VVT1 is at max (100%)
+ */
+static inline bool isVVT1AtMax(void)
+{
+    return vvt1_pwm_value >= (long)vvt_pwm_max_count;
+}
+
+/**
+ * @brief Check if VVT2 is at max (100%)
+ */
+static inline bool isVVT2AtMax(void)
+{
+    return vvt2_pwm_value >= (long)vvt_pwm_max_count;
+}
+
+/**
  * @brief Stop VVT1 PWM (falling edge)
  */
-static inline void stopVVT1(void) {
-    // Guard clause: already at 100%
-    if (vvt1_pwm_value >= (long)vvt_pwm_max_count) {
-        vvt1_max_pwm = true;
-        return;
-    }
+static inline void stopVVT1(void)
+{
+    if (isVVT1AtMax()) { vvt1_max_pwm = true; return; }
 
 #if defined(CORE_TEENSY41)
     VVT1_PIN_ON();
@@ -95,12 +99,9 @@ static inline void stopVVT1(void) {
 /**
  * @brief Stop VVT2 PWM (falling edge)
  */
-static inline void stopVVT2(void) {
-    // Guard clause: already at 100%
-    if (vvt2_pwm_value >= (long)vvt_pwm_max_count) {
-        vvt2_max_pwm = true;
-        return;
-    }
+static inline void stopVVT2(void)
+{
+    if (isVVT2AtMax()) { vvt2_max_pwm = true; return; }
 
 #if defined(CORE_TEENSY41)
     VVT2_PIN_ON();
@@ -112,106 +113,136 @@ static inline void stopVVT2(void) {
 }
 
 /**
- * @brief Handle BOTH_IDLE state
- * @details Start new PWM cycle for VVT1 and/or VVT2
+ * @brief Check if VVT1 ends first (or both together)
  */
-static void handleBothIdleState(void) {
-    // Start VVT1 if needed
-    startVVT1();
+static inline bool vvt1EndsFirst(void)
+{
+    if (vvt1_pwm_state == false) { return false; }
+    if (vvt2_pwm_state == false) { return true; }
+    return (vvt1_pwm_value <= vvt2_pwm_value);
+}
 
-    // Start VVT2 if needed
+/**
+ * @brief Schedule VVT1 as next event
+ */
+static inline void scheduleVVT1First(void)
+{
+    SET_COMPARE(VVT_TIMER_COMPARE, VVT_TIMER_COUNTER + vvt1_pwm_value);
+    vvt1_pwm_cur_value = vvt1_pwm_value;
+    vvt2_pwm_cur_value = vvt2_pwm_value;
+    nextVVT = (vvt1_pwm_value == vvt2_pwm_value) ? 2 : 0;
+}
+
+/**
+ * @brief Schedule VVT2 as next event
+ */
+static inline void scheduleVVT2First(void)
+{
+    SET_COMPARE(VVT_TIMER_COMPARE, VVT_TIMER_COUNTER + vvt2_pwm_value);
+    vvt1_pwm_cur_value = vvt1_pwm_value;
+    vvt2_pwm_cur_value = vvt2_pwm_value;
+    nextVVT = 1;
+}
+
+/**
+ * @brief Schedule next cycle (neither active)
+ */
+static inline void scheduleNextCycle(void)
+{
+    SET_COMPARE(VVT_TIMER_COMPARE, VVT_TIMER_COUNTER + vvt_pwm_max_count);
+}
+
+/**
+ * @brief Handle BOTH_IDLE state
+ */
+static void handleBothIdleState(void)
+{
+    startVVT1();
     startVVT2();
 
-    // Determine next event timing
-    if ((vvt1_pwm_state == true) && ((vvt1_pwm_value <= vvt2_pwm_value) || (vvt2_pwm_state == false))) {
-        // VVT1 ends first (or VVT2 not active)
-        SET_COMPARE(VVT_TIMER_COMPARE, VVT_TIMER_COUNTER + vvt1_pwm_value);
-        vvt1_pwm_cur_value = vvt1_pwm_value;
-        vvt2_pwm_cur_value = vvt2_pwm_value;
-
-        if (vvt1_pwm_value == vvt2_pwm_value) {
-            nextVVT = 2;  // Both end simultaneously
-        } else {
-            nextVVT = 0;  // VVT1 ends first
-        }
-    } else if (vvt2_pwm_state == true) {
-        // VVT2 ends first
-        SET_COMPARE(VVT_TIMER_COMPARE, VVT_TIMER_COUNTER + vvt2_pwm_value);
-        vvt1_pwm_cur_value = vvt1_pwm_value;
-        vvt2_pwm_cur_value = vvt2_pwm_value;
-        nextVVT = 1;  // VVT2 ends first
-    } else {
-        // Neither active - schedule next cycle
-        SET_COMPARE(VVT_TIMER_COMPARE, VVT_TIMER_COUNTER + vvt_pwm_max_count);
-    }
+    if (vvt1EndsFirst()) { scheduleVVT1First(); return; }
+    if (vvt2_pwm_state == true) { scheduleVVT2First(); return; }
+    scheduleNextCycle();
 }
 
 /**
  * @brief Handle VVT1_FALLING state
- * @details VVT1 falling edge, schedule VVT2 or both
  */
-static void handleVVT1FallingState(void) {
-    // Stop VVT1
+static void handleVVT1FallingState(void)
+{
     stopVVT1();
+    nextVVT = 1;
 
-    // Schedule next event
-    nextVVT = 1;  // VVT2 is next
-
-    if (vvt2_pwm_state == true) {
-        // VVT2 still running - schedule its end
-        SET_COMPARE(VVT_TIMER_COMPARE, VVT_TIMER_COUNTER + (vvt2_pwm_cur_value - vvt1_pwm_cur_value));
-    } else {
-        // VVT2 not running - schedule end of cycle
-        SET_COMPARE(VVT_TIMER_COMPARE, VVT_TIMER_COUNTER + (vvt_pwm_max_count - vvt1_pwm_cur_value));
-        nextVVT = 2;  // Both end together
-    }
+    if (vvt2_pwm_state == true) { SET_COMPARE(VVT_TIMER_COMPARE, VVT_TIMER_COUNTER + (vvt2_pwm_cur_value - vvt1_pwm_cur_value)); return; }
+    SET_COMPARE(VVT_TIMER_COMPARE, VVT_TIMER_COUNTER + (vvt_pwm_max_count - vvt1_pwm_cur_value));
+    nextVVT = 2;
 }
 
 /**
  * @brief Handle VVT2_FALLING state
- * @details VVT2 falling edge, schedule VVT1 or both
  */
-static void handleVVT2FallingState(void) {
-    // Stop VVT2
+static void handleVVT2FallingState(void)
+{
     stopVVT2();
+    nextVVT = 0;
 
-    // Schedule next event
-    nextVVT = 0;  // VVT1 is next
+    if (vvt1_pwm_state == true) { SET_COMPARE(VVT_TIMER_COMPARE, VVT_TIMER_COUNTER + (vvt1_pwm_cur_value - vvt2_pwm_cur_value)); return; }
+    SET_COMPARE(VVT_TIMER_COMPARE, VVT_TIMER_COUNTER + (vvt_pwm_max_count - vvt2_pwm_cur_value));
+    nextVVT = 2;
+}
 
-    if (vvt1_pwm_state == true) {
-        // VVT1 still running - schedule its end
-        SET_COMPARE(VVT_TIMER_COMPARE, VVT_TIMER_COUNTER + (vvt1_pwm_cur_value - vvt2_pwm_cur_value));
-    } else {
-        // VVT1 not running - schedule end of cycle
-        SET_COMPARE(VVT_TIMER_COMPARE, VVT_TIMER_COUNTER + (vvt_pwm_max_count - vvt2_pwm_cur_value));
-        nextVVT = 2;  // Both end together
-    }
+/**
+ * @brief Handle VVT1 in BOTH_FALLING state
+ */
+static inline void handleVVT1InBothFalling(void)
+{
+    if (isVVT1AtMax()) { vvt1_max_pwm = true; return; }
+    stopVVT1();
+    SET_COMPARE(VVT_TIMER_COMPARE, VVT_TIMER_COUNTER + (vvt_pwm_max_count - vvt1_pwm_cur_value));
+}
+
+/**
+ * @brief Handle VVT2 in BOTH_FALLING state
+ */
+static inline void handleVVT2InBothFalling(void)
+{
+    if (isVVT2AtMax()) { vvt2_max_pwm = true; return; }
+    stopVVT2();
+    SET_COMPARE(VVT_TIMER_COMPARE, VVT_TIMER_COUNTER + (vvt_pwm_max_count - vvt2_pwm_cur_value));
 }
 
 /**
  * @brief Handle BOTH_FALLING state
- * @details Both channels ending simultaneously
  */
-static void handleBothFallingState(void) {
-    // Stop VVT1 (only set compare if PWM < 100%)
-    if (vvt1_pwm_value < (long)vvt_pwm_max_count) {
-        stopVVT1();
-        SET_COMPARE(VVT_TIMER_COMPARE, VVT_TIMER_COUNTER + (vvt_pwm_max_count - vvt1_pwm_cur_value));
-    } else {
-        vvt1_max_pwm = true;
-    }
-
-    // Stop VVT2 (only set compare if PWM < 100%)
-    if (vvt2_pwm_value < (long)vvt_pwm_max_count) {
-        stopVVT2();
-        SET_COMPARE(VVT_TIMER_COMPARE, VVT_TIMER_COUNTER + (vvt_pwm_max_count - vvt2_pwm_cur_value));
-    } else {
-        vvt2_max_pwm = true;
-    }
+static void handleBothFallingState(void)
+{
+    handleVVT1InBothFalling();
+    handleVVT2InBothFalling();
 }
 
-} // namespace vvt
-} // namespace speeduino
+/**
+ * @brief Check if both VVT channels are idle
+ */
+static inline bool areBothIdle(void)
+{
+    bool vvt1Idle = (vvt1_pwm_state == false) || (vvt1_max_pwm == true);
+    bool vvt2Idle = (vvt2_pwm_state == false) || (vvt2_max_pwm == true);
+    return vvt1Idle && vvt2Idle;
+}
+
+/**
+ * @brief Dispatch active state handlers
+ */
+static inline void handleActiveState(void)
+{
+    if (nextVVT == 0) { handleVVT1FallingState(); return; }
+    if (nextVVT == 1) { handleVVT2FallingState(); return; }
+    handleBothFallingState();
+}
+
+// =============================================================================
+// PUBLIC API - Interrupt handler (global scope for ISR)
+// =============================================================================
 
 /**
  * @brief VVT PWM interrupt handler
@@ -224,26 +255,6 @@ ISR(TIMER1_COMPB_vect)  //cppcheck-suppress misra-c2012-8.2
 void vvtInterrupt(void)
 #endif
 {
-    using namespace speeduino::vvt;
-
-    // Determine current state from PWM flags
-    const bool bothIdle = ((vvt1_pwm_state == false) || (vvt1_max_pwm == true)) &&
-                          ((vvt2_pwm_state == false) || (vvt2_max_pwm == true));
-
-    if (bothIdle) {
-        // BOTH_IDLE state - start new cycle
-        handleBothIdleState();
-    } else {
-        // Active state - dispatch based on nextVVT
-        if (nextVVT == 0) {
-            // VVT1 falling edge
-            handleVVT1FallingState();
-        } else if (nextVVT == 1) {
-            // VVT2 falling edge
-            handleVVT2FallingState();
-        } else {
-            // Both falling edges
-            handleBothFallingState();
-        }
-    }
+    if (areBothIdle()) { handleBothIdleState(); return; }
+    handleActiveState();
 }
