@@ -7,30 +7,71 @@
 #include "../../timers.h"
 #include "../../schedule_calcs.h"
 
-namespace {
+// ============================================================================
+// FILE SCOPE HELPERS (moved from namespace to reduce nesting depth)
+// ============================================================================
 
 /// @brief Calculate gap with micros rollover handling
-/// @param current Current time
-/// @param last Last time
-/// @return Gap duration
 static inline unsigned long calculateGapWithRollover(unsigned long current, unsigned long last) {
-    if (current >= last) {
-        return current - last;
-    } else {
-        return (4294967296UL - last + current);
+    if (current >= last) { return current - last; }
+    return (4294967296UL - last + current);
+}
+
+/// @brief Handle per-tooth ignition timing (flattened)
+static inline void handlePerToothIgnition(void) {
+    if (!configPage2.perToothIgn) { return; }
+    int16_t crankAngle = ((toothCurrentCount - 1) * triggerToothAngle) + configPage4.triggerAngle;
+    crankAngle = ignitionLimits(crankAngle);
+    uint16_t currentTooth = toothCurrentCount;
+    bool inSecondHalf = (toothCurrentCount > (triggerActualTeeth / 2));
+    if (inSecondHalf) { currentTooth = (toothCurrentCount - (triggerActualTeeth / 2)); }
+    checkPerToothTiming(crankAngle, currentTooth);
+}
+
+/// @brief Handle initial sync acquisition
+static inline void handleSyncAcquisition(void) {
+    toothCurrentCount = 2;
+    triggerFilterTime = 0;
+    currentStatus.hasSync = true;
+}
+
+/// @brief Handle resync verification
+static inline void handleResyncVerify(void) {
+    bool toothMismatch = (toothCurrentCount != 2) && (currentStatus.startRevolutions > 2);
+    if (toothMismatch) { currentStatus.syncLossCounter++; }
+    if (configPage4.useResync == 1) {
+        toothCurrentCount = 2;
+        currentStatus.hasSync = true;
     }
 }
 
-/// @brief Handle rotation completion and sync validation
-/// @return true if rotation completed
-static inline bool handleRotationCompletion() {
-    if (toothCurrentCount <= triggerActualTeeth) { return false; }
-
-    if ((currentStatus.hasSync == true) && ((lastSyncRevolution) + 3 < currentStatus.startRevolutions)) {
-        currentStatus.hasSync = false;
-        currentStatus.syncLossCounter++;
+/// @brief Detect signature tooth and update sync
+static inline bool detectSignatureTooth(void) {
+    unsigned long targetGap2 = 0;
+    unsigned long targetGap3 = 0;
+    bool validGap = (curGap > 0) && (curGap < 20000000);
+    if (validGap) {
+        targetGap2 = curGap * 110UL / 100UL;
+        targetGap3 = curGap * 90UL / 100UL;
     }
 
+    bool signatureFound = (curGap2 > targetGap2) && (curGap3 < targetGap3) &&
+                          (lastGap < targetGap2) && (lastGap > targetGap3);
+    if (!signatureFound) { return false; }
+
+    bool needsInitialSync = !currentStatus.hasSync || (currentStatus.startRevolutions <= configPage4.StgCycles);
+    if (needsInitialSync) { handleSyncAcquisition(); }
+    else { handleResyncVerify(); }
+
+    lastSyncRevolution = currentStatus.startRevolutions;
+    return true;
+}
+
+/// @brief Handle rotation completion and sync validation
+static inline bool handleRotationCompletion(void) {
+    if (toothCurrentCount <= triggerActualTeeth) { return false; }
+    bool syncLost = currentStatus.hasSync && ((lastSyncRevolution + 3) < currentStatus.startRevolutions);
+    if (syncLost) { currentStatus.hasSync = false; currentStatus.syncLossCounter++; }
     toothCurrentCount = 1;
     toothOneMinusOneTime = toothOneTime;
     toothOneTime = curTime;
@@ -38,51 +79,7 @@ static inline bool handleRotationCompletion() {
     return true;
 }
 
-/// @brief Handle per-tooth ignition timing
-static inline void handlePerToothIgnition() {
-    if (configPage2.perToothIgn == true) {
-        int16_t crankAngle = ((toothCurrentCount - 1) * triggerToothAngle) + configPage4.triggerAngle;
-        crankAngle = ignitionLimits((crankAngle));
-        uint16_t currentTooth = toothCurrentCount;
-        if (toothCurrentCount > (triggerActualTeeth / 2)) {
-            currentTooth = (toothCurrentCount - (triggerActualTeeth / 2));
-        }
-        checkPerToothTiming(crankAngle, currentTooth);
-    }
-}
-
-/// @brief Detect signature tooth and update sync
-/// @return true if signature detected
-static inline bool detectSignatureTooth() {
-    unsigned long targetGap2 = 0;
-    unsigned long targetGap3 = 0;
-
-    if ((curGap > 0) && (curGap < 20000000)) {
-        targetGap2 = curGap * 110UL / 100UL;
-        targetGap3 = curGap * 90UL / 100UL;
-    }
-
-    if ((curGap2 > targetGap2) && (curGap3 < targetGap3) && (lastGap < targetGap2) && (lastGap > targetGap3)) {
-        if ((currentStatus.hasSync == false) || (currentStatus.startRevolutions <= configPage4.StgCycles)) {
-            toothCurrentCount = 2;
-            triggerFilterTime = 0;
-            currentStatus.hasSync = true;
-        } else {
-            if ((toothCurrentCount != 2) && (currentStatus.startRevolutions > 2)) {
-                currentStatus.syncLossCounter++;
-            }
-            if (configPage4.useResync == 1) {
-                toothCurrentCount = 2;
-                currentStatus.hasSync = true;
-            }
-        }
-        lastSyncRevolution = currentStatus.startRevolutions;
-        return true;
-    }
-    return false;
-}
-
-} // anonymous namespace
+// (All helpers moved to file scope above to reduce nesting depth)
 
 void triggerSetup_FordTFI(void) {
     triggerActualTeeth = configPage2.nCylinders;

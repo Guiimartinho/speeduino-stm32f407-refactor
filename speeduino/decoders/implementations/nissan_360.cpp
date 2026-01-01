@@ -7,7 +7,9 @@
 #include "../../timers.h"
 #include "../../schedule_calcs.h"
 
-namespace {
+// ============================================================================
+// FILE SCOPE HELPERS (moved from namespace to reduce nesting depth)
+// ============================================================================
 
 struct Nissan360WindowConfig {
     uint8_t nCylinders;
@@ -25,20 +27,30 @@ static const Nissan360WindowConfig nissan360WindowConfigs[] PROGMEM = {
     {8,  6,  8, 56}
 };
 
+/// @brief Check if config matches cylinder and duration
+static inline bool configMatches(const Nissan360WindowConfig* cfg, uint8_t nCyl, uint8_t dur) {
+    return (cfg->nCylinders == nCyl) && (dur >= cfg->durationMin) && (dur <= cfg->durationMax);
+}
+
 static inline bool processNissan360Window(uint8_t secondaryDuration, uint8_t nCylinders, uint16_t* outToothCount)
 {
     const uint8_t configCount = sizeof(nissan360WindowConfigs) / sizeof(Nissan360WindowConfig);
     for (uint8_t i = 0; i < configCount; i++) {
         const Nissan360WindowConfig* cfg = &nissan360WindowConfigs[i];
-        if (cfg->nCylinders == nCylinders && secondaryDuration >= cfg->durationMin && secondaryDuration <= cfg->durationMax) {
-            *outToothCount = cfg->targetToothCount;
-            return true;
-        }
+        if (configMatches(cfg, nCylinders, secondaryDuration)) { *outToothCount = cfg->targetToothCount; return true; }
     }
     return false;
 }
 
-} // namespace
+/// @brief Handle per-tooth ignition for Nissan360 (file scope)
+static inline void handlePerToothIgnitionNissan360(void)
+{
+    if (!configPage2.perToothIgn) { return; }
+    int16_t crankAngle = ((toothCurrentCount-1) * 2) + configPage4.triggerAngle;
+    bool angleOverflow = (crankAngle > CRANK_ANGLE_MAX_IGN);
+    if (angleOverflow) { crankAngle -= CRANK_ANGLE_MAX_IGN; checkPerToothTiming(crankAngle, (toothCurrentCount/2)); }
+    else { checkPerToothTiming(crankAngle, toothCurrentCount); }
+}
 
 void triggerSetup_Nissan360(void)
 {
@@ -73,16 +85,7 @@ void triggerPri_Nissan360(void)
             currentStatus.startRevolutions++;
         }
         setFilter(curGap);
-
-        if (configPage2.perToothIgn == true) {
-            int16_t crankAngle = ((toothCurrentCount-1) * 2) + configPage4.triggerAngle;
-            if (crankAngle > CRANK_ANGLE_MAX_IGN) {
-                crankAngle -= CRANK_ANGLE_MAX_IGN;
-                checkPerToothTiming(crankAngle, (toothCurrentCount/2));
-            } else {
-                checkPerToothTiming(crankAngle, toothCurrentCount);
-            }
-        }
+        handlePerToothIgnitionNissan360();
     }
 }
 

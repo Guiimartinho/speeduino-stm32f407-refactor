@@ -29,6 +29,21 @@
 #include "../../timers.h"
 #include "../../schedule_calcs.h"
 
+// ============================================================================
+// FILE SCOPE HELPERS (moved from namespace to reduce nesting depth)
+// ============================================================================
+
+/**
+ * @brief Handle fixed cranking timing (file scope)
+ * @details Ends coil charge at specific teeth
+ */
+static inline void handleFixedCrankTiming(uint8_t toothCount) {
+    bool isCranking = BIT_CHECK(currentStatus.engine, BIT_ENGINE_CRANK) && configPage4.ignCranklock;
+    if (!isCranking) { return; }
+    if (toothCount == 1) { endCoil1Charge(); }
+    else if (toothCount == 3) { endCoil2Charge(); }
+}
+
 // Anonymous namespace for private implementation
 namespace {
 
@@ -74,21 +89,7 @@ static inline void handleRevolutionBoundary(void) {
     currentStatus.startRevolutions++;
 }
 
-/**
- * @brief Handle fixed cranking timing
- * @details Ends coil charge at specific teeth
- * @param toothCount Current tooth count
- * @complexity 2
- */
-static inline void handleFixedCrankTiming(uint8_t toothCount) {
-    if (BIT_CHECK(currentStatus.engine, BIT_ENGINE_CRANK) && configPage4.ignCranklock) {
-        if (toothCount == 1) {
-            endCoil1Charge();
-        } else if (toothCount == 3) {
-            endCoil2Charge();
-        }
-    }
-}
+// handleFixedCrankTiming moved to file scope above
 
 /**
  * @brief Update trigger filter based on tooth position

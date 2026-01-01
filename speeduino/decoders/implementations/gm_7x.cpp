@@ -215,19 +215,15 @@ void triggerPri_GM7X(void)
     BIT_SET(decoderState, BIT_DECODER_VALID_TRIGGER);
 
     // Guard clause: need timing history for gap detection
-    if ((toothLastToothTime > 0U) && (toothLastMinusOneToothTime > 0U)) {
-        // Check for revolution boundary (overflow)
-        if (toothCurrentCount > TOTAL_TEETH) {
-            handleRevolutionBoundary();
-        } else {
-            // Check for narrow tooth (sync point)
-            if (isNarrowToothDetected(curGap, lastGap)) {
-                handleNarrowToothSync();
-            } else {
-                handleRegularTooth();
-            }
-        }
-    }
+    bool hasTimingHistory = (toothLastToothTime > 0U) && (toothLastMinusOneToothTime > 0U);
+    if (!hasTimingHistory) { goto skip_sync_check; }
+
+    // Check for revolution boundary (overflow)
+    if (toothCurrentCount > TOTAL_TEETH) { handleRevolutionBoundary(); }
+    else if (isNarrowToothDetected(curGap, lastGap)) { handleNarrowToothSync(); }
+    else { handleRegularTooth(); }
+
+skip_sync_check:
 
     // Handle per-tooth ignition if enabled
     if (configPage2.perToothIgn) {

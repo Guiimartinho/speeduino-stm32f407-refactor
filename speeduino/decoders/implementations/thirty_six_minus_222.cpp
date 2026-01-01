@@ -7,115 +7,90 @@
 #include "../../timers.h"
 #include "../../schedule_calcs.h"
 
-namespace {
+// ============================================================================
+// FILE SCOPE HELPERS (moved from namespace to reduce nesting depth)
+// ============================================================================
 
 /// FASE P: ThirtySixMinus222 missing tooth sync configuration
-/// @brief Subaru 36-2-2-2 pattern uses two double-gaps for sync
-/// toothSystemCount tracks state: 0=normal, 1=saw first double-gap
 struct ThirtySixMinus222SyncConfig {
-    uint8_t nCylinders;        ///< Engine cylinder count (4 or 6)
-    uint8_t systemCountState;  ///< toothSystemCount value (0 or 1)
-    uint16_t targetToothCount; ///< Tooth count to set for this sync point
+    uint8_t nCylinders;
+    uint8_t systemCountState;
+    uint16_t targetToothCount;
 };
 
-/// @brief Static configuration table for 36-2-2-2 sync points
-/// After second double-gap (systemCount=1, double-gap detected): first tooth after 2x2 missing
-/// After single tooth following first gap (systemCount=1, no double-gap): single missing tooth
 static const ThirtySixMinus222SyncConfig syncConfigs[] PROGMEM = {
-    {4, 1, 19},  ///< H4: tooth 19 is first after 2x2 missing
-    {6, 1, 12},  ///< H6: tooth 12 is first after 2x2 missing
-    {4, 0, 35},  ///< H4: tooth 35 is after single missing
-    {6, 0, 34}   ///< H6: tooth 34 is after single missing
+    {4, 1, 19}, {6, 1, 12}, {4, 0, 35}, {6, 0, 34}
 };
 
-/// @brief Get sync tooth count for ThirtySixMinus222 pattern
-/// @param nCylinders Engine cylinder count (4 or 6)
-/// @param systemCountState toothSystemCount state (0 or 1)
-/// @return Tooth count to set
+/// @brief Match sync config
+static inline bool matchSyncConfig(const ThirtySixMinus222SyncConfig* cfg, uint8_t nCyl, uint8_t state) {
+    return (cfg->nCylinders == nCyl) && (cfg->systemCountState == state);
+}
+
 static inline uint16_t getSyncTooth(uint8_t nCylinders, uint8_t systemCountState) {
     const uint8_t configCount = sizeof(syncConfigs) / sizeof(ThirtySixMinus222SyncConfig);
-
     for (uint8_t i = 0; i < configCount; i++) {
         const ThirtySixMinus222SyncConfig* cfg = &syncConfigs[i];
-
-        if (cfg->nCylinders == nCylinders && cfg->systemCountState == systemCountState) {
-            return cfg->targetToothCount;
-        }
+        if (matchSyncConfig(cfg, nCylinders, systemCountState)) { return cfg->targetToothCount; }
     }
-
-    return 0; ///< Should never reach here
+    return 0;
 }
 
 /// FASE Q: ThirtySixMinus222 RPM excluded teeth configuration
-/// @brief Certain teeth near missing tooth gaps cannot be used for RPM calculation
 struct ThirtySixMinus222RPMExclusion {
-    uint8_t nCylinders;    ///< Engine cylinder count
-    uint8_t excludedTooth; ///< Tooth number to exclude
+    uint8_t nCylinders;
+    uint8_t excludedTooth;
 };
 
-/// @brief Table of teeth excluded from RPM calculation
 static const ThirtySixMinus222RPMExclusion rpmExclusions[] PROGMEM = {
-    {4, 19}, {4, 16}, {4, 34},  ///< H4 excluded teeth
-    {6,  9}, {6, 12}, {6, 33}   ///< H6 excluded teeth
+    {4, 19}, {4, 16}, {4, 34}, {6, 9}, {6, 12}, {6, 33}
 };
 
-/// @brief Check if current tooth is excluded from RPM calculation
-/// @param nCyl Engine cylinder count
-/// @param toothCount Current tooth number
-/// @return true if tooth should be excluded from RPM calculation
+/// @brief Match exclusion
+static inline bool matchExclusion(const ThirtySixMinus222RPMExclusion* excl, uint8_t nCyl, uint8_t tooth) {
+    return (excl->nCylinders == nCyl) && (excl->excludedTooth == tooth);
+}
+
 static inline bool isToothExcludedFromRPM(uint8_t nCyl, uint8_t toothCount) {
     const uint8_t exclusionCount = sizeof(rpmExclusions) / sizeof(ThirtySixMinus222RPMExclusion);
-
     for (uint8_t i = 0; i < exclusionCount; i++) {
         const ThirtySixMinus222RPMExclusion* excl = &rpmExclusions[i];
-        if (excl->nCylinders == nCyl && excl->excludedTooth == toothCount) {
-            return true;
-        }
+        if (matchExclusion(excl, nCyl, toothCount)) { return true; }
     }
     return false;
 }
 
 /// FASE N: ThirtySixMinus222 end teeth configuration (data-driven)
-/// @brief Subaru H4 and H6 engines use 36-2-2-2 crank pattern
-/// End tooth varies by advance timing to prevent coil overlap
 struct ThirtySixMinus222EndTeethConfig {
-    uint8_t nCylinders;      ///< Engine cylinder count (4 or 6)
-    uint8_t ignitionChannel; ///< Ignition channel number (1, 2, or 3)
-    uint8_t advanceMax;      ///< Maximum advance for this tooth (degrees)
-    uint16_t endTooth;       ///< End tooth for this advance range
+    uint8_t nCylinders;
+    uint8_t ignitionChannel;
+    uint8_t advanceMax;
+    uint16_t endTooth;
 };
 
-/// @brief Static configuration table for 36-2-2-2 end teeth
-/// H4 (4-cylinder): 2 ignition channels with advance-based tooth selection
-/// H6 (6-cylinder): 3 ignition channels with advance-based tooth selection
 static const ThirtySixMinus222EndTeethConfig endTeethConfigs[] PROGMEM = {
-    {4, 1, 10, 36},  {4, 1, 20, 35},  {4, 1, 30, 34},  {4, 1, 255, 31},
-    {4, 2, 30, 16},  {4, 2, 255, 13},
-    {6, 1, 10, 36},  {6, 1, 20, 35},  {6, 1, 30, 34},  {6, 1, 40, 33},  {6, 1, 255, 31},
-    {6, 2, 20, 9},   {6, 2, 255, 6},
-    {6, 3, 10, 23},  {6, 3, 20, 22},  {6, 3, 30, 21},  {6, 3, 40, 20},  {6, 3, 255, 19}
+    {4, 1, 10, 36}, {4, 1, 20, 35}, {4, 1, 30, 34}, {4, 1, 255, 31},
+    {4, 2, 30, 16}, {4, 2, 255, 13},
+    {6, 1, 10, 36}, {6, 1, 20, 35}, {6, 1, 30, 34}, {6, 1, 40, 33}, {6, 1, 255, 31},
+    {6, 2, 20, 9},  {6, 2, 255, 6},
+    {6, 3, 10, 23}, {6, 3, 20, 22}, {6, 3, 30, 21}, {6, 3, 40, 20}, {6, 3, 255, 19}
 };
 
-/// @brief Set end tooth using data-driven lookup
-/// @param nCylinders Engine cylinder count
-/// @param channel Ignition channel number
-/// @param advance Current advance (degrees)
-/// @return End tooth number
+/// @brief Match end teeth config
+static inline bool matchEndTeethConfig(const ThirtySixMinus222EndTeethConfig* cfg, uint8_t nCyl, uint8_t ch, uint8_t adv) {
+    return (cfg->nCylinders == nCyl) && (cfg->ignitionChannel == ch) && (adv < cfg->advanceMax);
+}
+
 static inline uint16_t getEndTooth(uint8_t nCylinders, uint8_t channel, uint8_t advance) {
     const uint8_t configCount = sizeof(endTeethConfigs) / sizeof(ThirtySixMinus222EndTeethConfig);
-
     for (uint8_t i = 0; i < configCount; i++) {
         const ThirtySixMinus222EndTeethConfig* cfg = &endTeethConfigs[i];
-
-        if (cfg->nCylinders == nCylinders &&
-            cfg->ignitionChannel == channel &&
-            advance < cfg->advanceMax) {
-            return cfg->endTooth;
-        }
+        if (matchEndTeethConfig(cfg, nCylinders, channel, advance)) { return cfg->endTooth; }
     }
-
-    return 0; ///< Should never reach here
+    return 0;
 }
+
+namespace {
 
 /// @brief Process missing tooth detection and sync
 /// @param gapMult Gap multiplier detected

@@ -33,6 +33,79 @@
 // (Lines 1532-1642 already refactored with data-driven approach)
 extern void apply4G63FilterConfig(uint8_t filterLevel, bool isOddTooth, uint8_t nCylinders, uint32_t curGap);
 
+// ============================================================================
+// FILE SCOPE HELPERS - Sync Detection (moved to reduce nesting)
+// ============================================================================
+
+// Helper: Handle 4-cylinder sync detection from falling edge
+static inline void detectSync4CylFallingEdge(bool secHigh)
+{
+  if (!secHigh) { toothCurrentCount = 1U; }
+  else { toothCurrentCount = 5U; }
+}
+
+// Helper: Handle 6-cylinder sync detection from falling edge
+static inline void detectSync6CylFallingEdge(bool secHigh)
+{
+  if (secHigh) { toothCurrentCount = 2U; currentStatus.hasSync = true; }
+}
+
+// Helper: Attempt sync for 4-cylinder based on crank state
+static inline bool attemptSync4Cyl(bool priHigh, uint16_t toothCount)
+{
+  if (priHigh) { return (toothCount == 8U); }
+  return (toothCount == 5U);
+}
+
+// Helper: Attempt sync for 6-cylinder
+static inline bool attemptSync6Cyl(bool priHigh, uint16_t toothCount)
+{
+  if (priHigh) { return (toothCount == 7U); }
+  return false;
+}
+
+// Helper: Verify sync for 4-cylinder
+static inline void verifySync4Cyl(bool priHigh, uint16_t toothCount)
+{
+  if (!priHigh) { return; }
+  if (toothCount != 8U) { currentStatus.hasSync = false; currentStatus.syncLossCounter++; }
+  else { toothCurrentCount = 8U; }
+}
+
+// Helper: Detect sync from trigger states (moved from namespace to reduce nesting)
+static inline void detectSyncFromTriggerStates(uint8_t nCylinders)
+{
+  bool priHigh = READ_PRI_TRIGGER();
+  bool secHigh = READ_SEC_TRIGGER();
+
+  // Crank rising edge: record cam state
+  if (priHigh) { revolutionOne = secHigh; return; }
+
+  // Guard: revolution tracking not started
+  if (!revolutionOne) { return; }
+
+  // Crank falling edge: set tooth position based on cylinder count and cam state
+  if (nCylinders == 4U) { detectSync4CylFallingEdge(secHigh); }
+  else if ((nCylinders == 6U) && secHigh) { detectSync6CylFallingEdge(secHigh); }
+}
+
+// Helper: Attempt secondary sync (moved from namespace to reduce nesting)
+static inline bool attemptSecondarySync(uint8_t nCylinders, uint16_t toothCount)
+{
+  bool priHigh = READ_PRI_TRIGGER();
+  if (nCylinders == 4U) { return attemptSync4Cyl(priHigh, toothCount); }
+  if (nCylinders == 6U) { return attemptSync6Cyl(priHigh, toothCount); }
+  return false;
+}
+
+// Helper: Verify secondary sync (moved from namespace to reduce nesting)
+static inline void verifySecondarySync(uint8_t nCylinders, uint16_t toothCount)
+{
+  if (nCylinders != 4U) { return; }
+  if (!currentStatus.hasSync) { return; }
+  verifySync4Cyl(READ_PRI_TRIGGER(), toothCount);
+}
+
 // Anonymous namespace for private implementation
 namespace {
 
@@ -233,122 +306,6 @@ static inline void handlePerToothIgnition(uint16_t toothCount, uint8_t nCylinder
     }
 
     checkPerToothTiming(crankAngle, logicalTooth);
-}
-
-// ============================================================================
-// HELPER FUNCTIONS - Sync Detection (No Sync State)
-// ============================================================================
-
-/**
- * @brief Detect sync from primary and secondary trigger states
- * @details Uses cam signal to determine tooth position
- * @param nCylinders Number of cylinders
- * @complexity 8
- */
-static inline void detectSyncFromTriggerStates(uint8_t nCylinders) {
-    // Read current trigger states
-    bool priHigh = READ_PRI_TRIGGER();
-    bool secHigh = READ_SEC_TRIGGER();
-
-    // Crank rising edge: record cam state
-    if (priHigh) {
-        revolutionOne = secHigh;
-        return;
-    }
-
-    // Crank falling edge: check combinations
-    // Guard clause: revolution tracking not started
-    if (!revolutionOne) {
-        return;
-    }
-
-    // Crank LOW + Cam LOW + started on Cam HIGH
-    if (!secHigh) {
-        // 4-cylinder: tooth 1 position (5� BTDC)
-        if (nCylinders == 4U) {
-            toothCurrentCount = 1U;
-        }
-        return;
-    }
-
-    // Crank LOW + Cam HIGH + started on Cam HIGH
-    if (nCylinders == 4U) {
-        // 4-cylinder: tooth 5 position (5� BTDC on second revolution)
-        toothCurrentCount = 5U;
-    } else if (nCylinders == 6U) {
-        // 6-cylinder: tooth 2 position (45� ATDC)
-        toothCurrentCount = 2U;
-        currentStatus.hasSync = true;
-    }
-}
-
-// ============================================================================
-// HELPER FUNCTIONS - Secondary Trigger Sync
-// ============================================================================
-
-/**
- * @brief Attempt to gain sync from secondary trigger
- * @param nCylinders Number of cylinders
- * @param toothCount Current tooth count
- * @return true if sync gained
- * @complexity 6
- */
-static inline bool attemptSecondarySync(uint8_t nCylinders, uint16_t toothCount) {
-    bool priHigh = READ_PRI_TRIGGER();
-
-    // 4-cylinder sync points
-    if (nCylinders == 4U) {
-        if (priHigh) {
-            // Crank HIGH: tooth 8 position
-            return (toothCount == 8U);
-        } else {
-            // Crank LOW: tooth 5 position
-            return (toothCount == 5U);
-        }
-    }
-
-    // 6-cylinder sync points
-    if (nCylinders == 6U) {
-        // Only gain sync when crank HIGH at tooth 7
-        if (priHigh) {
-            return (toothCount == 7U);
-        }
-    }
-
-    return false;
-}
-
-/**
- * @brief Verify sync from secondary trigger (resync)
- * @param nCylinders Number of cylinders
- * @param toothCount Current tooth count
- * @complexity 5
- */
-static inline void verifySecondarySync(uint8_t nCylinders, uint16_t toothCount) {
-    // Guard clause: only 4-cylinder supported for resync
-    if (nCylinders != 4U) {
-        return;
-    }
-
-    // Guard clause: no sync
-    if (!currentStatus.hasSync) {
-        return;
-    }
-
-    bool priHigh = READ_PRI_TRIGGER();
-
-    // Verify tooth position matches expected
-    if (priHigh) {
-        // Should be at tooth 8
-        if (toothCount != 8U) {
-            // Noise pulse detected - lose sync
-            currentStatus.hasSync = false;
-            currentStatus.syncLossCounter++;
-        } else {
-            // Force tooth count (why?)
-            toothCurrentCount = 8U;
-        }
-    }
 }
 
 } // anonymous namespace

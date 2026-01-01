@@ -7,10 +7,11 @@
 #include "../../timers.h"
 #include "../../schedule_calcs.h"
 
-namespace {
+// ============================================================================
+// FILE SCOPE HELPERS (moved from namespace to reduce nesting depth)
+// ============================================================================
 
 /// FASE R: DSM 420a sync configuration
-/// @brief Sync determined by primary signal state when secondary falls
 struct DSM420aSyncConfig {
     bool priTriggerState;       ///< Expected primary trigger state (HIGH or LOW)
     uint8_t expectedToothCount; ///< Tooth count for this sync point
@@ -22,29 +23,32 @@ static const DSM420aSyncConfig syncConfigs[2] PROGMEM = {
     {false,  5}   ///< Primary LOW when secondary falls -> tooth 5
 };
 
-/// @brief Validate and set DSM 420a sync based on primary state
-/// @param priState Primary trigger state
-/// @param hasSync Current sync status
-/// @param currentToothCount Current tooth count
-static inline void processDSM420aSync(bool priState, bool hasSync, uint8_t currentToothCount) {
-    uint8_t expectedTooth = 0;
+/// @brief Get expected tooth count from primary state
+static inline uint8_t getExpectedTooth(bool priState) {
     for (uint8_t i = 0; i < 2; i++) {
-        if (syncConfigs[i].priTriggerState == priState) {
-            expectedTooth = syncConfigs[i].expectedToothCount;
-            break;
-        }
+        if (syncConfigs[i].priTriggerState == priState) { return syncConfigs[i].expectedToothCount; }
     }
+    return 0;
+}
 
-    if (hasSync == false) {
+/// @brief Validate and set DSM 420a sync based on primary state (file scope)
+static inline void processDSM420aSync(bool priState, bool hasSync, uint8_t currentToothCount) {
+    uint8_t expectedTooth = getExpectedTooth(priState);
+
+    if (!hasSync) {
         toothCurrentCount = expectedTooth;
         currentStatus.hasSync = true;
-    } else {
-        if (currentToothCount != expectedTooth) {
-            currentStatus.syncLossCounter++;
-            toothCurrentCount = expectedTooth;
-        }
+        return;
+    }
+    if (currentToothCount != expectedTooth) {
+        currentStatus.syncLossCounter++;
+        toothCurrentCount = expectedTooth;
     }
 }
+
+namespace {
+
+// processDSM420aSync and syncConfigs moved to file scope
 
 /// @brief Initialize tooth angle lookup table
 static inline void initToothAngles() {

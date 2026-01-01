@@ -28,6 +28,27 @@
 #include "../../timers.h"
 #include "../../schedule_calcs.h"
 
+// ============================================================================
+// FILE SCOPE HELPERS (moved from namespace to reduce nesting depth)
+// ============================================================================
+
+/**
+ * @brief Handle regular tooth increment
+ * @details Increments tooth counter with overflow detection
+ * @return true if valid increment, false if overflow detected
+ */
+static inline bool handleToothIncrement(void) {
+    if (toothCurrentCount < triggerActualTeeth) {
+        toothCurrentCount++;
+        return true;
+    }
+    // Overflow detected - sync loss
+    bool hadSync = currentStatus.hasSync;
+    if (hadSync) { currentStatus.syncLossCounter++; }
+    currentStatus.hasSync = false;
+    return false;
+}
+
 // Anonymous namespace for private implementation
 namespace {
 
@@ -64,27 +85,7 @@ static inline void handleRevolutionBoundary(void) {
     currentStatus.startRevolutions++;
 }
 
-/**
- * @brief Handle regular tooth increment
- * @details Increments tooth counter with overflow detection
- * @return true if valid increment, false if overflow detected
- * @complexity 4
- */
-static inline bool handleToothIncrement(void) {
-    // Guard clause: already at max teeth
-    if (toothCurrentCount >= triggerActualTeeth) {
-        // Overflow detected - sync loss
-        if (currentStatus.hasSync) {
-            currentStatus.syncLossCounter++;
-            currentStatus.hasSync = false;
-        }
-        return false;
-    }
-
-    // Valid increment
-    toothCurrentCount++;
-    return true;
-}
+// handleToothIncrement moved to file scope above
 
 /**
  * @brief Update adaptive trigger filter

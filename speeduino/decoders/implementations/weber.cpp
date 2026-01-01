@@ -7,54 +7,34 @@
 #include "../../timers.h"
 #include "../../schedule_calcs.h"
 
-namespace {
+// ============================================================================
+// FILE SCOPE HELPERS (moved from namespace to reduce nesting depth)
+// ============================================================================
 
-/// FASE S: Weber sync state machine (explicit enum-based)
-/// @brief State determined by combination of secondaryToothCount, checkSyncToothCount, hasSync, toothCurrentCount
-enum WeberSyncState {
-    WEBER_SYNC_SECOND_CAM_RESTART,  ///< secondaryToothCount==2 && checkSyncToothCount==3
-    WEBER_SYNC_FIRST_START,         ///< !hasSync && toothCurrentCount>=3 && secondaryToothCount==0
-    WEBER_SYNC_OTHER                ///< All other cases (noise/normal)
-};
-
-/// @brief Determine Weber sync state
-/// @param secCount Secondary tooth count
-/// @param checkCount Check sync tooth count
-/// @param hasSync Current sync status
-/// @param toothCount Current tooth count
-/// @return Sync state
-static inline WeberSyncState getWeberSyncState(uint8_t secCount, uint8_t checkCount, bool hasSync, uint8_t toothCount) {
-    if ((secCount == 2) && (checkCount == 3)) {
-        return WEBER_SYNC_SECOND_CAM_RESTART;
-    } else if ((hasSync == false) && (toothCount >= 3) && (secCount == 0)) {
-        return WEBER_SYNC_FIRST_START;
-    } else {
-        return WEBER_SYNC_OTHER;
-    }
+/// @brief Handle sync verification for second CAM restart
+static inline void verifySyncOnSecondCam(void) {
+    bool toothMismatch = (toothCurrentCount != (configPage4.triggerTeeth - 1U)) && (currentStatus.startRevolutions > 2U);
+    if (toothMismatch) { currentStatus.syncLossCounter++; }
+    if (configPage4.useResync == 1) { toothCurrentCount = configPage4.triggerTeeth - 1; }
 }
 
-/// @brief Handle second CAM restart case
-static inline void handleSecondCamRestart() {
-    if (currentStatus.hasSync == false) {
+/// @brief Handle second CAM restart case (file scope)
+static inline void handleSecondCamRestart(void) {
+    if (!currentStatus.hasSync) {
         toothLastToothTime = micros();
         toothLastMinusOneToothTime = micros() - 1500000;
         toothCurrentCount = configPage4.triggerTeeth - 1;
         currentStatus.hasSync = true;
     } else {
-        if ((toothCurrentCount != (configPage4.triggerTeeth - 1U)) && (currentStatus.startRevolutions > 2U)) {
-            currentStatus.syncLossCounter++;
-        }
-        if (configPage4.useResync == 1) {
-            toothCurrentCount = configPage4.triggerTeeth - 1;
-        }
+        verifySyncOnSecondCam();
     }
     revolutionOne = 1;
     triggerSecFilterTime = curGap << 2;
     secondaryToothCount = 1;
 }
 
-/// @brief Handle first start case
-static inline void handleFirstStart() {
+/// @brief Handle first start case (file scope)
+static inline void handleFirstStart(void) {
     toothLastToothTime = micros();
     toothLastMinusOneToothTime = micros() - 1500000;
     toothCurrentCount = 1;
@@ -62,24 +42,43 @@ static inline void handleFirstStart() {
     currentStatus.hasSync = true;
 }
 
-/// @brief Handle other sync cases
-static inline void handleOtherSync() {
+/// @brief Handle other sync cases (file scope)
+static inline void handleOtherSync(void) {
     triggerSecFilterTime = curGap + (curGap >> 1);
     secondaryToothCount++;
     checkSyncToothCount = 1;
 }
 
-/// @brief Handle per-tooth ignition timing
-static inline void handlePerToothIgnition() {
-    if ((configPage2.perToothIgn == true) && (!BIT_CHECK(currentStatus.engine, BIT_ENGINE_CRANK))) {
-        int16_t crankAngle = ((toothCurrentCount - 1) * triggerToothAngle) + configPage4.triggerAngle;
-        if ((configPage4.sparkMode == IGN_MODE_SEQUENTIAL) && (revolutionOne == true) && (configPage4.TrigSpeed == CRANK_SPEED)) {
-            crankAngle += 360;
-            checkPerToothTiming(crankAngle, (configPage4.triggerTeeth + toothCurrentCount));
-        } else {
-            checkPerToothTiming(crankAngle, toothCurrentCount);
-        }
+/// @brief Handle per-tooth ignition timing (file scope)
+static inline void handlePerToothIgnition(void) {
+    if (!configPage2.perToothIgn) { return; }
+    if (BIT_CHECK(currentStatus.engine, BIT_ENGINE_CRANK)) { return; }
+
+    int16_t crankAngle = ((toothCurrentCount - 1) * triggerToothAngle) + configPage4.triggerAngle;
+    bool isSequentialSecondRev = (configPage4.sparkMode == IGN_MODE_SEQUENTIAL) &&
+                                  (revolutionOne == true) && (configPage4.TrigSpeed == CRANK_SPEED);
+    if (isSequentialSecondRev) {
+        crankAngle += 360;
+        checkPerToothTiming(crankAngle, (configPage4.triggerTeeth + toothCurrentCount));
+    } else {
+        checkPerToothTiming(crankAngle, toothCurrentCount);
     }
+}
+
+namespace {
+
+/// FASE S: Weber sync state machine (explicit enum-based)
+enum WeberSyncState {
+    WEBER_SYNC_SECOND_CAM_RESTART,  ///< secondaryToothCount==2 && checkSyncToothCount==3
+    WEBER_SYNC_FIRST_START,         ///< !hasSync && toothCurrentCount>=3 && secondaryToothCount==0
+    WEBER_SYNC_OTHER                ///< All other cases (noise/normal)
+};
+
+/// @brief Determine Weber sync state
+static inline WeberSyncState getWeberSyncState(uint8_t secCount, uint8_t checkCount, bool hasSync, uint8_t toothCount) {
+    if ((secCount == 2) && (checkCount == 3)) { return WEBER_SYNC_SECOND_CAM_RESTART; }
+    if (!hasSync && (toothCount >= 3) && (secCount == 0)) { return WEBER_SYNC_FIRST_START; }
+    return WEBER_SYNC_OTHER;
 }
 
 } // anonymous namespace

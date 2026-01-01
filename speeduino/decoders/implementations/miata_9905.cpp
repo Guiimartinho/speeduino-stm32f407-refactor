@@ -30,133 +30,104 @@
 #include "../../timers.h"
 #include "../../schedule_calcs.h"
 
-// Anonymous namespace for private implementation
-namespace {
-
 // ============================================================================
-// CONSTANTS
+// CONSTANTS (file scope)
 // ============================================================================
 
 /** @brief Number of actual physical teeth */
-constexpr uint8_t ACTUAL_TEETH_COUNT = 8U;
+static constexpr uint8_t ACTUAL_TEETH_COUNT = 8U;
 
 /** @brief Tooth count indicating no sync */
-constexpr uint8_t NO_SYNC_TOOTH_COUNT = 99U;
+static constexpr uint8_t NO_SYNC_TOOTH_COUNT = 99U;
 
 /** @brief Degrees per tooth (nominal, alternates between 70 and 110) */
-constexpr uint8_t NOMINAL_TOOTH_ANGLE_DEG = 90U;
+static constexpr uint8_t NOMINAL_TOOTH_ANGLE_DEG = 90U;
 
 /** @brief Odd tooth angle (teeth 1,3,5,7) */
-constexpr uint8_t ODD_TOOTH_ANGLE_DEG = 70U;
+static constexpr uint8_t ODD_TOOTH_ANGLE_DEG = 70U;
 
 /** @brief Even tooth angle (teeth 2,4,6,8) */
-constexpr uint8_t EVEN_TOOTH_ANGLE_DEG = 110U;
+static constexpr uint8_t EVEN_TOOTH_ANGLE_DEG = 110U;
 
 /** @brief Initial filter time in microseconds */
-constexpr uint16_t INITIAL_FILTER_TIME_US = 1500U;
+static constexpr uint16_t INITIAL_FILTER_TIME_US = 1500U;
 
 /** @brief Tooth after double cam pulse */
-constexpr uint8_t TOOTH_AFTER_DOUBLE_CAM = 6U;
+static constexpr uint8_t TOOTH_AFTER_DOUBLE_CAM = 6U;
 
 /** @brief Secondary tooth count for double pulse */
-constexpr uint8_t DOUBLE_CAM_PULSE_COUNT = 2U;
+static constexpr uint8_t DOUBLE_CAM_PULSE_COUNT = 2U;
 
 /** @brief Minimum RPM threshold for filter switching */
-constexpr uint16_t FILTER_RPM_THRESHOLD = 1400U;
+static constexpr uint16_t FILTER_RPM_THRESHOLD = 1400U;
 
 /** @brief Minimum RPM in microseconds (50 RPM) */
-constexpr uint32_t MIN_RPM_STALL_TIME_US = 366667UL;
+static constexpr uint32_t MIN_RPM_STALL_TIME_US = 366667UL;
 
 /** @brief Crank angle for VVT calculation */
-constexpr int16_t VVT_ANGLE_BASE = 370;
+static constexpr int16_t VVT_ANGLE_BASE = 370;
 
 /** @brief Minimum advance for ignition end tooth calculation */
-constexpr int16_t MIN_ADVANCE_FOR_END_TOOTH = 10;
+static constexpr int16_t MIN_ADVANCE_FOR_END_TOOTH = 10;
 
 // ============================================================================
-// FILTER CONFIGURATION
+// FILTER CONFIGURATION (file scope)
 // ============================================================================
 
-/**
- * @brief Filter configuration for Miata9905 decoder
- * @details Data-driven approach for trigger filtering
- */
 struct Miata9905FilterConfig {
-    uint8_t filterLevel;    ///< Filter level (0=OFF, 1=LITE, 2=MEDIUM, 3=AGGRESSIVE)
-    uint8_t oddToothMult;   ///< Multiplier for odd teeth (70° spacing)
-    uint8_t oddToothShift;  ///< Right shift for odd teeth filter
-    uint8_t evenToothMult;  ///< Multiplier for even teeth (110° spacing)
-    uint8_t evenToothShift; ///< Right shift for even teeth filter
+    uint8_t filterLevel;
+    uint8_t oddToothMult;
+    uint8_t oddToothShift;
+    uint8_t evenToothMult;
+    uint8_t evenToothShift;
 };
 
-/** @brief Filter configurations for all filter levels */
 static const Miata9905FilterConfig miata9905FilterConfigs[4] = {
-    {0, 1,  0,  1, 0},  // OFF: No filtering
-    {1, 1,  0,  3, 3},  // LITE: odd=curGap, even=(curGap*3)>>3 (41.25°)
-    {2, 5,  2,  1, 1},  // MEDIUM: odd=(curGap*5)>>2 (87.5°), even=curGap>>1 (55°)
-    {3, 11, 3,  9, 5}   // AGGRESSIVE: odd=(curGap*11)>>3 (96.26°), even=(curGap*9)>>5 (61.87°)
+    {0, 1,  0,  1, 0},
+    {1, 1,  0,  3, 3},
+    {2, 5,  2,  1, 1},
+    {3, 11, 3,  9, 5}
 };
 
-// ============================================================================
-// HELPER FUNCTIONS - Filter Application
-// ============================================================================
+// Helper: Find filter config by level (returns nullptr if not found)
+static inline const Miata9905FilterConfig* findFilterConfig(uint8_t filterLevel)
+{
+    for (uint8_t i = 0; i < 4; i++) {
+        if (miata9905FilterConfigs[i].filterLevel == filterLevel) { return &miata9905FilterConfigs[i]; }
+    }
+    return nullptr;
+}
 
-/**
- * @brief Apply Miata9905 filter configuration
- * @details Configures filter based on tooth position and filter level
- * @param filterLevel Filter level (0-3)
- * @param toothCount Current tooth count
- * @param curGap Current gap time
- * @param pTriggerToothAngle Pointer to triggerToothAngle
- * @param pTriggerFilterTime Pointer to triggerFilterTime
- * @param pTriggerSecFilterTime Pointer to triggerSecFilterTime
- * @complexity 4
- */
+// Helper: Calculate filter time from config
+static inline uint32_t calcFilterTime(uint32_t curGap, uint8_t mult, uint8_t shift)
+{
+    if (shift == 0) { return curGap * (uint32_t)mult; }
+    return (curGap * (uint32_t)mult) >> shift;
+}
+
+// Helper: Apply Miata9905 filter configuration (file scope to reduce nesting)
 static inline void applyMiata9905Filter(uint8_t filterLevel, uint8_t toothCount, uint32_t curGap,
                                         volatile uint16_t* pTriggerToothAngle,
                                         volatile uint32_t* pTriggerFilterTime,
                                         volatile uint32_t* pTriggerSecFilterTime)
 {
-    // Determine if odd tooth (1,3,5,7 have 70° spacing, even 2,4,6,8 have 110°)
     bool isOddTooth = (toothCount == 1) || (toothCount == 3) || (toothCount == 5) || (toothCount == 7);
+    *pTriggerToothAngle = isOddTooth ? ODD_TOOTH_ANGLE_DEG : EVEN_TOOTH_ANGLE_DEG;
 
-    // Find and apply matching filter configuration
-    for (uint8_t i = 0; i < 4; i++) {
-        const Miata9905FilterConfig* config = &miata9905FilterConfigs[i];
-        if (config->filterLevel == filterLevel) {
-            // Set tooth angle based on odd/even position
-            *pTriggerToothAngle = isOddTooth ? ODD_TOOTH_ANGLE_DEG : EVEN_TOOTH_ANGLE_DEG;
+    const Miata9905FilterConfig* config = findFilterConfig(filterLevel);
+    if (config == nullptr) { return; }
 
-            // Special case: filter OFF sets both filter times to 0
-            if (filterLevel == 0) {
-                *pTriggerFilterTime = 0;
-                *pTriggerSecFilterTime = 0;
-            } else {
-                // Apply filter calculation based on tooth position
-                uint8_t mult = isOddTooth ? config->oddToothMult : config->evenToothMult;
-                uint8_t shift = isOddTooth ? config->oddToothShift : config->evenToothShift;
+    if (filterLevel == 0) { *pTriggerFilterTime = 0; *pTriggerSecFilterTime = 0; return; }
 
-                // Calculate filter time: (curGap * multiplier) >> shift
-                if (shift == 0) {
-                    *pTriggerFilterTime = curGap * (uint32_t)mult;
-                } else {
-                    *pTriggerFilterTime = (curGap * (uint32_t)mult) >> shift;
-                }
-            }
-            return;
-        }
-    }
+    uint8_t mult = isOddTooth ? config->oddToothMult : config->evenToothMult;
+    uint8_t shift = isOddTooth ? config->oddToothShift : config->evenToothShift;
+    *pTriggerFilterTime = calcFilterTime(curGap, mult, shift);
 }
 
 // ============================================================================
-// HELPER FUNCTIONS - Tooth Processing
+// HELPER FUNCTIONS - Tooth Processing (file scope)
 // ============================================================================
 
-/**
- * @brief Handle tooth 1 (revolution boundary)
- * @details Resets counters and updates timing
- * @complexity 2
- */
 static inline void handleTooth1(void) {
     toothCurrentCount = 1;
     toothOneMinusOneTime = toothOneTime;
@@ -164,62 +135,31 @@ static inline void handleTooth1(void) {
     currentStatus.startRevolutions++;
 }
 
-/**
- * @brief Check and handle sync acquisition
- * @details Uses secondary tooth count to determine sync position
- * @complexity 2
- */
 static inline void handleSyncAcquisition(void) {
-    if ((currentStatus.hasSync == false) || (configPage4.useResync == true)) {
-        if (secondaryToothCount == DOUBLE_CAM_PULSE_COUNT) {
-            toothCurrentCount = TOOTH_AFTER_DOUBLE_CAM;
-            currentStatus.hasSync = true;
-        }
-    }
+    bool needsSync = (currentStatus.hasSync == false) || (configPage4.useResync == true);
+    bool isDoubleCamPulse = (secondaryToothCount == DOUBLE_CAM_PULSE_COUNT);
+    if (needsSync && isDoubleCamPulse) { toothCurrentCount = TOOTH_AFTER_DOUBLE_CAM; currentStatus.hasSync = true; }
 }
 
-/**
- * @brief Handle per-tooth timing if enabled
- * @details Experimental per-tooth ignition timing
- * @param toothCount Current tooth count
- * @complexity 3
- */
 static inline void handlePerToothTiming(uint8_t toothCount) {
-    // Only available when trigger angle is 0 and advance > 0
-    if ((configPage2.perToothIgn == true) &&
-        (configPage4.triggerAngle == 0) &&
-        (currentStatus.advance > 0)) {
+    bool perToothEnabled = (configPage2.perToothIgn == true) && (configPage4.triggerAngle == 0) && (currentStatus.advance > 0);
+    if (!perToothEnabled) { return; }
 
-        int16_t crankAngle = ignitionLimits(toothAngles[(toothCount - 1)]);
-
-        // Handle non-sequential tooth counts
-        if ((configPage4.sparkMode != IGN_MODE_SEQUENTIAL) && (toothCount > configPage2.nCylinders)) {
-            checkPerToothTiming(crankAngle, (toothCount - configPage2.nCylinders));
-        } else {
-            checkPerToothTiming(crankAngle, toothCount);
-        }
-    }
+    int16_t crankAngle = ignitionLimits(toothAngles[(toothCount - 1)]);
+    bool needsOffset = (configPage4.sparkMode != IGN_MODE_SEQUENTIAL) && (toothCount > configPage2.nCylinders);
+    uint8_t effectiveToothCount = needsOffset ? (toothCount - configPage2.nCylinders) : toothCount;
+    checkPerToothTiming(crankAngle, effectiveToothCount);
 }
 
-/**
- * @brief Handle fixed cranking timing
- * @details Ends coil charge at specific teeth during cranking
- * @param toothCount Current tooth count
- * @complexity 2
- */
 static inline void handleFixedCrankTiming(uint8_t toothCount) {
-    if ((currentStatus.RPM < (currentStatus.crankRPM + 30)) && (configPage4.ignCranklock)) {
-        if ((toothCount == 1) || (toothCount == 5)) {
-            endCoil1Charge();
-            endCoil3Charge();
-        } else if ((toothCount == 3) || (toothCount == 7)) {
-            endCoil2Charge();
-            endCoil4Charge();
-        }
-    }
-}
+    bool crankLockActive = (currentStatus.RPM < (currentStatus.crankRPM + 30)) && (configPage4.ignCranklock);
+    if (!crankLockActive) { return; }
 
-} // anonymous namespace
+    bool isCoil13Tooth = (toothCount == 1) || (toothCount == 5);
+    bool isCoil24Tooth = (toothCount == 3) || (toothCount == 7);
+    if (isCoil13Tooth) { endCoil1Charge(); endCoil3Charge(); }
+    else if (isCoil24Tooth) { endCoil2Charge(); endCoil4Charge(); }
+}
 
 // ============================================================================
 // PUBLIC INTERFACE IMPLEMENTATION

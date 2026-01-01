@@ -7,8 +7,7 @@
 #include "../../timers.h"
 #include "../../schedule_calcs.h"
 
-namespace {
-
+// Subaru 6/7 sync configuration - file scope
 struct Subaru67SyncConfig {
     uint8_t secondaryCount;
     uint8_t expectedTooth1;
@@ -22,25 +21,32 @@ static const Subaru67SyncConfig subaru67SyncConfigs[3] = {
     {3, 2,  0, 2}
 };
 
-static inline bool validateSubaru67Sync(uint8_t secondaryCount, uint8_t toothCount, uint8_t* outToothCount)
+// Helper: Find sync config for secondary count
+static inline const Subaru67SyncConfig* findSyncConfig(uint8_t secondaryCount)
 {
     for (uint8_t i = 0; i < 3; i++) {
-        const Subaru67SyncConfig* config = &subaru67SyncConfigs[i];
-        if (config->secondaryCount == secondaryCount) {
-            bool isValid = (toothCount == config->expectedTooth1);
-            if (config->expectedTooth2 != 0) {
-                isValid = isValid || (toothCount == config->expectedTooth2);
-            }
-            if (!isValid) {
-                *outToothCount = config->defaultToothCount;
-            }
-            return isValid;
-        }
+        if (subaru67SyncConfigs[i].secondaryCount == secondaryCount) { return &subaru67SyncConfigs[i]; }
     }
+    return nullptr;
+}
+
+// Helper: Check if tooth matches expected values
+static inline bool checkToothMatch(const Subaru67SyncConfig* config, uint8_t toothCount)
+{
+    if (toothCount == config->expectedTooth1) { return true; }
+    if ((config->expectedTooth2 != 0) && (toothCount == config->expectedTooth2)) { return true; }
     return false;
 }
 
-} // namespace
+static inline bool validateSubaru67Sync(uint8_t secondaryCount, uint8_t toothCount, uint8_t* outToothCount)
+{
+    const Subaru67SyncConfig* config = findSyncConfig(secondaryCount);
+    if (config == nullptr) { return false; }
+
+    bool isValid = checkToothMatch(config, toothCount);
+    if (!isValid) { *outToothCount = config->defaultToothCount; }
+    return isValid;
+}
 
 void triggerSetup_Subaru67(void)
 {
@@ -110,67 +116,46 @@ void triggerPri_Subaru67(void)
         secondaryToothCount = 0;
     }
 
-    if (currentStatus.hasSync == true) {
-        if (BIT_CHECK(currentStatus.engine, BIT_ENGINE_CRANK) && configPage4.ignCranklock) {
-            if ((toothCurrentCount == 1) || (toothCurrentCount == 7)) {
-                endCoil1Charge();
-                endCoil3Charge();
-            } else if ((toothCurrentCount == 4) || (toothCurrentCount == 10)) {
-                endCoil2Charge();
-                endCoil4Charge();
-            }
-        }
+    if (currentStatus.hasSync != true) { return; }
 
-        if (toothCurrentCount > 12) {
-            toothCurrentCount = 1;
-            toothOneMinusOneTime = toothOneTime;
-            toothOneTime = curTime;
-            currentStatus.startRevolutions++;
-        }
+    // Handle crank lock coil firing
+    bool crankLockActive = BIT_CHECK(currentStatus.engine, BIT_ENGINE_CRANK) && configPage4.ignCranklock;
+    bool isCoil13Tooth = (toothCurrentCount == 1) || (toothCurrentCount == 7);
+    bool isCoil24Tooth = (toothCurrentCount == 4) || (toothCurrentCount == 10);
+    if (crankLockActive && isCoil13Tooth) { endCoil1Charge(); endCoil3Charge(); }
+    else if (crankLockActive && isCoil24Tooth) { endCoil2Charge(); endCoil4Charge(); }
 
-        if (toothCurrentCount == 1) {
-            triggerToothAngle = 55;
-        } else if (toothCurrentCount == 2) {
-            triggerToothAngle = 93;
-        } else {
-            triggerToothAngle = toothAngles[(toothCurrentCount-1)] - toothAngles[(toothCurrentCount-2)];
-        }
-        BIT_SET(decoderState, BIT_DECODER_TOOTH_ANG_CORRECT);
-
-        if ((configPage2.perToothIgn == true) && (!BIT_CHECK(currentStatus.engine, BIT_ENGINE_CRANK))) {
-            int16_t crankAngle = toothAngles[(toothCurrentCount - 1)] + configPage4.triggerAngle;
-            if (configPage4.sparkMode != IGN_MODE_SEQUENTIAL) {
-                crankAngle = ignitionLimits(toothAngles[(toothCurrentCount-1)]);
-                if ((configPage4.sparkMode != IGN_MODE_SEQUENTIAL) && (toothCurrentCount > 6)) {
-                    checkPerToothTiming(crankAngle, (toothCurrentCount-6));
-                } else {
-                    checkPerToothTiming(crankAngle, toothCurrentCount);
-                }
-            } else {
-                checkPerToothTiming(crankAngle, toothCurrentCount);
-            }
-        }
+    if (toothCurrentCount > 12) {
+        toothCurrentCount = 1;
+        toothOneMinusOneTime = toothOneTime;
+        toothOneTime = curTime;
+        currentStatus.startRevolutions++;
     }
+
+    if (toothCurrentCount == 1) { triggerToothAngle = 55; }
+    else if (toothCurrentCount == 2) { triggerToothAngle = 93; }
+    else { triggerToothAngle = toothAngles[(toothCurrentCount-1)] - toothAngles[(toothCurrentCount-2)]; }
+    BIT_SET(decoderState, BIT_DECODER_TOOTH_ANG_CORRECT);
+
+    // Per-tooth ignition timing
+    bool perToothActive = (configPage2.perToothIgn == true) && (!BIT_CHECK(currentStatus.engine, BIT_ENGINE_CRANK));
+    if (!perToothActive) { return; }
+
+    int16_t crankAngle = toothAngles[(toothCurrentCount - 1)] + configPage4.triggerAngle;
+    if (configPage4.sparkMode == IGN_MODE_SEQUENTIAL) {
+        checkPerToothTiming(crankAngle, toothCurrentCount);
+        return;
+    }
+
+    crankAngle = ignitionLimits(toothAngles[(toothCurrentCount-1)]);
+    int toothNum = (toothCurrentCount > 6) ? (toothCurrentCount - 6) : toothCurrentCount;
+    checkPerToothTiming(crankAngle, toothNum);
 }
 
 void triggerSec_Subaru67(void)
 {
-    if ((toothSystemCount == 0) || (toothSystemCount == 3)) {
-        curTime2 = micros();
-        curGap2 = curTime2 - toothLastSecToothTime;
-
-        if (curGap2 > triggerSecFilterTime) {
-            toothLastSecToothTime = curTime2;
-            secondaryToothCount++;
-            toothSystemCount = 0;
-
-            if (secondaryToothCount > 1) {
-                triggerSecFilterTime = curGap2 >> 2;
-            } else {
-                triggerSecFilterTime = 0;
-            }
-        }
-    } else {
+    bool validToothSystem = (toothSystemCount == 0) || (toothSystemCount == 3);
+    if (!validToothSystem) {
         if (toothSystemCount > 3) {
             toothSystemCount = 0;
             secondaryToothCount = 1;
@@ -178,7 +163,17 @@ void triggerSec_Subaru67(void)
             currentStatus.syncLossCounter++;
         }
         secondaryToothCount = 0;
+        return;
     }
+
+    curTime2 = micros();
+    curGap2 = curTime2 - toothLastSecToothTime;
+    if (curGap2 <= triggerSecFilterTime) { return; }
+
+    toothLastSecToothTime = curTime2;
+    secondaryToothCount++;
+    toothSystemCount = 0;
+    triggerSecFilterTime = (secondaryToothCount > 1) ? (curGap2 >> 2) : 0;
 }
 
 uint16_t getRPM_Subaru67(void)
