@@ -114,6 +114,53 @@ static inline void enableIdle(void)
   }
 }
 
+// ============================================================================
+// Idle ISR Pin Control Helpers (file scope - not inside namespace)
+// ============================================================================
+
+// Teensy41 has inverted logic for idle pins
+#if defined (CORE_TEENSY41)
+  #define IDLE_DIR0_ACTIVE_LOW_PIN1   IDLE_PIN_HIGH
+  #define IDLE_DIR0_ACTIVE_LOW_PIN2   IDLE2_PIN_LOW
+  #define IDLE_DIR1_ACTIVE_LOW_PIN1   IDLE_PIN_LOW
+  #define IDLE_DIR1_ACTIVE_LOW_PIN2   IDLE2_PIN_HIGH
+  #define IDLE_DIR0_ACTIVE_HIGH_PIN1  IDLE_PIN_LOW
+  #define IDLE_DIR0_ACTIVE_HIGH_PIN2  IDLE2_PIN_HIGH
+  #define IDLE_DIR1_ACTIVE_HIGH_PIN1  IDLE_PIN_HIGH
+  #define IDLE_DIR1_ACTIVE_HIGH_PIN2  IDLE2_PIN_LOW
+#else
+  #define IDLE_DIR0_ACTIVE_LOW_PIN1   IDLE_PIN_LOW
+  #define IDLE_DIR0_ACTIVE_LOW_PIN2   IDLE2_PIN_HIGH
+  #define IDLE_DIR1_ACTIVE_LOW_PIN1   IDLE_PIN_HIGH
+  #define IDLE_DIR1_ACTIVE_LOW_PIN2   IDLE2_PIN_LOW
+  #define IDLE_DIR0_ACTIVE_HIGH_PIN1  IDLE_PIN_HIGH
+  #define IDLE_DIR0_ACTIVE_HIGH_PIN2  IDLE2_PIN_LOW
+  #define IDLE_DIR1_ACTIVE_HIGH_PIN1  IDLE_PIN_LOW
+  #define IDLE_DIR1_ACTIVE_HIGH_PIN2  IDLE2_PIN_HIGH
+#endif
+
+static inline void idleISR_setPins_ActiveLow(void)
+{
+  bool dualChannel = (configPage6.iacChannels == 1);
+  if (configPage6.iacPWMdir == 0) { IDLE_DIR0_ACTIVE_LOW_PIN1(); if (dualChannel) { IDLE_DIR0_ACTIVE_LOW_PIN2(); } }
+  else { IDLE_DIR1_ACTIVE_LOW_PIN1(); if (dualChannel) { IDLE_DIR1_ACTIVE_LOW_PIN2(); } }
+}
+
+static inline void idleISR_setPins_ActiveHigh(void)
+{
+  bool dualChannel = (configPage6.iacChannels == 1);
+  if (configPage6.iacPWMdir == 0) { IDLE_DIR0_ACTIVE_HIGH_PIN1(); if (dualChannel) { IDLE_DIR0_ACTIVE_HIGH_PIN2(); } }
+  else { IDLE_DIR1_ACTIVE_HIGH_PIN1(); if (dualChannel) { IDLE_DIR1_ACTIVE_HIGH_PIN2(); } }
+}
+
+static inline void disableIdle_PWM(void)
+{
+  IDLE_TIMER_DISABLE();
+  bool dualChannel = (configPage6.iacChannels == 1);
+  if (configPage6.iacPWMdir == 0) { IDLE_PIN_LOW(); if (dualChannel) { IDLE2_PIN_HIGH(); } }
+  else { IDLE_PIN_HIGH(); if (dualChannel) { IDLE2_PIN_LOW(); } }
+}
+
 namespace {
 
 // ============================================================================
@@ -335,78 +382,6 @@ static inline byte isStepperHomed(void)
     isHomed = false;
   }
   return isHomed;
-}
-
-// ============================================================================
-// Idle ISR Pin Control Helpers
-// ============================================================================
-
-static inline void idleISR_setPins_ActiveLow(void)
-{
-  if (configPage6.iacPWMdir == 0)
-  {
-    #if defined (CORE_TEENSY41)
-    IDLE_PIN_HIGH();
-    if(configPage6.iacChannels == 1) { IDLE2_PIN_LOW(); }
-    #else
-    IDLE_PIN_LOW();
-    if(configPage6.iacChannels == 1) { IDLE2_PIN_HIGH(); }
-    #endif
-  }
-  else
-  {
-    #if defined (CORE_TEENSY41)
-    IDLE_PIN_LOW();
-    if(configPage6.iacChannels == 1) { IDLE2_PIN_HIGH(); }
-    #else
-    IDLE_PIN_HIGH();
-    if(configPage6.iacChannels == 1) { IDLE2_PIN_LOW(); }
-    #endif
-  }
-}
-
-static inline void idleISR_setPins_ActiveHigh(void)
-{
-  if (configPage6.iacPWMdir == 0)
-  {
-    #if defined (CORE_TEENSY41)
-    IDLE_PIN_LOW();
-    if(configPage6.iacChannels == 1) { IDLE2_PIN_HIGH(); }
-    #else
-    IDLE_PIN_HIGH();
-    if(configPage6.iacChannels == 1) { IDLE2_PIN_LOW(); }
-    #endif
-  }
-  else
-  {
-    #if defined (CORE_TEENSY41)
-    IDLE_PIN_HIGH();
-    if(configPage6.iacChannels == 1) { IDLE2_PIN_LOW(); }
-    #else
-    IDLE_PIN_LOW();
-    if(configPage6.iacChannels == 1) { IDLE2_PIN_HIGH(); }
-    #endif
-  }
-}
-
-// ============================================================================
-// Disable Idle Helpers
-// ============================================================================
-
-static inline void disableIdle_PWM(void)
-{
-  IDLE_TIMER_DISABLE();
-
-  if (configPage6.iacPWMdir == 0)
-  {
-    IDLE_PIN_LOW();
-    if(configPage6.iacChannels == 1) { IDLE2_PIN_HIGH(); }
-  }
-  else
-  {
-    IDLE_PIN_HIGH();
-    if(configPage6.iacChannels == 1) { IDLE2_PIN_LOW(); }
-  }
 }
 
 /** @brief Disable idle for stepper - set to crank position

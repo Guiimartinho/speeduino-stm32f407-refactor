@@ -20,6 +20,77 @@
 #include "modularization_globals.h"
 #include "automotive_constants.h"
 
+// Helper: Cut a cylinder based on engine protect type (file scope to reduce nesting)
+static inline void cutCylinder(uint8_t x)
+{
+  switch(configPage6.engineProtectType)
+  {
+    case PROTECT_CUT_OFF:
+      ignitionChannelsOn = 0xFF;
+      fuelChannelsOn = 0xFF;
+      break;
+    case PROTECT_CUT_IGN:
+      BIT_CLEAR(ignitionChannelsOn, x);
+      disableIgnSchedule(x);
+      break;
+    case PROTECT_CUT_FUEL:
+      BIT_CLEAR(fuelChannelsOn, x);
+      disableFuelSchedule(x);
+      break;
+    case PROTECT_CUT_BOTH:
+      BIT_CLEAR(ignitionChannelsOn, x);
+      BIT_CLEAR(fuelChannelsOn, x);
+      disableFuelSchedule(x);
+      disableIgnSchedule(x);
+      break;
+    default:
+      BIT_CLEAR(ignitionChannelsOn, x);
+      BIT_CLEAR(fuelChannelsOn, x);
+      break;
+  }
+}
+
+// Helper: Turn cylinder back on with pending ignition logic (file scope to reduce nesting)
+static inline void turnCylinderOn(uint8_t x, uint8_t revolutionsToCut)
+{
+  bool needsIgnitionPending = (revolutionsToCut == 4) &&
+                              (BIT_CHECK(fuelChannelsOn, x) == false) &&
+                              (configPage6.engineProtectType == PROTECT_CUT_BOTH);
+  if (needsIgnitionPending) { BIT_SET(ignitionChannelsPending, x); }
+  else { BIT_SET(ignitionChannelsOn, x); }
+  BIT_SET(fuelChannelsOn, x);
+}
+
+// Helper: Check launch RPM limit condition (file scope to reduce nesting)
+static inline bool checkLaunchRPMLimit(void)
+{
+  uint16_t launchRPMLimit = (configPage6.lnchHardLim * LAUNCH_RPM_MULTIPLIER);
+  if (configPage2.hardCutType == HARD_CUT_ROLLING) { launchRPMLimit += (configPage15.rollingProtRPMDelta[0] * 10); }
+  return (currentStatus.RPM > launchRPMLimit);
+}
+
+// Helper: Check flat shift RPM limit condition (file scope to reduce nesting)
+static inline bool checkFlatShiftRPMLimit(void)
+{
+  uint16_t flatRPMLimit = currentStatus.clutchEngagedRPM;
+  if (configPage2.hardCutType == HARD_CUT_ROLLING) { flatRPMLimit += (configPage15.rollingProtRPMDelta[0] * 10); }
+  return (currentStatus.RPM > flatRPMLimit);
+}
+
+// Helper: Apply rolling cut to all cylinders (file scope to reduce nesting)
+static void applyRollingCutToAllCylinders(uint8_t cutPercent, uint8_t revolutionsToCut)
+{
+  uint8_t maxChannels = max(maxIgnOutputs, maxInjOutputs);
+  if (maxChannels > MAX_ENGINE_CHANNELS) { maxChannels = MAX_ENGINE_CHANNELS; }
+
+  for (uint8_t x = 0; x < maxChannels; x++)
+  {
+    bool shouldCut = (cutPercent == PERCENTAGE_FULL) || (random1to100() < cutPercent);
+    if (shouldCut) { cutCylinder(x); }
+    else { turnCylinderOn(x, revolutionsToCut); }
+  }
+}
+
 //=============================================================================
 // Maximum RPM Calculation
 //=============================================================================
@@ -189,68 +260,8 @@ void applyRollingCut(uint16_t maxAllowedRPM)
       cutPercent = table2D_getValue(&rollingCutTable, deltaDivided);
     }
 
-    // Validate channel count and iterate through all channels
-    uint8_t maxChannels = max(maxIgnOutputs, maxInjOutputs);
-    if(maxChannels > MAX_ENGINE_CHANNELS) {
-      maxChannels = MAX_ENGINE_CHANNELS;
-    }
-
-    for(uint8_t x = 0; x < maxChannels; x++)
-    {
-      if((cutPercent == PERCENTAGE_FULL) || (random1to100() < cutPercent))
-      {
-        // Cut this cylinder
-        switch(configPage6.engineProtectType)
-        {
-          case PROTECT_CUT_OFF:
-            // Make sure all channels are turned on
-            ignitionChannelsOn = 0xFF;
-            fuelChannelsOn = 0xFF;
-            break;
-
-          case PROTECT_CUT_IGN:
-            BIT_CLEAR(ignitionChannelsOn, x); // Turn off this ignition channel
-            disableIgnSchedule(x);
-            break;
-
-          case PROTECT_CUT_FUEL:
-            BIT_CLEAR(fuelChannelsOn, x); // Turn off this fuel channel
-            disableFuelSchedule(x);
-            break;
-
-          case PROTECT_CUT_BOTH:
-            BIT_CLEAR(ignitionChannelsOn, x); // Turn off this ignition channel
-            BIT_CLEAR(fuelChannelsOn, x); // Turn off this fuel channel
-            disableFuelSchedule(x);
-            disableIgnSchedule(x);
-            break;
-
-          default:
-            BIT_CLEAR(ignitionChannelsOn, x); // Turn off this ignition channel
-            BIT_CLEAR(fuelChannelsOn, x); // Turn off this fuel channel
-            break;
-        }
-      }
-      else
-      {
-        // Turn fuel and ignition channels on
-
-        // Special case for non-sequential, 4-stroke where both fuel and ignition are cut
-        // The ignition pulses should wait 1 cycle after the fuel channels are turned back on
-        if((revolutionsToCut == 4) &&                           // 4 stroke and non-sequential
-           (BIT_CHECK(fuelChannelsOn, x) == false) &&           // Fuel on this channel is currently off
-           (configPage6.engineProtectType == PROTECT_CUT_BOTH)) // Both fuel and ignition are cut
-        {
-          BIT_SET(ignitionChannelsPending, x); // Set this ignition channel as pending
-        }
-        else {
-          BIT_SET(ignitionChannelsOn, x); // Turn on this ignition channel
-        }
-
-        BIT_SET(fuelChannelsOn, x); // Turn on this fuel channel
-      }
-    }
-
+    // Apply rolling cut to all cylinders
+    applyRollingCutToAllCylinders(cutPercent, revolutionsToCut);
     rollingCutLastRev = currentStatus.startRevolutions;
   }
 
@@ -298,48 +309,22 @@ void checkLaunchAndFlatShift(void)
   BIT_CLEAR(currentStatus.status2, BIT_STATUS2_HLAUNCH);
   currentStatus.flatShiftingHard = false;
 
-  // Launch control check
-  if(configPage6.launchEnabled && currentStatus.clutchTrigger &&
+  // Launch control check - flatten conditions
+  bool launchBaseConditions = configPage6.launchEnabled && currentStatus.clutchTrigger &&
      (currentStatus.clutchEngagedRPM < ((unsigned int)(configPage6.flatSArm) * LAUNCH_RPM_MULTIPLIER)) &&
-     (currentStatus.TPS >= configPage10.lnchCtrlTPS))
+     (currentStatus.TPS >= configPage10.lnchCtrlTPS);
+  bool vssAllowsLaunch = (configPage2.vssMode == 0) || ((configPage2.vssMode > 0) && (currentStatus.vss < configPage10.lnchCtrlVss));
+
+  if (launchBaseConditions && vssAllowsLaunch && checkLaunchRPMLimit())
   {
-    // Only enable if VSS is not used or if it is, make sure we're not above the speed limit
-    if((configPage2.vssMode == 0) || ((configPage2.vssMode > 0) && (currentStatus.vss < configPage10.lnchCtrlVss)))
-    {
-      // Check whether RPM is above the launch limit
-      uint16_t launchRPMLimit = (configPage6.lnchHardLim * LAUNCH_RPM_MULTIPLIER);
-
-      // Add the rolling cut delta if enabled (Delta is a negative value)
-      if((configPage2.hardCutType == HARD_CUT_ROLLING)) {
-        launchRPMLimit += (configPage15.rollingProtRPMDelta[0] * 10);
-      }
-
-      if(currentStatus.RPM > launchRPMLimit)
-      {
-        // HardCut rev limit for 2-step launch control
-        currentStatus.launchingHard = true;
-        BIT_SET(currentStatus.status2, BIT_STATUS2_HLAUNCH);
-      }
-    }
+    currentStatus.launchingHard = true;
+    BIT_SET(currentStatus.status2, BIT_STATUS2_HLAUNCH);
+    return;
   }
-  else
-  {
-    // If launch is not active, check whether flat shift should be active
-    if(configPage6.flatSEnable && currentStatus.clutchTrigger &&
-       (currentStatus.clutchEngagedRPM >= ((unsigned int)(configPage6.flatSArm * LAUNCH_RPM_MULTIPLIER))))
-    {
-      uint16_t flatRPMLimit = currentStatus.clutchEngagedRPM;
 
-      // Add the rolling cut delta if enabled (Delta is a negative value)
-      if((configPage2.hardCutType == HARD_CUT_ROLLING)) {
-        flatRPMLimit += (configPage15.rollingProtRPMDelta[0] * 10);
-      }
+  // If launch is not active, check whether flat shift should be active
+  bool flatShiftBaseConditions = configPage6.flatSEnable && currentStatus.clutchTrigger &&
+     (currentStatus.clutchEngagedRPM >= ((unsigned int)(configPage6.flatSArm * LAUNCH_RPM_MULTIPLIER)));
 
-      if(currentStatus.RPM > flatRPMLimit)
-      {
-        // Flat shift rev limit
-        currentStatus.flatShiftingHard = true;
-      }
-    }
-  }
+  if (flatShiftBaseConditions && checkFlatShiftRPMLimit()) { currentStatus.flatShiftingHard = true; }
 }
