@@ -12,122 +12,83 @@
 #include "wmi_control/wmi_control.h"
 #include "../globals.h"
 
-namespace speeduino {
-namespace auxiliaries {
+// =============================================================================
+// PRIVATE IMPLEMENTATION - Static helpers (file scope)
+// =============================================================================
 
 // Initialization state tracking
 static bool initialized = false;
 
-bool initialiseAll(void) {
-    // Initialize each module
+/**
+ * @brief Internal initialiseAll implementation
+ */
+static bool initialiseAll_impl(void)
+{
     bool success = true;
 
-    // Air Conditioning
-    if (!aircon::initialise()) {
-        // A/C init failed (likely disabled in config)
-    }
-
-    // Fan Control
-    if (!fan::initialise()) {
-        success = false;
-    }
-
-    // Boost Control
-    if (!boost::initialise()) {
-        success = false;
-    }
-
-    // VVT Control
-    if (!vvt::initialise()) {
-        success = false;
-    }
-
-    // Nitrous Control
-    if (!nitrous::initialise()) {
-        // Nitrous init failed (likely disabled)
-    }
-
-    // WMI Control
-    if (!wmi::initialise()) {
-        // WMI init failed (likely disabled)
-    }
+    // Initialize each module - track failures for critical systems
+    speeduino::aircon::initialise();  // Non-critical
+    if (!speeduino::fan::initialise()) { success = false; }
+    if (!speeduino::boost::initialise()) { success = false; }
+    if (!speeduino::vvt::initialise()) { success = false; }
+    speeduino::nitrous::initialise();  // Non-critical
+    speeduino::wmi::initialise();      // Non-critical
 
     initialized = success;
     return success;
 }
 
-void updateAll(void) {
-    // Guard clause: not initialized
-    if (!initialized) {
-        return;
-    }
+/**
+ * @brief Internal updateAll implementation
+ */
+static void updateAll_impl(void)
+{
+    if (!initialized) { return; }
 
-    // Update each active module
-    // These functions have internal guards for enabled/disabled state
-
-    aircon::update();
-    fan::update();
-    boost::update();
-    vvt::update();
-    nitrous::update();
-    wmi::update();
+    speeduino::aircon::update();
+    speeduino::fan::update();
+    speeduino::boost::update();
+    speeduino::vvt::update();
+    speeduino::nitrous::update();
+    speeduino::wmi::update();
 }
 
-void disableAll(void) {
-    // Force all auxiliaries off
-    aircon::forceOff();
-    fan::forceOff();
-    boost::disable();
-    vvt::disable();
-    nitrous::disable();
-    wmi::disable();
+/**
+ * @brief Internal disableAll implementation
+ */
+static void disableAll_impl(void)
+{
+    speeduino::aircon::forceOff();
+    speeduino::fan::forceOff();
+    speeduino::boost::disable();
+    speeduino::vvt::disable();
+    speeduino::nitrous::disable();
+    speeduino::wmi::disable();
 }
 
-void initialiseAuxPWM(void) {
-    // Legacy interface - calls new modular init
-    initialiseAll();
-}
+// =============================================================================
+// PUBLIC API - Namespace wrapper functions
+// =============================================================================
+
+namespace speeduino {
+namespace auxiliaries {
+
+bool initialiseAll(void) { return initialiseAll_impl(); }
+void updateAll(void) { updateAll_impl(); }
+void disableAll(void) { disableAll_impl(); }
+void initialiseAuxPWM(void) { initialiseAll_impl(); }
 
 } // namespace auxiliaries
 } // namespace speeduino
 
 // Legacy global functions for backward compatibility
-void initialiseAirCon(void) {
-    speeduino::aircon::initialise();
-}
-
-void airConControl(void) {
-    speeduino::aircon::update();
-}
-
-void initialiseFan(void) {
-    speeduino::fan::initialise();
-}
-
-void fanControl(void) {
-    speeduino::fan::update();
-}
-
-void initialiseAuxPWM(void) {
-    speeduino::auxiliaries::initialiseAuxPWM();
-}
-
-void boostControl(void) {
-    speeduino::boost::update();
-}
-
-void vvtControl(void) {
-    speeduino::vvt::update();
-}
-
-void nitrousControl(void) {
-    speeduino::nitrous::update();
-}
-
-void wmiControl(void) {
-    speeduino::wmi::update();
-}
-
-void boostDisable(void) {
-    speeduino::boost::disable();
-}
+void initialiseAirCon(void) { speeduino::aircon::initialise(); }
+void airConControl(void) { speeduino::aircon::update(); }
+void initialiseFan(void) { speeduino::fan::initialise(); }
+void fanControl(void) { speeduino::fan::update(); }
+void initialiseAuxPWM(void) { speeduino::auxiliaries::initialiseAuxPWM(); }
+void boostControl(void) { speeduino::boost::update(); }
+void vvtControl(void) { speeduino::vvt::update(); }
+void nitrousControl(void) { speeduino::nitrous::update(); }
+void wmiControl(void) { speeduino::wmi::update(); }
+void boostDisable(void) { speeduino::boost::disable(); }
