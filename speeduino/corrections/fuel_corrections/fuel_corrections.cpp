@@ -83,6 +83,12 @@ static const uint16_t AE_NO_CORRECTION = 100;
 static const uint16_t AE_TIME_MULTIPLIER_US = 10000; // aeTime stored as mS/10
 static const uint8_t AE_TABLE_DIVISOR = 10; // DOT value divided by 10 for table lookup
 
+/// @brief Reset DOT value based on AE mode (helper to reduce nesting)
+static inline void resetDOT(void) {
+    if (configPage2.aeMode == AE_MODE_MAP) { currentStatus.mapDOT = 0; }
+    else if (configPage2.aeMode == AE_MODE_TPS) { currentStatus.tpsDOT = 0; }
+}
+
 /// @brief Calculate rate of change (DOT) based on mode
 /// @param MAP_change Output: MAP change value
 /// @param TPS_change Output: TPS change value
@@ -187,11 +193,7 @@ static inline int16_t handleAcceleration(int16_t dotValue, bool isMAP) {
 static inline int16_t processNewActivation(int16_t dotValue, int16_t change, uint8_t minChange,
                                            uint8_t thresh, byte* activateDOT, bool isMAP) {
     // Guard: Change too small, ignore
-    if (abs(change) <= minChange) {
-        if (configPage2.aeMode == AE_MODE_MAP) { currentStatus.mapDOT = 0; }
-        else { currentStatus.tpsDOT = 0; }
-        return AE_NO_CORRECTION;
-    }
+    if (abs(change) <= minChange) { resetDOT(); return AE_NO_CORRECTION; }
 
     // Guard: DOT below threshold, no activation
     if (abs(dotValue) <= thresh) {
@@ -411,11 +413,7 @@ uint16_t correctionAccel(void) {
             BIT_CLEAR(currentStatus.engine, BIT_ENGINE_ACC);
             BIT_CLEAR(currentStatus.engine, BIT_ENGINE_DCC);
             currentStatus.AEamount = 0;
-
-            // Reset DOT
-            if (configPage2.aeMode == AE_MODE_MAP) { currentStatus.mapDOT = 0; }
-            else if (configPage2.aeMode == AE_MODE_TPS) { currentStatus.tpsDOT = 0; }
-
+            resetDOT();
             return AE_NO_CORRECTION;
         }
 
@@ -531,17 +529,17 @@ bool correctionDFCO(void) {
                          (currentStatus.coolant >= temperatureRemoveOffset(configPage2.dfcoMinCLT)) &&
                          (currentStatus.RPM > (unsigned int)((configPage4.dfcoRPM * 10U) + (configPage4.dfcoHyster * 2U)));
 
-    if (conditionsMet) {
-        if (dfcoDelay < configPage2.dfcoDelay) {
-            if (BIT_CHECK(LOOP_TIMER, BIT_TIMER_10HZ)) { dfcoDelay++; }
-            return false;
-        }
-        return true; // Activate DFCO
+    // Guard: Conditions not met
+    if (!conditionsMet) { dfcoDelay = 0; return false; }
+
+    // Guard: Delay not complete - increment at 10Hz and wait
+    bool delayComplete = (dfcoDelay >= configPage2.dfcoDelay);
+    if (!delayComplete) {
+        if (BIT_CHECK(LOOP_TIMER, BIT_TIMER_10HZ)) { dfcoDelay++; }
+        return false;
     }
 
-    // Conditions not met
-    dfcoDelay = 0;
-    return false;
+    return true; // Activate DFCO
 }
 
 byte correctionFlex(void) {

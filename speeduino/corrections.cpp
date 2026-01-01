@@ -249,9 +249,8 @@ static inline void applyPrimaryEnrichments(uint32_t& sumCorrections)
   if (cranking != 100) { sumCorrections = div100(sumCorrections * cranking); }
 
   currentStatus.AEamount = correctionAccel();
-  if ((configPage2.aeApplyMode == AE_MODE_MULTIPLIER) || BIT_CHECK(currentStatus.engine, BIT_ENGINE_DCC)) {
-    if (currentStatus.AEamount != 100) { sumCorrections = div100(sumCorrections * currentStatus.AEamount); }
-  }
+  bool applyAE = ((configPage2.aeApplyMode == AE_MODE_MULTIPLIER) || BIT_CHECK(currentStatus.engine, BIT_ENGINE_DCC)) && (currentStatus.AEamount != 100);
+  if (applyAE) { sumCorrections = div100(sumCorrections * currentStatus.AEamount); }
 }
 
 /**
@@ -724,24 +723,52 @@ byte correctionLaunch(void)
 }
 
 /**
+ * @brief Calculate DFCO taper fuel scaling
+ * @return Fuel scale value (0-100)
+ */
+static inline byte calcDFCOTaperFuel(void)
+{
+  if (dfcoTaper > configPage9.dfcoTaperTime) { dfcoTaper = configPage9.dfcoTaperTime; }
+  byte result = map(dfcoTaper, configPage9.dfcoTaperTime, 0, 100, configPage9.dfcoTaperFuel);
+  if (BIT_CHECK(LOOP_TIMER, BIT_TIMER_10HZ)) { dfcoTaper--; }
+  return result;
+}
+
+/**
 */
 byte correctionDFCOfuel(void)
 {
-  byte scaleValue = 100;
-  if ( BIT_CHECK(currentStatus.status1, BIT_STATUS1_DFCO) )
-  {
-    if ( (configPage9.dfcoTaperEnable == 1) && (dfcoTaper != 0) )
-    {
-      //Do a check if the user reduced the duration while active to avoid overflow
-      if (dfcoTaper > configPage9.dfcoTaperTime) { dfcoTaper = configPage9.dfcoTaperTime; }
-      scaleValue = map(dfcoTaper, configPage9.dfcoTaperTime, 0, 100, configPage9.dfcoTaperFuel);
-      if( BIT_CHECK(LOOP_TIMER, BIT_TIMER_10HZ) ) { dfcoTaper--; }
-    }
-    else { scaleValue = 0; } //Taper ended or disabled, disable fuel
-  }
-  else { dfcoTaper = configPage9.dfcoTaperTime; } //Keep updating the duration until DFCO is active
+  if (!BIT_CHECK(currentStatus.status1, BIT_STATUS1_DFCO)) { dfcoTaper = configPage9.dfcoTaperTime; return 100; }
 
-  return scaleValue;
+  bool taperActive = (configPage9.dfcoTaperEnable == 1) && (dfcoTaper != 0);
+  if (taperActive) { return calcDFCOTaperFuel(); }
+
+  return 0; // Taper ended or disabled, disable fuel
+}
+
+/**
+ * @brief Check if DFCO should remain active
+ */
+static inline bool checkDFCOStayActive(void)
+{
+  bool stayActive = (currentStatus.RPM > (configPage4.dfcoRPM * 10)) && (currentStatus.TPS < configPage4.dfcoTPSThresh);
+  if (!stayActive) { dfcoDelay = 0; }
+  return stayActive;
+}
+
+/**
+ * @brief Check if DFCO activation conditions are met
+ */
+static inline bool checkDFCOActivation(void)
+{
+  bool tpsOk = (currentStatus.TPS < configPage4.dfcoTPSThresh);
+  bool coolantOk = (currentStatus.coolant >= temperatureRemoveOffset(configPage2.dfcoMinCLT));
+  bool rpmOk = (currentStatus.RPM > (unsigned int)((configPage4.dfcoRPM * 10U) + (configPage4.dfcoHyster * 2U)));
+
+  if (!(tpsOk && coolantOk && rpmOk)) { dfcoDelay = 0; return false; }
+  if (dfcoDelay >= configPage2.dfcoDelay) { return true; }
+  if (BIT_CHECK(LOOP_TIMER, BIT_TIMER_10HZ)) { dfcoDelay++; }
+  return false;
 }
 
 /*
@@ -749,28 +776,12 @@ byte correctionDFCOfuel(void)
  */
 bool correctionDFCO(void)
 {
-  bool DFCOValue = false;
-  if ( configPage2.dfcoEnabled == 1 )
-  {
-    if ( BIT_CHECK(currentStatus.status1, BIT_STATUS1_DFCO) == 1 )
-    {
-      DFCOValue = ( currentStatus.RPM > ( configPage4.dfcoRPM * 10) ) && ( currentStatus.TPS < configPage4.dfcoTPSThresh );
-      if ( DFCOValue == false) { dfcoDelay = 0; }
-    }
-    else
-    {
-      if ( (currentStatus.TPS < configPage4.dfcoTPSThresh) && (currentStatus.coolant >= temperatureRemoveOffset(configPage2.dfcoMinCLT)) && ( currentStatus.RPM > (unsigned int)( (configPage4.dfcoRPM * 10U) + (configPage4.dfcoHyster * 2U)) ) )
-      {
-        if( dfcoDelay < configPage2.dfcoDelay )
-        {
-          if( BIT_CHECK(LOOP_TIMER, BIT_TIMER_10HZ) ) { dfcoDelay++; }
-        }
-        else { DFCOValue = true; }
-      }
-      else { dfcoDelay = 0; } //Prevent future activation right away if previous time wasn't activated
-    } // DFCO active check
-  } // DFCO enabled check
-  return DFCOValue;
+  if (configPage2.dfcoEnabled != 1) { return false; }
+
+  bool dfcoAlreadyActive = BIT_CHECK(currentStatus.status1, BIT_STATUS1_DFCO);
+  if (dfcoAlreadyActive) { return checkDFCOStayActive(); }
+
+  return checkDFCOActivation();
 }
 
 /** Flex fuel adjustment to vary fuel based on ethanol content.
@@ -1135,30 +1146,41 @@ int8_t correctionIdleAdvance(int8_t advance)
 
   return ignIdleValue;
 }
+/**
+ * @brief Apply soft limit retard based on mode
+ */
+static inline byte applySoftLimitRetard(byte advance)
+{
+  if (configPage2.SoftLimitMode == SOFT_LIMIT_RELATIVE) { return advance - configPage4.SoftLimRetard; }
+  if (configPage2.SoftLimitMode == SOFT_LIMIT_FIXED) { return configPage4.SoftLimRetard; }
+  return advance;
+}
+
+/**
+ * @brief Handle soft rev limit when RPM above threshold
+ */
+static inline byte handleSoftLimitActive(byte advance)
+{
+  BIT_SET(currentStatus.status2, BIT_STATUS2_SFTLIM);
+  if (softLimitTime >= configPage4.SoftLimMax) { return advance; }
+  if (BIT_CHECK(LOOP_TIMER, BIT_TIMER_10HZ)) { softLimitTime++; }
+  return applySoftLimitRetard(advance);
+}
+
 /** Ignition soft revlimit correction.
  */
 int8_t correctionSoftRevLimit(int8_t advance)
 {
-  byte ignSoftRevValue = advance;
   BIT_CLEAR(currentStatus.status2, BIT_STATUS2_SFTLIM);
 
-  if (configPage6.engineProtectType == PROTECT_CUT_IGN || configPage6.engineProtectType == PROTECT_CUT_BOTH)
-  {
-    if (currentStatus.RPMdiv100 >= configPage4.SoftRevLim) //Softcut RPM limit
-    {
-      BIT_SET(currentStatus.status2, BIT_STATUS2_SFTLIM);
-      if( softLimitTime < configPage4.SoftLimMax )
-      {
-        if (configPage2.SoftLimitMode == SOFT_LIMIT_RELATIVE) { ignSoftRevValue = ignSoftRevValue - configPage4.SoftLimRetard; } //delay timing by configured number of degrees in relative mode
-        else if (configPage2.SoftLimitMode == SOFT_LIMIT_FIXED) { ignSoftRevValue = configPage4.SoftLimRetard; } //delay timing to configured number of degrees in fixed mode
+  bool protectEnabled = (configPage6.engineProtectType == PROTECT_CUT_IGN) || (configPage6.engineProtectType == PROTECT_CUT_BOTH);
+  if (!protectEnabled) { return advance; }
 
-        if( BIT_CHECK(LOOP_TIMER, BIT_TIMER_10HZ) ) { softLimitTime++; }
-      }
-    }
-    else if( BIT_CHECK(LOOP_TIMER, BIT_TIMER_10HZ) ) { softLimitTime = 0; } //Only reset time at runSecsX10 update rate
-  }
+  bool aboveSoftLimit = (currentStatus.RPMdiv100 >= configPage4.SoftRevLim);
+  if (aboveSoftLimit) { return handleSoftLimitActive(advance); }
 
-  return ignSoftRevValue;
+  if (BIT_CHECK(LOOP_TIMER, BIT_TIMER_10HZ)) { softLimitTime = 0; }
+  return advance;
 }
 /** Ignition Nitrous oxide correction.
  */
@@ -1271,82 +1293,79 @@ static inline byte calculateKnockRetard(void)
          ((currentStatus.knockCount - configPage10.knock_count) * configPage10.knock_stepSize);
 }
 
+// Helper: Check if knock step time has elapsed
+static inline bool isKnockStepTimeElapsed(void)
+{
+  return (micros() - knockStartTime) > (configPage10.knock_stepTime * 1000UL);
+}
+
+// Helper: Handle new knock pulse during active knock
+static inline byte handleDigitalKnockPulse(byte currentRetard)
+{
+  if (!BIT_CHECK(currentStatus.status5, BIT_STATUS5_KNOCK_PULSE)) { return currentRetard; }
+  if (!isKnockStepTimeElapsed()) { return currentRetard; }
+  currentStatus.knockCount++;
+  knockStartTime = micros();
+  knockLastRecoveryStep = 0;
+  return calculateKnockRetard();
+}
+
 // Helper: Digital knock detection algorithm
 static inline byte knockDetectionDigital(void)
 {
-  byte tmpKnockRetard = 0;
-
   // Guard: Knock count below threshold
-  if (currentStatus.knockCount < configPage10.knock_count) {
-    BIT_CLEAR(currentStatus.status5, BIT_STATUS5_KNOCK_PULSE);
-    return 0;
-  }
+  if (currentStatus.knockCount < configPage10.knock_count) { BIT_CLEAR(currentStatus.status5, BIT_STATUS5_KNOCK_PULSE); return 0; }
 
   // Knock active - check for additional events
   if (BIT_CHECK(currentStatus.status5, BIT_STATUS5_KNOCK_ACTIVE)) {
-    tmpKnockRetard = currentStatus.knockRetard;
-
-    // Check for new knock pulse
-    if (BIT_CHECK(currentStatus.status5, BIT_STATUS5_KNOCK_PULSE)) {
-      // Guard: Step time not elapsed
-      if ((micros() - knockStartTime) > (configPage10.knock_stepTime * 1000UL)) {
-        currentStatus.knockCount++;
-        tmpKnockRetard = calculateKnockRetard();
-        knockStartTime = micros();
-        knockLastRecoveryStep = 0;
-      }
-    }
-
-    tmpKnockRetard = _calculateKnockRecovery(tmpKnockRetard);
+    byte tmpKnockRetard = handleDigitalKnockPulse(currentStatus.knockRetard);
+    BIT_CLEAR(currentStatus.status5, BIT_STATUS5_KNOCK_PULSE);
+    return _calculateKnockRecovery(tmpKnockRetard);
   }
-  else {
-    // Activate knock retard
-    knockStartTime = micros();
+
+  // Activate knock retard
+  knockStartTime = micros();
+  BIT_SET(currentStatus.status5, BIT_STATUS5_KNOCK_ACTIVE);
+  knockLastRecoveryStep = 0;
+  BIT_CLEAR(currentStatus.status5, BIT_STATUS5_KNOCK_PULSE);
+  return calculateKnockRetard();
+}
+
+// Helper: Handle analog knock while active
+static inline byte handleAnalogKnockActive(void)
+{
+  byte tmpKnockRetard = 0;
+  if (!isKnockStepTimeElapsed()) { return _calculateKnockRecovery(tmpKnockRetard); }
+
+  uint16_t tmpKnockReading = getAnalogKnock();
+  if (tmpKnockReading > configPage10.knock_threshold) {
+    currentStatus.knockCount++;
     tmpKnockRetard = calculateKnockRetard();
-    BIT_SET(currentStatus.status5, BIT_STATUS5_KNOCK_ACTIVE);
+    knockStartTime = micros();
     knockLastRecoveryStep = 0;
   }
+  return _calculateKnockRecovery(tmpKnockRetard);
+}
 
-  BIT_CLEAR(currentStatus.status5, BIT_STATUS5_KNOCK_PULSE);
-  return tmpKnockRetard;
+// Helper: Check for new analog knock event
+static inline byte checkAnalogKnockStart(void)
+{
+  if (!BIT_CHECK(LOOP_TIMER, BIT_TIMER_30HZ)) { return 0; }
+
+  uint16_t tmpKnockReading = getAnalogKnock();
+  if (tmpKnockReading <= configPage10.knock_threshold) { return 0; }
+
+  knockStartTime = micros();
+  BIT_SET(currentStatus.status5, BIT_STATUS5_KNOCK_ACTIVE);
+  knockLastRecoveryStep = 0;
+  return configPage10.knock_firstStep;
 }
 
 // Helper: Analog knock detection algorithm
 static inline byte knockDetectionAnalog(void)
 {
-  byte tmpKnockRetard = 0;
-
-  // Knock active - check for additional events
-  if (BIT_CHECK(currentStatus.status5, BIT_STATUS5_KNOCK_ACTIVE)) {
-    // Guard: Step time not elapsed
-    if ((micros() - knockStartTime) > (configPage10.knock_stepTime * 1000UL)) {
-      uint16_t tmpKnockReading = getAnalogKnock();
-
-      if (tmpKnockReading > configPage10.knock_threshold) {
-        currentStatus.knockCount++;
-        tmpKnockRetard = calculateKnockRetard();
-        knockStartTime = micros();
-        knockLastRecoveryStep = 0;
-      }
-    }
-
-    tmpKnockRetard = _calculateKnockRecovery(tmpKnockRetard);
-  }
-  else {
-    // Poll analog sensor at 30Hz
-    if (BIT_CHECK(LOOP_TIMER, BIT_TIMER_30HZ)) {
-      uint16_t tmpKnockReading = getAnalogKnock();
-
-      if (tmpKnockReading > configPage10.knock_threshold) {
-        knockStartTime = micros();
-        tmpKnockRetard = configPage10.knock_firstStep;
-        BIT_SET(currentStatus.status5, BIT_STATUS5_KNOCK_ACTIVE);
-        knockLastRecoveryStep = 0;
-      }
-    }
-  }
-
-  return tmpKnockRetard;
+  if (BIT_CHECK(currentStatus.status5, BIT_STATUS5_KNOCK_ACTIVE)) { return handleAnalogKnockActive(); }
+  return checkAnalogKnockStart();
 }
 
 // Main function - Refactored with Strategy Pattern

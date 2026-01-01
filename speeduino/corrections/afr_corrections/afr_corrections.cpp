@@ -73,23 +73,17 @@ static inline bool isClosedLoopActive(void) {
 /// @brief Simple AFR correction algorithm (1% steps)
 /// @param currentCorrection Current correction value (typically 100 ± egoLimit)
 /// @return New correction value (100 ± egoLimit)
-/// @complexity 3
 static inline byte simpleAFRCorrection(byte currentCorrection) {
     const byte maxCorrection = 100 + configPage6.egoLimit;
     const byte minCorrection = 100 - configPage6.egoLimit;
 
     // Running lean (O2 > target) - add fuel
-    if (currentStatus.O2 > currentStatus.afrTarget) {
-        if (currentCorrection < maxCorrection) {
-            return currentCorrection + AFR_STEP;
-        }
-    }
+    bool runningLean = (currentStatus.O2 > currentStatus.afrTarget) && (currentCorrection < maxCorrection);
+    if (runningLean) { return currentCorrection + AFR_STEP; }
+
     // Running rich (O2 < target) - remove fuel
-    else if (currentStatus.O2 < currentStatus.afrTarget) {
-        if (currentCorrection > minCorrection) {
-            return currentCorrection - AFR_STEP;
-        }
-    }
+    bool runningRich = (currentStatus.O2 < currentStatus.afrTarget) && (currentCorrection > minCorrection);
+    if (runningRich) { return currentCorrection - AFR_STEP; }
 
     // At target or at limit
     return currentCorrection;

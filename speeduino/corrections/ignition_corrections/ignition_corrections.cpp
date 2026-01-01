@@ -67,19 +67,13 @@ static inline bool isIdleConditionsActive(void)
     if (currentStatus.RPM >= (configPage2.idleAdvRPM * 100)) { return false; }
 
     // Guard: Vehicle moving (VSS check)
-    if (configPage2.vssMode != 0) {
-        if (currentStatus.vss >= configPage2.idleAdvVss) { return false; }
-    }
+    bool vssMoving = (configPage2.vssMode != 0) && (currentStatus.vss >= configPage2.idleAdvVss);
+    if (vssMoving) { return false; }
 
     // Guard: Throttle not closed (check algorithm TPS vs CTPS)
-    if (configPage2.idleAdvAlgorithm == 0) {
-        // TPS-based
-        if (currentStatus.TPS >= configPage2.idleAdvTPS) { return false; }
-    }
-    else {
-        // CTPS-based
-        if (currentStatus.CTPSActive != 1) { return false; }
-    }
+    bool tpsOpen = (configPage2.idleAdvAlgorithm == 0) && (currentStatus.TPS >= configPage2.idleAdvTPS);
+    bool ctpsOpen = (configPage2.idleAdvAlgorithm != 0) && (currentStatus.CTPSActive != 1);
+    if (tpsOpen || ctpsOpen) { return false; }
 
     return true;
 }
@@ -101,36 +95,60 @@ static inline byte calculateKnockRetard(void)
  * @return Updated knock retard (0 = fully recovered)
  * @note Called during knock recovery period after initial knock event
  */
+/**
+ * @brief Complete knock recovery and reset status
+ */
+static inline void completeKnockRecovery(void)
+{
+    BIT_CLEAR(currentStatus.status5, BIT_STATUS5_KNOCK_ACTIVE);
+    knockStartTime = 0;
+    currentStatus.knockCount = 0;
+}
+
+/**
+ * @brief Calculate recovery adjustment based on elapsed steps
+ */
+static inline int8_t getRecoveryAdjustment(uint32_t timeInRecovery)
+{
+    uint8_t recoverySteps = timeInRecovery / (configPage10.knock_recoveryStepTime * 100000UL);
+    if (recoverySteps <= knockLastRecoveryStep) { return 0; }
+    int8_t adj = (recoverySteps - knockLastRecoveryStep) * configPage10.knock_recoveryStep;
+    knockLastRecoveryStep = recoverySteps;
+    return adj;
+}
+
 static uint8_t calculateKnockRecovery(uint8_t curKnockRetard)
 {
-    uint8_t tmpKnockRetard = curKnockRetard;
+    uint32_t knockDurationMicros = configPage10.knock_duration * 100000UL;
+    if ((micros() - knockStartTime) <= knockDurationMicros) { return curKnockRetard; }
 
-    // Check whether we are in knock recovery period
-    if ((micros() - knockStartTime) > (configPage10.knock_duration * 100000UL)) {
-        // Calculate how many recovery steps have occurred
-        uint32_t timeInRecovery = (micros() - knockStartTime) - (configPage10.knock_duration * 100000UL);
-        uint8_t recoverySteps = timeInRecovery / (configPage10.knock_recoveryStepTime * 100000UL);
-        int8_t recoveryTimingAdj = 0;
+    uint32_t timeInRecovery = (micros() - knockStartTime) - knockDurationMicros;
+    int8_t recoveryTimingAdj = getRecoveryAdjustment(timeInRecovery);
 
-        if (recoverySteps > knockLastRecoveryStep) {
-            recoveryTimingAdj = (recoverySteps - knockLastRecoveryStep) * configPage10.knock_recoveryStep;
-            knockLastRecoveryStep = recoverySteps;
-        }
+    if (recoveryTimingAdj >= currentStatus.knockRetard) { completeKnockRecovery(); return 0; }
+    if (recoveryTimingAdj > 0) { return currentStatus.knockRetard - recoveryTimingAdj; }
+    return curKnockRetard;
+}
 
-        if (recoveryTimingAdj < currentStatus.knockRetard) {
-            // Add timing back (partial recovery)
-            tmpKnockRetard = currentStatus.knockRetard - recoveryTimingAdj;
-        }
-        else {
-            // Recovery complete - reset knock status
-            tmpKnockRetard = 0;
-            BIT_CLEAR(currentStatus.status5, BIT_STATUS5_KNOCK_ACTIVE);
-            knockStartTime = 0;
-            currentStatus.knockCount = 0;
-        }
-    }
+/**
+ * @brief Check if knock step time has elapsed
+ */
+static inline bool isKnockStepTimeElapsed(void)
+{
+    return (micros() - knockStartTime) > (configPage10.knock_stepTime * 1000UL);
+}
 
-    return tmpKnockRetard;
+/**
+ * @brief Handle new digital knock pulse during active knock
+ */
+static inline byte handleDigitalKnockPulse(byte currentRetard)
+{
+    if (!BIT_CHECK(currentStatus.status5, BIT_STATUS5_KNOCK_PULSE)) { return currentRetard; }
+    if (!isKnockStepTimeElapsed()) { return currentRetard; }
+    currentStatus.knockCount++;
+    knockStartTime = micros();
+    knockLastRecoveryStep = 0;
+    return calculateKnockRetard();
 }
 
 /**
@@ -140,41 +158,54 @@ static uint8_t calculateKnockRecovery(uint8_t curKnockRetard)
  */
 static inline byte knockDetectionDigital(void)
 {
-    byte tmpKnockRetard = 0;
+    if (currentStatus.knockCount < configPage10.knock_count) { BIT_CLEAR(currentStatus.status5, BIT_STATUS5_KNOCK_PULSE); return 0; }
 
-    // Guard: Knock count below threshold
-    if (currentStatus.knockCount < configPage10.knock_count) {
-        BIT_CLEAR(currentStatus.status5, BIT_STATUS5_KNOCK_PULSE);
-        return 0;
-    }
-
-    // Knock active - check for additional events
     if (BIT_CHECK(currentStatus.status5, BIT_STATUS5_KNOCK_ACTIVE)) {
-        tmpKnockRetard = currentStatus.knockRetard;
-
-        // Check for new knock pulse
-        if (BIT_CHECK(currentStatus.status5, BIT_STATUS5_KNOCK_PULSE)) {
-            // Guard: Step time not elapsed
-            if ((micros() - knockStartTime) > (configPage10.knock_stepTime * 1000UL)) {
-                currentStatus.knockCount++;
-                tmpKnockRetard = calculateKnockRetard();
-                knockStartTime = micros();
-                knockLastRecoveryStep = 0;
-            }
-        }
-
-        tmpKnockRetard = calculateKnockRecovery(tmpKnockRetard);
+        byte tmpRetard = handleDigitalKnockPulse(currentStatus.knockRetard);
+        BIT_CLEAR(currentStatus.status5, BIT_STATUS5_KNOCK_PULSE);
+        return calculateKnockRecovery(tmpRetard);
     }
-    else {
-        // Activate knock retard
+
+    // Activate knock retard
+    knockStartTime = micros();
+    BIT_SET(currentStatus.status5, BIT_STATUS5_KNOCK_ACTIVE);
+    knockLastRecoveryStep = 0;
+    BIT_CLEAR(currentStatus.status5, BIT_STATUS5_KNOCK_PULSE);
+    return calculateKnockRetard();
+}
+
+/**
+ * @brief Handle analog knock while active
+ */
+static inline byte handleAnalogKnockActive(void)
+{
+    byte tmpRetard = 0;
+    if (!isKnockStepTimeElapsed()) { return calculateKnockRecovery(tmpRetard); }
+
+    uint16_t reading = getAnalogKnock();
+    if (reading > configPage10.knock_threshold) {
+        currentStatus.knockCount++;
+        tmpRetard = calculateKnockRetard();
         knockStartTime = micros();
-        tmpKnockRetard = calculateKnockRetard();
-        BIT_SET(currentStatus.status5, BIT_STATUS5_KNOCK_ACTIVE);
         knockLastRecoveryStep = 0;
     }
+    return calculateKnockRecovery(tmpRetard);
+}
 
-    BIT_CLEAR(currentStatus.status5, BIT_STATUS5_KNOCK_PULSE);
-    return tmpKnockRetard;
+/**
+ * @brief Check for new analog knock event
+ */
+static inline byte checkAnalogKnockStart(void)
+{
+    if (!BIT_CHECK(LOOP_TIMER, BIT_TIMER_30HZ)) { return 0; }
+
+    uint16_t reading = getAnalogKnock();
+    if (reading <= configPage10.knock_threshold) { return 0; }
+
+    knockStartTime = micros();
+    BIT_SET(currentStatus.status5, BIT_STATUS5_KNOCK_ACTIVE);
+    knockLastRecoveryStep = 0;
+    return configPage10.knock_firstStep;
 }
 
 /**
@@ -184,39 +215,8 @@ static inline byte knockDetectionDigital(void)
  */
 static inline byte knockDetectionAnalog(void)
 {
-    byte tmpKnockRetard = 0;
-
-    // Knock active - check for additional events
-    if (BIT_CHECK(currentStatus.status5, BIT_STATUS5_KNOCK_ACTIVE)) {
-        // Guard: Step time not elapsed
-        if ((micros() - knockStartTime) > (configPage10.knock_stepTime * 1000UL)) {
-            uint16_t tmpKnockReading = getAnalogKnock();
-
-            if (tmpKnockReading > configPage10.knock_threshold) {
-                currentStatus.knockCount++;
-                tmpKnockRetard = calculateKnockRetard();
-                knockStartTime = micros();
-                knockLastRecoveryStep = 0;
-            }
-        }
-
-        tmpKnockRetard = calculateKnockRecovery(tmpKnockRetard);
-    }
-    else {
-        // Poll analog sensor at 30Hz
-        if (BIT_CHECK(LOOP_TIMER, BIT_TIMER_30HZ)) {
-            uint16_t tmpKnockReading = getAnalogKnock();
-
-            if (tmpKnockReading > configPage10.knock_threshold) {
-                knockStartTime = micros();
-                tmpKnockRetard = configPage10.knock_firstStep;
-                BIT_SET(currentStatus.status5, BIT_STATUS5_KNOCK_ACTIVE);
-                knockLastRecoveryStep = 0;
-            }
-        }
-    }
-
-    return tmpKnockRetard;
+    if (BIT_CHECK(currentStatus.status5, BIT_STATUS5_KNOCK_ACTIVE)) { return handleAnalogKnockActive(); }
+    return checkAnalogKnockStart();
 }
 
 /**
@@ -488,6 +488,27 @@ int8_t correctionIdleAdvance(int8_t advance)
 }
 
 /**
+ * @brief Apply soft limit retard based on mode
+ */
+static inline byte applySoftRevLimitRetard(byte advance)
+{
+    if (configPage2.SoftLimitMode == SOFT_LIMIT_RELATIVE) { return advance - configPage4.SoftLimRetard; }
+    if (configPage2.SoftLimitMode == SOFT_LIMIT_FIXED) { return configPage4.SoftLimRetard; }
+    return advance;
+}
+
+/**
+ * @brief Handle soft rev limit when RPM above threshold
+ */
+static inline byte handleSoftRevLimitActive(byte advance)
+{
+    BIT_SET(currentStatus.status2, BIT_STATUS2_SFTLIM);
+    if (softLimitTime >= configPage4.SoftLimMax) { return advance; }
+    if (BIT_CHECK(LOOP_TIMER, BIT_TIMER_10HZ)) { softLimitTime++; }
+    return applySoftRevLimitRetard(advance);
+}
+
+/**
  * @brief Soft rev limit correction
  * @param advance Current ignition timing
  * @return Corrected timing with soft rev limit retard
@@ -497,40 +518,17 @@ int8_t correctionIdleAdvance(int8_t advance)
  */
 int8_t correctionSoftRevLimit(int8_t advance)
 {
-    byte ignSoftRevValue = advance;
     BIT_CLEAR(currentStatus.status2, BIT_STATUS2_SFTLIM);
 
     // Guard: Protection mode not set to ignition cut
-    if ((configPage6.engineProtectType != PROTECT_CUT_IGN) &&
-        (configPage6.engineProtectType != PROTECT_CUT_BOTH)) {
-        return ignSoftRevValue;
-    }
+    bool protectEnabled = (configPage6.engineProtectType == PROTECT_CUT_IGN) ||
+                          (configPage6.engineProtectType == PROTECT_CUT_BOTH);
+    if (!protectEnabled) { return advance; }
 
-    // Check if RPM above soft rev limit
-    if (currentStatus.RPMdiv100 >= configPage4.SoftRevLim) {
-        BIT_SET(currentStatus.status2, BIT_STATUS2_SFTLIM);
+    if (currentStatus.RPMdiv100 >= configPage4.SoftRevLim) { return handleSoftRevLimitActive(advance); }
 
-        // Apply retard up to max duration
-        if (softLimitTime < configPage4.SoftLimMax) {
-            if (configPage2.SoftLimitMode == SOFT_LIMIT_RELATIVE) {
-                // Relative mode: subtract from current timing
-                ignSoftRevValue = ignSoftRevValue - configPage4.SoftLimRetard;
-            }
-            else if (configPage2.SoftLimitMode == SOFT_LIMIT_FIXED) {
-                // Fixed mode: set to specific timing value
-                ignSoftRevValue = configPage4.SoftLimRetard;
-            }
-
-            if (BIT_CHECK(LOOP_TIMER, BIT_TIMER_10HZ)) {
-                softLimitTime++;
-            }
-        }
-    }
-    else if (BIT_CHECK(LOOP_TIMER, BIT_TIMER_10HZ)) {
-        softLimitTime = 0; // Reset time at 10Hz update rate
-    }
-
-    return ignSoftRevValue;
+    if (BIT_CHECK(LOOP_TIMER, BIT_TIMER_10HZ)) { softLimitTime = 0; }
+    return advance;
 }
 
 /**
