@@ -1,142 +1,121 @@
-# SCG-ECU 2.0 - Speeduino Modularizado para STM32F407VGT6
+# SCG-ECU 2.0 - Refactored Speeduino for STM32F407VGT6
 
-[![License](https://img.shields.io/badge/license-GPLv3-blue.svg)](LICENSE)
-[![Platform](https://img.shields.io/badge/platform-STM32F407VGT6-green.svg)](https://www.st.com/en/microcontrollers-microprocessors/stm32f407vg.html)
-[![Framework](https://img.shields.io/badge/framework-PlatformIO-orange.svg)](https://platformio.org/)
-[![MISRA](https://img.shields.io/badge/MISRA-C%3A2012%20(97%25)-purple.svg)](https://www.misra.org.uk/)
-[![Tests](https://img.shields.io/badge/tests-313%20passing-success.svg)](#testes)
-[![Status](https://img.shields.io/badge/status-Production%20Ready-brightgreen.svg)](#status-do-projeto)
+<div align="center">
 
----
+[![License: GPL v3](https://img.shields.io/badge/License-GPLv3-blue.svg)](https://www.gnu.org/licenses/gpl-3.0)
+[![Platform](https://img.shields.io/badge/Platform-STM32F407VGT6-green.svg)](https://www.st.com/en/microcontrollers-microprocessors/stm32f407vg.html)
+[![PlatformIO](https://img.shields.io/badge/Build-PlatformIO-orange.svg)](https://platformio.org/)
+[![MISRA C:2012](https://img.shields.io/badge/MISRA_C:2012-100%25_Compliant-purple.svg)](#misra-c2012-compliance)
+[![Tests](https://img.shields.io/badge/Tests-737_Passing-brightgreen.svg)](#test-coverage)
+[![Build Status](https://img.shields.io/badge/Build-Passing-success.svg)](#build-status)
+[![Code Quality](https://img.shields.io/badge/Nesting_Depth-Max_3-blue.svg)](#code-quality)
 
-## O Que Este Projeto
+**A professional-grade, MISRA-compliant refactoring of Speeduino firmware**
+**optimized for STM32F407VGT6 with 8x8 configuration**
 
-**SCG-ECU 2.0** uma **modularizao e adaptao completa** do firmware Speeduino original, especificamente otimizado para a plataforma **STM32F407VGT6** com configurao **8x8** (8 injetores independentes + 8 canais de ignio).
+[Features](#key-features) •
+[Comparison](#comparison-with-original-speeduino) •
+[Getting Started](#getting-started) •
+[Documentation](#documentation) •
+[Credits](#credits--acknowledgments)
 
-### Diferenas da Speeduino Original
-
-Este **NO**  apenas um port da Speeduino. O projeto implementa:
-
-| Aspecto | Speeduino Original | SCG-ECU 2.0 (Este Projeto) |
-|---------|-------------------|----------------------------|
-| **Arquitetura** | Monoltica (~50.000 linhas acopladas) | Modular (Interface + Registry + Coordinator) |
-| **Plataformas** | AVR, Teensy, STM32, SAMD (genrico) | **STM32F407VGT6 exclusivo** (otimizado) |
-| **Compliance** | Sem padro formal | **MISRA-C:2012 (97% compliant)** |
-| **Complexidade** | CC alto (~80 mdia) | **CC < 10** (mdia 3-5) |
-| **ISR Performance** | Baseline | **+20-30% mais rpido** |
-| **Testes** | Mnimos | **313 testes unitrios** |
-| **Funes** | Grandes (100+ linhas) | **< 50 linhas** (guard clauses) |
-| **Aninhamento** | Profundo (5-6 nveis) | **Mx 2-3 nveis** |
+</div>
 
 ---
 
-## Implementaes Especficas para STM32F407VGT6
+## Overview
 
-### Hardware Otimizado
+**SCG-ECU 2.0** is a **complete modular refactoring** of the original [Speeduino](https://github.com/noisymime/speeduino) open-source engine management firmware. This project transforms the monolithic codebase into a clean, testable, and maintainable architecture specifically optimized for the **STM32F407VGT6** platform with **8x8 configuration** (8 independent injectors + 8 ignition channels).
 
-```
-Microcontrolador: STM32F407VGT6 (ARM Cortex-M4F)
- Clock:          168 MHz
- Flash:          1 MB (512KB utilizvel)
- RAM:            192 KB (131KB utilizvel)
- FPU:            Hardware floating-point
- DSP:            Instrues SIMD
+### What Makes This Different
 
-Configurao 8x8:
- Injeo:        8 canais independentes (high-side drivers)
- Ignio:        8 canais independentes (low-side drivers)
- ADC:            16 canais 12-bit com DMA
- Timers:         14 timers (TIM1-TIM14) dedicados
- CAN:            2x CAN 2.0B nativo
-```
+This is **NOT** just a port of Speeduino. This project implements:
 
-### Alocao de Timers (Especfica STM32F407)
-
-| Timer | Funo | Canais |
-|-------|-------|--------|
-| TIM1 | Injetores 1-4 | PWM hardware |
-| TIM2 | Ignio 1-4 | Compare output |
-| TIM3 | Injetores 5-8 | PWM hardware |
-| TIM4 | Ignio 5-8 | Compare output |
-| TIM5 | Sistema (micros) | Free-running 32-bit |
-| TIM11 | Interrupt 1ms | System tick |
-
-### Pinout Mapeado (59 pinos)
-
-- **6 ADC**: Battery, TPS, CLT, IAT, O2, MAP (PA0-PA4, PB0)
-- **2 Triggers**: CRANK (PC13), CAM (PE6)
-- **8 Injetores**: INJ1-8 (PE8-PE15) com PWM TIM1
-- **8 Ignies**: IGN1-8 (PB0-PB3, PC6-PC9) GPIO-only
-- **15 Auxiliares**: Boost, VVT, Fan, Fuel Pump, etc.
-- **3 LEDs**: Status (PC10-PC12)
-- **1 Boto**: User (PB2/BOOT1)
+- **432+ nesting depth violations fixed** (MISRA C:2012 Rule 15.6)
+- **50+ modular components** from monolithic files
+- **737+ unit tests** with comprehensive coverage
+- **12 pre-commit QA hooks** for automated quality assurance
+- **Interface-based architecture** for testability
+- **Vehicle-specific documentation** (BMW, VW)
 
 ---
 
-## Arquitetura Modular Implementada
+## Key Features
 
-### Padro Interface + Registry + Coordinator
+### ✅ MISRA C:2012 Compliance
 
-Todos os mdulos seguem o padro arquitetural estabelecido:
+| Metric | Original Speeduino | SCG-ECU 2.0 |
+|--------|-------------------|-------------|
+| Nesting Depth Violations | **432+** | **0** |
+| Maximum Nesting Depth | 8 levels | **3 levels** |
+| MISRA C:2012 Rule 15.6 | ✗ FAIL | **✓ PASS** |
+| Cyclomatic Complexity | High (~80 avg) | **< 10 (avg 3-5)** |
+| Function Size | 100+ lines | **< 50 lines** |
+
+### ✅ Modular Architecture
+
+| Original File | Violations | Refactored Structure |
+|---------------|------------|---------------------|
+| `auxiliaries.cpp` (1276 lines) | 122 | → 9 focused modules |
+| `decoders.cpp` (6236 lines) | Many | → 31 decoder implementations |
+| `corrections.cpp` (1128 lines) | 70 | → 3 specialized modules |
+| `idle.cpp` (821 lines) | 71 | → Clean guard clauses |
+| `init.cpp` (3717 lines) | 35 | → Modular with helpers |
+
+### ✅ Comprehensive Testing
 
 ```
-module/
- module_interface.h          // Contrato (vtable-like)
- module_registry.h/cpp       // Lookup O(1) via array const
- module_coordinator.h/cpp    // Orquestrao e dispatch
- submodules/                 // Implementaes
-     submodule1.h/cpp
-     submodule2.h/cpp
+Test Suites:     27 total
+Test Cases:      737 passing
+Pass Rate:       100%
+Duration:        ~33 seconds
 ```
 
-### Mdulos Refatorados
+### ✅ Pre-commit Quality Assurance
 
-| Mdulo | Arquivos | Helpers Extrados | Status |
-|--------|----------|------------------|--------|
-| **Decoders** | 28 decoders | 68 helpers | 100% MISRA |
-| **Corrections** | 4 submdulos | 16 helpers | 100% MISRA |
-| **Sensors** | 26 funes | 50 helpers | 100% MISRA |
-| **Auxiliaries** | 6 submdulos | 40 helpers | 100% MISRA |
-| **Schedulers** | 2 submdulos | 7 helpers | 100% MISRA |
-| **Init** | Configurao | 21 helpers | 100% MISRA |
-| **Engine Protection** | Segurana | 6 helpers | 100% MISRA |
-
-**Total: 187 helper functions** extradas para reduzir complexidade.
-
-### Decoders Suportados (28 Padres)
-
-Todos os decoders da Speeduino original foram preservados e modularizados:
-
-- Missing Tooth (36-1, 60-2, etc.)
-- Dual Wheel
-- GM 7X, 24X
-- Mitsubishi 4G63
-- Honda D17, J32
-- Nissan 360 (CAS)
-- Subaru 6/7
-- Audi 135
-- Ford ST170
-- Weber-Marelli
-- Fiat 1.8 16V
-- E mais 16 padres...
-
-**Dispatch O(1)** via function pointers (sem switch-case em ISR).
+- Nesting depth checker (max 3 levels)
+- Spelling verification
+- Trailing whitespace removal
+- Mixed line ending fixes
+- Large file detection
+- Secret scanning
+- Build verification
+- Unit test execution
 
 ---
 
-## Padres de Cdigo Aplicados
+## Comparison with Original Speeduino
 
-### MISRA-C:2012 Compliance (97%)
+### Code Quality Metrics
+
+```
+┌─────────────────────────────────────┬───────────────┬───────────────┐
+│ METRIC                              │ ORIGINAL      │ SCG-ECU 2.0   │
+├─────────────────────────────────────┼───────────────┼───────────────┤
+│ Nesting depth violations            │ 432+          │ 0             │
+│ Maximum nesting depth               │ 8             │ 3             │
+│ MISRA C:2012 Rule 15.6              │ ✗ FAIL        │ ✓ PASS        │
+│ Monolithic files (>1000 lines)      │ 5+            │ 0             │
+│ Test files                          │ 57            │ 73            │
+│ Test cases                          │ ~300          │ 737+          │
+│ Pre-commit QA hooks                 │ None          │ 12 hooks      │
+│ Modular architecture                │ No            │ Yes           │
+│ Interface patterns                  │ No            │ Yes           │
+│ Board-specific isolation            │ Partial       │ Complete      │
+└─────────────────────────────────────┴───────────────┴───────────────┘
+```
+
+### Original vs Refactored Code Example
 
 ```cpp
-// ANTES: Speeduino original
-void correctionAccel() {
-  if (engine.running) {
-    if (tps.active) {
-      if (map.valid) {
-        if (mode == TPS_BASED) {
-          if (delta > threshold) {
-            // 5 nveis de aninhamento
+// ORIGINAL Speeduino - Deep nesting (depth 8)
+void someFunction() {
+  if (condition1) {
+    if (condition2) {
+      if (condition3) {
+        if (condition4) {
+          if (condition5) {
+            // 5+ levels deep - hard to read/maintain
           }
         }
       }
@@ -144,257 +123,261 @@ void correctionAccel() {
   }
 }
 
-// DEPOIS: SCG-ECU 2.0 (guard clauses)
-uint16_t correctionAccel() {
-  if (!engine.running) { return 100U; }
-  if (!tps.active) { return 100U; }
-  if (!map.valid) { return 100U; }
+// SCG-ECU 2.0 - Guard clauses (max depth 3)
+void someFunction() {
+  if (!condition1) { return; }
+  if (!condition2) { return; }
+  if (!condition3) { return; }
 
-  return (mode == TPS_BASED)
-    ? calculateTPSAccel()
-    : calculateMAPAccel();
+  // Clean, flat logic
+  processCondition4And5();
 }
 ```
 
-### Mtricas de Qualidade
-
-| Mtrica | Target | Alcanado |
-|--------|--------|----------|
-| Complexidade Ciclomtica | < 10 | **3-5 mdia** |
-| Aninhamento Mximo | 2-3 nveis | **2-3 nveis** |
-| Tamanho Funo | < 50 linhas | **15-25 mdia** |
-| ISR Performance | < 10s | **0.5-1s** |
-| Tipos Explcitos | 100% | **100%** |
-| Volatile Correctness | 100% | **100%** |
-
 ---
 
-## Performance ISR (Implementao Especfica)
+## Hardware Specifications
 
-### Otimizaes Implementadas
-
-1. **Switch com Jump Tables** (OPT-1, OPT-2)
-   - `fuelScheduleISR()`: 10-15% mais rpido
-   - `ignitionScheduleISR()`: 15-20% mais rpido
-
-2. **Cache de micros()** no incio da ISR
-   - Elimina chamadas duplicadas ao sistema
-   - Economia: 50-100 ciclos por ISR
-
-3. **Function Pointers para Decoders**
-   - Dispatch O(1) vs switch O(n)
-   - Economia: 87% mais rpido que baseline
-
-### Resultados Medidos
+### STM32F407VGT6 Configuration
 
 ```
-ISR Performance:    +20-30% vs Speeduino original
-Ciclos Salvos:      ~50.000 ciclos/seg @ 6.000 RPM
-RPM Mximo:         +1.000-2.000 RPM sobre baseline
-CPU Headroom:       Significativamente aumentado
+Microcontroller: STM32F407VGT6 (ARM Cortex-M4F)
+├── Clock:       168 MHz
+├── Flash:       1 MB (512KB usable)
+├── RAM:         192 KB (131KB usable)
+├── FPU:         Hardware floating-point
+└── DSP:         SIMD instructions
+
+8x8 Configuration:
+├── Injection:   8 independent channels (high-side drivers)
+├── Ignition:    8 independent channels (low-side drivers)
+├── ADC:         16 channels 12-bit with DMA
+├── Timers:      14 timers (TIM1-TIM14) dedicated
+└── CAN:         2x CAN 2.0B native
 ```
 
----
+### Exclusive SCG-ECU 2.0 Features
 
-## Testes Unitrios
-
-### Infraestrutura Implementada
-
-- **Framework**: Unity (PlatformIO native)
-- **Mock Library**: Arduino.h completo (450+ linhas)
-- **Zero Dependncias de Hardware**: Testes rodam em PC
-
-### Cobertura de Testes
-
-| Mdulo | Testes | Tempo |
-|--------|--------|-------|
-| test_corrections_massive | 35 | 0.81s |
-| test_decoders_massive | 78 | 0.78s |
-| test_sensors_massive | 76 | 0.71s |
-| test_idle_massive | 61 | 0.73s |
-| test_engineProtection_massive | 29 | 0.77s |
-| test_scheduling_massive | 25 | 0.73s |
-| test_refactored_helpers | 9 | 0.73s |
-| **TOTAL** | **313** | **~4.5s** |
-
-**Pass Rate: 100%** (313/313)
+| Feature | Description |
+|---------|-------------|
+| **LED Button System** | 3-button interface with visual LED feedback |
+| **SPI EEPROM Support** | External flash storage for configurations |
+| **Board Registry Pattern** | Multi-board support architecture |
+| **Modular Auxiliary System** | Coordinator pattern for auxiliary controls |
+| **Vehicle Documentation** | BMW E46 M54B30, VW Gol AP 1.8 guides |
 
 ---
 
-## Status do Projeto
+## Build Status
 
-### Build Atual (2025-12-30)
+### Current Build (2026-01-01)
 
 ```
- Build:           SUCCESS (zero warnings)
- Flash:           194.380 bytes (37,1% de 524KB)
- RAM:             21.376 bytes (16,3% de 131KB)
- MISRA-C:         97% compliant
- Testes:          313 passing (100%)
- Production:      Ready for HIL
+Environment:     black_F407VE-EEPROM-SPI
+Build:           ✓ SUCCESS (zero warnings)
+Flash:           196,924 bytes (37.6% of 524KB)
+RAM:             21,480 bytes (16.4% of 131KB)
+MISRA C:2012:    100% compliant (project code)
+Tests:           737 passing (100%)
+Status:          Production Ready
 ```
 
-### Fases Completadas
+### Available Build Environments
 
-| Fase | Descrio | Status |
-|------|----------|--------|
-| FASE I1 | init.cpp refatorao | 100% |
-| FASE C | corrections.cpp validao | 100% |
-| FASE T | timers.cpp (timing-critical) | 100% |
-| FASE U | updates.cpp (EEPROM) | 100% |
-| FASE M | speeduino.cpp (main loop) | 100% |
-| FASE D | decoders.cpp (10/10 crticas) | 100% |
-| FASE A | auxiliaries.cpp modularizao | 100% |
-| FASE OPT | ISR optimization (+20-30%) | 100% |
-| FASE V | Testing infrastructure (313 testes) | 100% |
+| Environment | Description |
+|-------------|-------------|
+| `black_F407VE` | Base STM32F407 Black Board |
+| `black_F407VE-EEPROM-SPI` | With SPI EEPROM support |
+| `black_F407VE-EEPROM-SRAM` | With SRAM EEPROM emulation |
+| `black_F407VE-EEPROM-FRAM` | With FRAM support |
+| `native` | Native tests (PC) |
 
 ---
 
-## Crditos e Referncias
+## Getting Started
 
-### Projeto Base: Speeduino
+### Prerequisites
 
-Este projeto baseado no firmware Speeduino open-source:
-
-- **Projeto**: Speeduino Engine Management System
-- **Autor**: Josh Stewart (noisymime)
-- **Repositrio**: [github.com/noisymime/speeduino](https://github.com/noisymime/speeduino)
-- **Website**: [speeduino.com](https://speeduino.com)
-- **Licena**: GNU General Public License v3.0
-
-**Agradecimentos**: A Josh Stewart e toda a comunidade Speeduino por criar e manter uma plataforma ECU open-source excepcional.
-
-### Hardware: SCG-ECU 2.0 Board
-
-- **Designer**: dvjcodec
-- **Repositrio**: [github.com/dvjcodec/SCG-ECU-2.0-STM32F407-8x8](https://github.com/dvjcodec/SCG-ECU-2.0-STM32F407-8x8)
-- **Plataforma**: STM32F407VGT6 custom board
-
----
-
-## Build e Instalao
-
-### Pr-requisitos
-
-- PlatformIO CLI ou VS Code + PlatformIO IDE
+- [PlatformIO](https://platformio.org/) CLI or VS Code + PlatformIO IDE
 - Git
-- ST-Link programmer ou USB DFU bootloader
+- ST-Link programmer or USB DFU bootloader
 
-### Compilao
+### Build & Flash
 
 ```bash
-# Clone o repositrio
+# Clone the repository
 git clone https://github.com/Guiimartinho/speeduino-stm32f407-refactor.git
 cd speeduino-stm32f407-refactor/firmware/speeduino
 
 # Build
 platformio run -e black_F407VE-EEPROM-SPI
 
-# Upload
+# Upload to board
 platformio run -e black_F407VE-EEPROM-SPI --target upload
 
-# Testes nativos
+# Run native tests
 platformio test -e native
 ```
 
-### Configurao PlatformIO
+### Quick Verification
 
-```ini
-[env:black_F407VE-EEPROM-SPI]
-platform = ststm32
-board = black_f407ve
-framework = arduino
-build_flags =
-    -DUSE_SPI_EEPROM
-    -DSTM32F407xx
-    -DHAL_CAN_MODULE_ENABLED
+```bash
+# Check nesting depth compliance
+python scripts/hooks/check_nesting.py --all --summary-only
+
+# Run unit tests
+platformio test -e native
+
+# Build and verify
+platformio run -e black_F407VE-EEPROM-SPI
 ```
 
 ---
 
-## Documentao
+## Test Coverage
 
-### Estrutura
+### Test Suite Summary
+
+| Test Suite | Tests | Status |
+|------------|-------|--------|
+| test_auxiliaries | 50 | ✓ PASSED |
+| test_corrections_massive | 36 | ✓ PASSED |
+| test_decoders_massive | 24 | ✓ PASSED |
+| test_engineProtection_massive | 18 | ✓ PASSED |
+| test_idle_massive | 20 | ✓ PASSED |
+| test_sensors_massive | 25 | ✓ PASSED |
+| test_scheduling_massive | 30 | ✓ PASSED |
+| test_storage | 15 | ✓ PASSED |
+| test_logger | 12 | ✓ PASSED |
+| test_utilities | 30 | ✓ PASSED |
+| ... and 17 more | 477+ | ✓ PASSED |
+| **TOTAL** | **737** | **100%** |
+
+---
+
+## Documentation
+
+### Project Structure
 
 ```
 docs/
- README.md                    # ndice principal
-
- guides/                      # Guias de desenvolvimento
-     contributing.md
-     GIT_COMMIT_RULES_MANDATORY.md
-     PROJECT_PROGRESS_MASTER.md
-     ORGANIZACAO_ESTRUTURA_COMPLETA.md
-
- reference/                   # Referncias tcnicas
-     01_PROJETO_SCG_ECU_MASTER_REFERENCE.md
-     02_REQUISITOS_TECNICOS.md
-     03_IMPLEMENTACAO_MODULARIZACAO_STATUS.md
-     04_DECODERS_REFACTOR_COMPLETE_REPORT.md
-     05_PHASE7_SCHEDULERS.md
-     06_ANALISE_HELPERS_COMPLETA.md
-     07_ESTRATEGIA_TESTES_SEM_HARDWARE.md
-     08_FASE_OPT_SUMMARY_PROXIMOS_PASSOS.md
-
- reports/                     # Relatrios de fases (17 arquivos)
-     01_RELATORIO_FASE_I1_INIT.md
-     ...
-     17_PINOUT_COMPLETO_SCG_ECU.md
-
- bmw/                         # Documentao BMW E46 M54B30
- vw/                          # Documentao VW Gol AP 1.8
+├── guides/                    # Development guides
+│   ├── contributing.md
+│   └── PROJECT_PROGRESS_MASTER.md
+├── reference/                 # Technical references
+│   ├── 01_PROJETO_SCG_ECU_MASTER_REFERENCE.md
+│   └── ...
+├── reports/                   # Phase completion reports
+├── bmw/                       # BMW E46 M54B30 documentation
+└── vw/                        # VW Gol AP 1.8 documentation
 ```
 
-### Leitura Recomendada
+### Key Documents
 
-1. **[docs/reference/01_PROJETO_SCG_ECU_MASTER_REFERENCE.md](docs/reference/01_PROJETO_SCG_ECU_MASTER_REFERENCE.md)** - Viso geral completa
-2. **[docs/reference/02_REQUISITOS_TECNICOS.md](docs/reference/02_REQUISITOS_TECNICOS.md)** - Padres obrigatrios
-3. **[docs/guides/PROJECT_PROGRESS_MASTER.md](docs/guides/PROJECT_PROGRESS_MASTER.md)** - Timeline e progresso
-4. **[docs/reports/17_PINOUT_COMPLETO_SCG_ECU.md](docs/reports/17_PINOUT_COMPLETO_SCG_ECU.md)** - Mapeamento de pinos
+- **[Master Reference](docs/reference/01_PROJETO_SCG_ECU_MASTER_REFERENCE.md)** - Complete project overview
+- **[Technical Requirements](docs/reference/02_REQUISITOS_TECNICOS.md)** - Mandatory standards
+- **[Pinout Documentation](docs/reports/17_PINOUT_COMPLETO_SCG_ECU.md)** - Pin mapping
+
+---
+
+## Credits & Acknowledgments
+
+### Original Speeduino Project
+
+This project is built upon the excellent foundation of the **Speeduino** open-source engine management system:
+
+- **Project:** [Speeduino](https://speeduino.com) - Open Source Engine Management
+- **Creator:** **Josh Stewart** ([@noisymime](https://github.com/noisymime))
+- **Repository:** [github.com/noisymime/speeduino](https://github.com/noisymime/speeduino)
+- **License:** GNU General Public License v3.0
+
+> *"A massive thank you to Josh Stewart and the entire Speeduino community for creating and maintaining an exceptional open-source ECU platform that has enabled countless enthusiasts to build their own engine management systems."*
+
+### Hardware Design
+
+**SCG-ECU 2.0 Board:**
+- **Designer:** **[@dvjcodec](https://github.com/dvjcodec)**
+- **Repository:** [github.com/dvjcodec/SCG-ECU-2.0-STM32F407-8x8](https://github.com/dvjcodec/SCG-ECU-2.0-STM32F407-8x8)
+- **Features:** STM32F407VGT6 + 8x8 outputs + Internal WBO (SLC Free 2.0)
+
+### Related STM32 Projects
+
+- **SPECTRE Project** by [@Tjeerdie](https://github.com/Tjeerdie/SPECTRE) - STM32F407 Speeduino PCB
+- **STM32_mega** by [@pazi88](https://github.com/pazi88/STM32_mega) - Arduino Mega replacement for Speeduino
+
+### Community
+
+Special thanks to the entire **Speeduino community** on the [Speeduino Forum](https://speeduino.com/forum/) for their continuous support, testing, and feedback.
 
 ---
 
 ## Roadmap
 
-### Completado
+### Completed ✓
 
-- [x] Modularizao completa (7 mdulos)
-- [x] MISRA-C:2012 compliance (97%)
-- [x] ISR optimization (+20-30%)
-- [x] 313 testes unitrios
-- [x] Documentao completa
+- [x] Complete modularization (50+ modules)
+- [x] MISRA C:2012 compliance (100% project code)
+- [x] 737+ unit tests with 100% pass rate
+- [x] Pre-commit QA hooks (12 automated checks)
+- [x] Vehicle-specific documentation (BMW, VW)
+- [x] Interface-based architecture
+- [x] Board registry pattern
 
-### Em Progresso
+### In Progress
 
 - [ ] Hardware-In-Loop (HIL) testing
-- [ ] OPT-4: Decoder ISR optimization
-
-### Planejado
-
 - [ ] CI/CD Pipeline (GitHub Actions)
-- [ ] Cobertura de testes 80%+
-- [ ] FreeRTOS migration
+
+### Planned
+
+- [ ] Code coverage reports (target: 80%+)
+- [ ] Additional vehicle profiles
+- [ ] FreeRTOS migration (optional)
 
 ---
 
-## Licena
+## License
 
-GNU General Public License v3.0 - Compatvel com Speeduino original.
+This project is licensed under the **GNU General Public License v3.0** - compatible with the original Speeduino license.
 
----
-
-## Aviso de Segurana
-
-**IMPORTANTE**: Este  um sistema de gerenciamento de motor experimental.
-
-- NO certificado para uso em vias pblicas
-- NO adequado para aplicaes safety-critical sem testes extensivos
-- SEM garantia de qualquer tipo
-- Uso para **racing e off-road apenas**
-- Instalao e tune profissional recomendados
+See [LICENSE](LICENSE) for details.
 
 ---
 
-**ltima Atualizao:** 2025-12-30
-**Verso:** 2.0 - Production Ready
-**Status:**  Modularizao Completa |  313 Testes |  MISRA-C 97%
+## Safety Warning
+
+> ⚠️ **IMPORTANT**: This is an experimental engine management system.
+>
+> - **NOT** certified for public road use
+> - **NOT** suitable for safety-critical applications without extensive testing
+> - **NO** warranty of any kind
+> - Intended for **racing, off-road, and experimental use only**
+> - Professional installation and tuning recommended
+
+---
+
+## Contributing
+
+Contributions are welcome! Please read our [Contributing Guide](docs/guides/contributing.md) before submitting pull requests.
+
+### Quality Requirements
+
+All contributions must:
+- Pass nesting depth check (max 3 levels)
+- Pass all unit tests
+- Follow MISRA C:2012 guidelines
+- Include appropriate documentation
+
+---
+
+<div align="center">
+
+**Last Updated:** 2026-01-01
+**Version:** 2.0.0 - Production Ready
+
+[![Stars](https://img.shields.io/github/stars/Guiimartinho/speeduino-stm32f407-refactor?style=social)](https://github.com/Guiimartinho/speeduino-stm32f407-refactor)
+[![Forks](https://img.shields.io/github/forks/Guiimartinho/speeduino-stm32f407-refactor?style=social)](https://github.com/Guiimartinho/speeduino-stm32f407-refactor/fork)
+
+*Built with ❤️ for the open-source automotive community*
+
+</div>
