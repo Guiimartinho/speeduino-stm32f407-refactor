@@ -277,6 +277,59 @@ bool manualLogActive = false;
 uint32_t logStartTime = 0; //In ms
 elapsedMillis msSinceLastSDSync;
 
+// =============================================================================
+// HELPER FUNCTIONS - Extracted to reduce nesting (MISRA-C compliance)
+// =============================================================================
+
+/**
+ * @brief Copy filename character to buffer (skips fullstop at position 8)
+ */
+static inline void copyFilenameChar(byte* buffer, const char* filenameBuffer, byte i)
+{
+  if (i < 8) { buffer[i] = filenameBuffer[i]; return; }
+  if (i > 8) { buffer[i-1] = filenameBuffer[i]; }
+}
+
+/**
+ * @brief Print milliseconds with leading zeros padding
+ */
+static inline void printMillisPadded(RingBuf<ExFile, RING_BUF_CAPACITY>& rb, uint32_t milliseconds)
+{
+  if (milliseconds < 100) { rb.print("0"); }
+  if (milliseconds < 10) { rb.print("0"); }
+  rb.print(milliseconds);
+}
+
+#if FPU_MAX_SIZE >= 32
+/**
+ * @brief Print log entry value with integer optimization
+ */
+static inline void printLogEntryOptimized(RingBuf<ExFile, RING_BUF_CAPACITY>& rb, float entryValue)
+{
+  if (!IS_INTEGER(entryValue)) { rb.print(entryValue); return; }
+
+  uint16_t entryValueInt = (uint16_t)entryValue;
+  if (entryValueInt <= UCHAR_MAX) { rb.print((uint8_t)entryValueInt); }
+  else { rb.print(entryValueInt); }
+}
+#endif
+
+/**
+ * @brief Write all log fields to ring buffer
+ */
+static void writeLogFields(RingBuf<ExFile, RING_BUF_CAPACITY>& rb)
+{
+  for (byte x = 0; x < SD_LOG_NUM_FIELDS; x++) {
+    #if FPU_MAX_SIZE >= 32
+      float entryValue = getReadableFloatLogEntry(x);
+      printLogEntryOptimized(rb, entryValue);
+    #else
+      rb.print(getReadableLogEntry(x));
+    #endif
+    if (x < (SD_LOG_NUM_FIELDS - 1)) { rb.print(","); }
+  }
+}
+
 void initSD()
 {
   //Set default state to ready. If any stage of the init fails, this will be changed
@@ -375,14 +428,8 @@ bool getSDLogFileDetails(uint8_t* buffer, uint16_t logNumber)
     fileFound = true;
 
     logFile = sd.open(filenameBuffer, O_RDONLY);
-    //Copy the filename into the buffer. Note we do not copy the termination character or the fullstop
-    for(byte i=0; i<12; i++)
-    {
-      //We don't copy the fullstop to the buffer
-      //As TS requires 8.3 filenames, it's always in the same spot
-      if(i < 8) { buffer[i] = filenameBuffer[i]; } //Everything before the fullstop
-      else if(i > 8) { buffer[i-1] = filenameBuffer[i]; } //Everything after the fullstop
-    }
+    //Copy the filename into the buffer (skips fullstop at position 8)
+    for (byte i = 0; i < 12; i++) { copyFilenameChar(buffer, filenameBuffer, i); }
 
     //Maintenance check, truncate the file. This will usually do nothing, but in the case where a prior log was interrupted, this will truncate the file
     //Due to overhead, only bother doing this if the engine isn't running
@@ -501,66 +548,43 @@ void writeSDLogEntry()
     checkForSDStart();
   }
 
-  if(SD_status == SD_STATUS_ACTIVE)
+  if(SD_status != SD_STATUS_ACTIVE) { return; }
+
+  //Check that there is enough free space in the ring buffer to write the entry
+  if(rb.bytesFree() > SD_LOG_ENTRY_TOTAL_BYTES)
   {
-    //Check that there is enough free space in the ring buffer to write the entry
-    if(rb.bytesFree() > SD_LOG_ENTRY_TOTAL_BYTES)
-    {
-      //Write the timestamp (x.yyy seconds format)
-      uint32_t duration = millis() - logStartTime;
-      uint32_t seconds = duration / 1000;
-      uint32_t milliseconds = duration % 1000;
-      rb.print(seconds);
-      rb.print('.');
-      if (milliseconds < 100) { rb.print("0"); }
-      if (milliseconds < 10) { rb.print("0"); }
-      rb.print(milliseconds);
-      rb.print(',');
+    //Write the timestamp (x.yyy seconds format)
+    uint32_t duration = millis() - logStartTime;
+    uint32_t seconds = duration / 1000;
+    uint32_t milliseconds = duration % 1000;
+    rb.print(seconds);
+    rb.print('.');
+    printMillisPadded(rb, milliseconds);
+    rb.print(',');
 
-      //Write the line to the ring buffer
-      for(byte x=0; x<SD_LOG_NUM_FIELDS; x++)
-      {
-        #if FPU_MAX_SIZE >= 32
-          float entryValue = getReadableFloatLogEntry(x);
-          if(IS_INTEGER(entryValue))
-          {
-            uint16_t entryValueInt = (uint16_t)entryValue;
-            if(entryValueInt <= UCHAR_MAX) { rb.print((uint8_t)entryValueInt); }
-            else { rb.print(entryValueInt); }
-          }
-          else { rb.print(entryValue); }
-        #else
-          rb.print(getReadableLogEntry(x));
-        #endif
-        if(x < (SD_LOG_NUM_FIELDS - 1)) { rb.print(","); }
-      }
-      rb.println("");
-    }
-
-    //Check if write to SD from ringbuffer is needed
-    //We write to SD when there is more than 1 sector worth of data in the ringbuffer and there is not already a write being performed
-    if( (rb.bytesUsed() >= SD_SECTOR_SIZE) && !logFile.isBusy())
-    {
-      uint16_t bytesWritten = rb.writeOut(SD_SECTOR_SIZE);
-
-      //Make sure that the entire sector was written successfully
-      if (SD_SECTOR_SIZE != bytesWritten)
-      {
-        SD_status = SD_STATUS_ERROR_WRITE_FAIL;
-      }
-    }
-
-    //Check whether we should stop logging
-    checkForSDStop();
-
-    //Check whether the file is full (IE When there is not enough room to write 1 more sector)
-    if( (logFile.dataLength() - logFile.curPosition()) < SD_SECTOR_SIZE)
-    {
-      //Provided the conditions for logging are still met, a new file will be created the next time writeSDLogEntry is called
-      endSDLogging();
-      beginSDLogging();
-    }
+    //Write all log fields
+    writeLogFields(rb);
+    rb.println("");
   }
+
+  //Check if write to SD from ringbuffer is needed
+  if( (rb.bytesUsed() >= SD_SECTOR_SIZE) && !logFile.isBusy())
+  {
+    uint16_t bytesWritten = rb.writeOut(SD_SECTOR_SIZE);
+    if (SD_SECTOR_SIZE != bytesWritten) { SD_status = SD_STATUS_ERROR_WRITE_FAIL; }
+  }
+
+  //Check whether we should stop logging
+  checkForSDStop();
+
+  //Check whether the file is full (IE When there is not enough room to write 1 more sector)
+  if( (logFile.dataLength() - logFile.curPosition()) < SD_SECTOR_SIZE)
+  {
+    //Provided the conditions for logging are still met, a new file will be created the next time writeSDLogEntry is called
+    endSDLogging();
+    beginSDLogging();
+  }
+
   setTS_SD_status();
 }
 
@@ -610,52 +634,27 @@ void setTS_SD_status()
  */
 void checkForSDStart()
 {
-  //Logging can only start if we're in the ready state
-  //We must check the SD_status each time to prevent trying to init a new log file multiple times
+  if (configPage13.onboard_log_file_style == 0) { return; }
+  if (SD_status != SD_STATUS_READY) { return; }
 
-  if(configPage13.onboard_log_file_style > 0)
-  {
-    //Check for enable at boot
-    if( (configPage13.onboard_log_trigger_boot) && (SD_status == SD_STATUS_READY) )
-    {
-      //Check that we're not already finished the logging
-      if((millis() / 1000) <= configPage13.onboard_log_tr1_duration)
-      {
-        beginSDLogging(); //Setup the log file, preallocation, header row
-      }
-    }
+  //Check for enable at boot
+  bool bootTrigger = configPage13.onboard_log_trigger_boot &&
+                     ((millis() / 1000) <= configPage13.onboard_log_tr1_duration);
+  if (bootTrigger) { beginSDLogging(); return; }
 
-    //Check for RPM based Enable
-    if( (configPage13.onboard_log_trigger_RPM) && (SD_status == SD_STATUS_READY) )
-    {
-      if( (currentStatus.RPMdiv100 >= configPage13.onboard_log_tr2_thr_on) && (currentStatus.RPMdiv100 <= configPage13.onboard_log_tr2_thr_off) ) //Need to check both on and off conditions to prevent logging starting and stopping continually
-      {
-        beginSDLogging(); //Setup the log file, preallocation, header row
-      }
-    }
+  //Check for RPM based Enable
+  bool rpmInRange = (currentStatus.RPMdiv100 >= configPage13.onboard_log_tr2_thr_on) &&
+                    (currentStatus.RPMdiv100 <= configPage13.onboard_log_tr2_thr_off);
+  bool rpmTrigger = configPage13.onboard_log_trigger_RPM && rpmInRange;
+  if (rpmTrigger) { beginSDLogging(); return; }
 
-    //Check for engine protection based enable
-    if((configPage13.onboard_log_trigger_prot) && (SD_status == SD_STATUS_READY) )
-    {
-      if(currentStatus.engineProtectStatus > 0)
-      {
-        beginSDLogging(); //Setup the log file, preallocation, header row
-      }
-    }
+  //Check for engine protection based enable
+  bool protTrigger = configPage13.onboard_log_trigger_prot && (currentStatus.engineProtectStatus > 0);
+  if (protTrigger) { beginSDLogging(); return; }
 
-    if( (configPage13.onboard_log_trigger_Vbat) && (SD_status == SD_STATUS_READY) )
-    {
-
-    }
-
-    if((configPage13.onboard_log_trigger_Epin) && (SD_status == SD_STATUS_READY) )
-    {
-      if(digitalRead(pinSDEnable) == LOW)
-      {
-        beginSDLogging(); //Setup the log file, preallocation, header row
-      }
-    }
-  }
+  //Check for external pin enable
+  bool epinTrigger = configPage13.onboard_log_trigger_Epin && (digitalRead(pinSDEnable) == LOW);
+  if (epinTrigger) { beginSDLogging(); }
 }
 
 /**
@@ -663,63 +662,32 @@ void checkForSDStart()
  */
 void checkForSDStop()
 {
-  //Check the various conditions to see if we should stop logging
-  bool log_boot = false;
-  bool log_RPM = false;
-  bool log_prot = false;
+  if (SD_status != SD_STATUS_ACTIVE) { return; }
+
+  //Check for enable at boot
+  bool log_boot = configPage13.onboard_log_trigger_boot &&
+                  ((millis() / 1000) <= configPage13.onboard_log_tr1_duration);
+
+  //Check for RPM based trigger
+  bool rpmInRange = (currentStatus.RPMdiv100 >= configPage13.onboard_log_tr2_thr_on) &&
+                    (currentStatus.RPMdiv100 <= configPage13.onboard_log_tr2_thr_off);
+  bool log_RPM = configPage13.onboard_log_trigger_RPM && rpmInRange;
+
+  //Check for protection trigger
+  bool log_prot = configPage13.onboard_log_trigger_prot && (currentStatus.engineProtectStatus > 0);
+
+  //Check for voltage trigger (not implemented)
   bool log_Vbat = false;
-  bool log_Epin = false;
 
-  //Logging only needs to be stopped if already active
-  if(SD_status == SD_STATUS_ACTIVE)
-  {
-    //Check for enable at boot
-    if(configPage13.onboard_log_trigger_boot)
-    {
-      //Check if we're past the logging duration
-      if((millis() / 1000) <= configPage13.onboard_log_tr1_duration)
-      {
-        log_boot = true;
-      }
-    }
-    if(configPage13.onboard_log_trigger_RPM)
-    {
-      if( (currentStatus.RPMdiv100 >= configPage13.onboard_log_tr2_thr_on) && (currentStatus.RPMdiv100 <= configPage13.onboard_log_tr2_thr_off) )
-      {
-        log_RPM = true;
-      }
-    }
-    if(configPage13.onboard_log_trigger_prot)
-    {
-      if(currentStatus.engineProtectStatus > 0)
-      {
-        log_prot = true;
-      }
-    }
-    if(configPage13.onboard_log_trigger_Vbat)
-    {
+  //Check for external pin trigger
+  bool log_Epin = configPage13.onboard_log_trigger_Epin && (digitalRead(pinSDEnable) == LOW);
 
-    }
+  //Check all conditions to see if we should stop logging
+  bool anyActive = log_boot || log_RPM || log_prot || log_Vbat || log_Epin || manualLogActive;
+  if (!anyActive) { endSDLogging(); }
 
-    //External Pin
-    if(configPage13.onboard_log_trigger_Epin)
-    {
-      if(digitalRead(pinSDEnable) == LOW)
-      {
-        log_Epin = true;
-      }
-    }
-
-    //Check all conditions to see if we should stop logging
-    if( (log_boot == false) && (log_RPM == false) && (log_prot == false) && (log_Vbat == false) && (log_Epin == false) && (manualLogActive == false) )
-    {
-      endSDLogging();
-    }
-    //ALso check whether logging has been disabled entirely
-    if(configPage13.onboard_log_file_style == 0) { endSDLogging(); }
-  }
-
-
+  //Also check whether logging has been disabled entirely
+  if(configPage13.onboard_log_file_style == 0) { endSDLogging(); }
 }
 
 bool syncSDLog()
@@ -739,26 +707,15 @@ bool syncSDLog()
  */
 void formatExFat()
 {
-  bool result = false;
-
   //Set the SD status to busy
   BIT_CLEAR(currentStatus.TS_SD_Status, SD_STATUS_CARD_READY);
-
   logFile.close();
 
-  if (sd.cardBegin(SD_CONFIG))
-  {
-    if(sd.format())
-    {
-      if (sd.volumeBegin())
-      {
-        result = true;
-      }
-    }
-  }
+  //Try to format
+  bool result = sd.cardBegin(SD_CONFIG) && sd.format() && sd.volumeBegin();
 
-  if(result == false) { SD_status = SD_STATUS_ERROR_FORMAT_FAIL; }
-  else { BIT_SET(currentStatus.TS_SD_Status, SD_STATUS_CARD_READY); }
+  if (!result) { SD_status = SD_STATUS_ERROR_FORMAT_FAIL; return; }
+  BIT_SET(currentStatus.TS_SD_Status, SD_STATUS_CARD_READY);
 }
 
 /**

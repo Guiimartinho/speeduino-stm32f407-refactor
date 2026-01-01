@@ -361,28 +361,25 @@ static inline void configureDigitalLocalPin(uint8_t channel)
 }
 
 /**
+ * @brief Process single auxiliary input channel configuration.
+ */
+static inline void processAuxInputChannel(uint8_t channel)
+{
+  if (isExternalCANInputEnabled(channel)) { BIT_SET(statusSensors, BIT_SENSORS_AUX_ENBL); }
+  else if (isAnalogLocalPinEnabled(channel)) { configureAnalogLocalPin(channel); }
+  else if (isDigitalLocalPinEnabled(channel)) { configureDigitalLocalPin(channel); }
+}
+
+/**
  * @brief Initialize all auxiliary CAN input channels.
  */
 static inline void initialiseAuxInputChannels(void)
 {
   BIT_CLEAR(statusSensors, BIT_SENSORS_AUX_ENBL);
-
   for (uint8_t AuxinChan = 0U; AuxinChan < 16U; AuxinChan++)
   {
     currentStatus.current_caninchannel = AuxinChan;
-
-    if (isExternalCANInputEnabled(AuxinChan)) {
-      BIT_SET(statusSensors, BIT_SENSORS_AUX_ENBL);
-    }
-    else if (isAnalogLocalPinEnabled(AuxinChan)) {
-      configureAnalogLocalPin(AuxinChan);
-    }
-    else if (isDigitalLocalPinEnabled(AuxinChan)) {
-      configureDigitalLocalPin(AuxinChan);
-    }
-    else {
-      // Do nothing (MISRA compliance)
-    }
+    processAuxInputChannel(AuxinChan);
   }
 }
 
@@ -1207,20 +1204,18 @@ namespace {
  */
 static inline void handleUSBToBatteryTransition(int16_t newBatteryReading)
 {
-  // Check if USB→12V transition occurred (voltage jumped from <5.5V to >7.0V with engine off)
-  if( (currentStatus.battery10 < 55U) && (newBatteryReading > 70) && (currentStatus.RPM == 0U) )
-  {
-    // Re-prime the fuel pump (clear primed flag and restart timer)
-    fpPrimeTime = currentStatus.secl;
-    currentStatus.fpPrimed = false;
-    FUEL_PUMP_ON();
+  // Guard: Check if USB→12V transition occurred (voltage jumped from <5.5V to >7.0V with engine off)
+  bool transitionDetected = (currentStatus.battery10 < 55U) && (newBatteryReading > 70) && (currentStatus.RPM == 0U);
+  if (!transitionDetected) { return; }
 
-    // Re-home stepper motor IAC if configured
-    if( (configPage6.iacAlgorithm == IAC_ALGORITHM_STEP_CL) || (configPage6.iacAlgorithm == IAC_ALGORITHM_STEP_OL) )
-    {
-      initialiseIdle(true);
-    }
-  }
+  // Re-prime the fuel pump (clear primed flag and restart timer)
+  fpPrimeTime = currentStatus.secl;
+  currentStatus.fpPrimed = false;
+  FUEL_PUMP_ON();
+
+  // Re-home stepper motor IAC if configured
+  bool isStepperIAC = (configPage6.iacAlgorithm == IAC_ALGORITHM_STEP_CL) || (configPage6.iacAlgorithm == IAC_ALGORITHM_STEP_OL);
+  if (isStepperIAC) { initialiseIdle(true); }
 }
 
 } // anonymous namespace (readBat helpers)

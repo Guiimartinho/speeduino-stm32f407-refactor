@@ -460,7 +460,8 @@ static inline int16_t getReadableLogEntry_Range_13_25(uint16_t logIndex)
     case 20: statusValue = currentStatus.advance; break;
     case 21: statusValue = currentStatus.TPS; break;
     case 22:
-      if(currentStatus.loopsPerSecond > 60000U) { currentStatus.loopsPerSecond = 60000U;}
+      // Clamp loopsPerSecond to max 60000 and return
+      currentStatus.loopsPerSecond = (currentStatus.loopsPerSecond > 60000U) ? 60000U : currentStatus.loopsPerSecond;
       statusValue = currentStatus.loopsPerSecond;
       break;
     case 23:

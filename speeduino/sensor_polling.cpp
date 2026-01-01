@@ -287,21 +287,18 @@ void readAuxiliaryInputs(void)
   {
     currentStatus.current_caninchannel = AuxinChan;
 
-    // External CAN via secondary serial
+    // External CAN via secondary serial (condition already ensures enable_secondarySerial == 1)
     if(((configPage9.caninput_sel[currentStatus.current_caninchannel] & 12) == 4)
         && (((configPage9.enable_secondarySerial == 1) && ((configPage9.enable_intcan == 0) && (configPage9.intcan_available == 1)))
             || ((configPage9.enable_secondarySerial == 1) && ((configPage9.enable_intcan == 1) && (configPage9.intcan_available == 1))
                 && ((configPage9.caninput_sel[currentStatus.current_caninchannel] & 64) == 0))
             || ((configPage9.enable_secondarySerial == 1) && ((configPage9.enable_intcan == 1) && (configPage9.intcan_available == 0)))))
     {
-      // Current input channel is enabled as external & secondary serial enabled
-      if(configPage9.enable_secondarySerial == 1) // Megas only support CAN via secondary serial
-      {
-        sendCancommand(2, 0, currentStatus.current_caninchannel, 0,
-                      ((configPage9.caninput_source_can_address[currentStatus.current_caninchannel] & 2047) + 0x100));
-      }
+      // Current input channel is enabled as external & secondary serial enabled (Megas only)
+      sendCancommand(2, 0, currentStatus.current_caninchannel, 0,
+                    ((configPage9.caninput_source_can_address[currentStatus.current_caninchannel] & 2047) + 0x100));
     }
-    // Internal CAN bus
+    // Internal CAN bus (condition already ensures enable_intcan == 1)
     else if(((configPage9.caninput_sel[currentStatus.current_caninchannel] & 12) == 4)
             && (((configPage9.enable_secondarySerial == 1) && ((configPage9.enable_intcan == 1) && (configPage9.intcan_available == 1))
                  && ((configPage9.caninput_sel[currentStatus.current_caninchannel] & 64) == 64))
@@ -309,11 +306,9 @@ void readAuxiliaryInputs(void)
                     && ((configPage9.caninput_sel[currentStatus.current_caninchannel] & 128) == 128))))
     {
       #if defined(CORE_STM32)
-        if(configPage9.enable_intcan == 1) // If internal CAN is enabled
-        {
-          sendCancommand(3, configPage9.speeduino_tsCanId, currentStatus.current_caninchannel, 0,
-                        ((configPage9.caninput_source_can_address[currentStatus.current_caninchannel] & 2047) + 0x100));
-        }
+        // Internal CAN is enabled (verified by outer condition)
+        sendCancommand(3, configPage9.speeduino_tsCanId, currentStatus.current_caninchannel, 0,
+                      ((configPage9.caninput_source_can_address[currentStatus.current_caninchannel] & 2047) + 0x100));
       #endif
     }
     // Analog local pin
