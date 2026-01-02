@@ -499,12 +499,18 @@ static inline byte applySoftRevLimitRetard(byte advance)
 
 /**
  * @brief Handle soft rev limit when RPM above threshold
+ * @note After timeout, CONTINUES applying retard (safety-critical fix)
+ *       Original bug: returned unmodified advance after timeout
  */
 static inline byte handleSoftRevLimitActive(byte advance)
 {
     BIT_SET(currentStatus.status2, BIT_STATUS2_SFTLIM);
-    if (softLimitTime >= configPage4.SoftLimMax) { return advance; }
-    if (BIT_CHECK(LOOP_TIMER, BIT_TIMER_10HZ)) { softLimitTime++; }
+    // Increment timer until max reached
+    if (softLimitTime < configPage4.SoftLimMax)
+    {
+        if (BIT_CHECK(LOOP_TIMER, BIT_TIMER_10HZ)) { softLimitTime++; }
+    }
+    // CRITICAL: Always apply retard while in soft limit zone (fix for timeout bug)
     return applySoftRevLimitRetard(advance);
 }
 
