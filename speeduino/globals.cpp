@@ -203,14 +203,14 @@ byte pinAirConComp;     // Air conditioning compressor output (See: auxiliaries.
 byte pinAirConFan;    // Stand-alone air conditioning fan output (See: auxiliaries.ino)
 byte pinAirConRequest;  // Air conditioning request input (See: auxiliaries.ino)
 
-struct statuses currentStatus; /**< The master global "live" status struct. Contains all values that are updated frequently and used across modules */
-struct config2 configPage2;
-struct config4 configPage4;
-struct config6 configPage6;
-struct config9 configPage9;
-struct config10 configPage10;
-struct config13 configPage13;
-struct config15 configPage15;
+struct statuses currentStatus = {}; /**< The master global "live" status struct. Zero-initialized for safety */
+struct config2 configPage2 = {};    /**< Config page 2 - Zero-initialized to prevent undefined behavior */
+struct config4 configPage4 = {};    /**< Config page 4 - Zero-initialized to prevent undefined behavior */
+struct config6 configPage6 = {};    /**< Config page 6 - Zero-initialized to prevent undefined behavior */
+struct config9 configPage9 = {};    /**< Config page 9 - Zero-initialized to prevent undefined behavior */
+struct config10 configPage10 = {};  /**< Config page 10 - Zero-initialized to prevent undefined behavior */
+struct config13 configPage13 = {};  /**< Config page 13 - Zero-initialized to prevent undefined behavior */
+struct config15 configPage15 = {};  /**< Config page 15 - Zero-initialized to prevent undefined behavior */
 
 //These function do checks on a pin to determine if it is already in use by another (higher importance) active function
 bool pinIsOutput(byte pin)
