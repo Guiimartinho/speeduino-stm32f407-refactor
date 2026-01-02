@@ -76,6 +76,7 @@ A full copy of the license may be found in the projects root directory
 #include "unit_testing.h"
 #include "sensors_map_structs.h"
 #include "units.h"
+#include "sensors/LPS22HB.h"  // I2C Barometric pressure sensor (SCG-ECU 2.0)
 
 //=============================================================================
 // MODULE STATE AND CONSTANTS
@@ -1066,16 +1067,32 @@ static inline void setBaroFromMAP(void)
  */
 void readBaro(void)
 {
+  // Priority 1: External analog baro sensor (user explicitly configured this)
+  // If user went to TunerStudio and enabled external baro, respect their choice
   if ( configPage6.useExtBaro != 0U  )
   {
-    // readings
-    setBaroFromSensorReading(LOW_PASS_FILTER(readMAPSensor(pinBaro), configPage4.ADCFILTER_BARO, currentStatus.baroADC)); //Very weak filter
-  // If no dedicated baro sensor is available, attempt to get a reading from the MAP sensor. This can only be done if the engine is not running.
-  } else if ((currentStatus.RPM == 0U) && !engineIsRunning(micros()-MICROS_PER_SEC)) {
-    setBaroFromMAP();
-  } else {
-    // Do nothing - baro remains at last read value & MISRA checker is kept happy.
+    setBaroFromSensorReading(LOW_PASS_FILTER(readMAPSensor(pinBaro), configPage4.ADCFILTER_BARO, currentStatus.baroADC));
+    return;
   }
+
+  // Priority 2: I2C LPS22HB sensor (SCG-ECU 2.0 onboard - automatic fallback)
+  // Used when no external sensor is configured
+  if (lps22hb_isInitialized())
+  {
+    uint8_t i2cBaro = lps22hb_getBaroForSpeeduino();
+    if (isValidBaro(i2cBaro))
+    {
+      currentStatus.baro = i2cBaro;
+      return;
+    }
+    // Fall through if I2C reading invalid
+  }
+
+  // Priority 3: MAP sensor as baro (last resort, only when engine stopped)
+  if ((currentStatus.RPM == 0U) && !engineIsRunning(micros()-MICROS_PER_SEC)) {
+    setBaroFromMAP();
+  }
+  // else: baro remains at last read value (MISRA compliant)
 }
 
 /**
@@ -1109,12 +1126,33 @@ void initialiseMAPBaro(void)
   //Initialise MAP values to all 0's
   (void)memset(&mapAlgorithmState, 0, sizeof(mapAlgorithmState));
 
-  //Initialise baro
+  // Initialize I2C LPS22HB barometric sensor (SCG-ECU 2.0 onboard sensor)
+  // This runs on all STM32 platforms - returns false if sensor not present
+  // Note: We always try to init, even if external baro is configured (fallback)
+  bool lps22hbOk = lps22hb_init();
+
+  //Initialise baro - same priority as readBaro()
+  // Priority 1: External analog baro sensor (user explicitly configured)
   if ( configPage6.useExtBaro != 0U  )
   {
     // Use raw unfiltered value initially
     setBaroFromSensorReading(readMAPSensor(pinBaro));
   }
+  // Priority 2: I2C LPS22HB sensor (automatic fallback)
+  else if (lps22hbOk)
+  {
+    uint8_t i2cBaro = lps22hb_getBaroForSpeeduino();
+    if (isValidBaro(i2cBaro))
+    {
+      currentStatus.baro = i2cBaro;
+    }
+    else
+    {
+      // Sensor initialized but reading invalid - use default
+      currentStatus.baro = 100U;
+    }
+  }
+  // Priority 3: MAP sensor / EEPROM fallback
   else
   {
     //Attempt to use the last known good baro reading from EEPROM as a starting point
