@@ -9,6 +9,7 @@
 #include "../../table3d.h"
 #include "../../timers.h"
 #include "../../src/PID_v1/PID_v1.h"
+#include "../../limp_mode.h"
 
 // =============================================================================
 // PRIVATE IMPLEMENTATION - Static helpers (file scope)
@@ -218,6 +219,9 @@ static void boost_update_impl(void)
 {
     // Guard: boost not enabled
     if (configPage6.boostEnabled != 1U) { DISABLE_BOOST_TIMER(); currentStatus.flexBoostCorrection = 0; return; }
+
+    // Limp mode: disable boost for safety
+    if (shouldDisableBoostInLimpMode()) { currentStatus.boostDuty = 0; DISABLE_BOOST_TIMER(); BOOST_PIN_LOW(); return; }
 
     // Dispatch based on control mode
     if (configPage4.boostType == OPEN_LOOP_BOOST) { updateOpenLoop(); }

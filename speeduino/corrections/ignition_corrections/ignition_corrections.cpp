@@ -20,6 +20,7 @@
 #include "../../corrections.h"
 #include "../../sensors.h"
 #include "../../units.h"
+#include "../../limp_mode.h"
 
 // ============================================================================
 // GLOBAL STATE (Ignition tracking variables)
@@ -293,6 +294,11 @@ int8_t correctionsIgn(int8_t base_advance)
     advance = correctionSoftFlatShift(advance);
     advance = correctionKnockTiming(advance);
     advance = correctionDFCOignition(advance);
+
+    // Limp mode: apply timing retard for safety
+    if (isLimpModeActive()) {
+        advance += getLimpModeTimingCorrection();  // Negative value = retard
+    }
 
     // Fixed timing checks MUST go last (override all corrections)
     advance = correctionFixedTiming(advance);

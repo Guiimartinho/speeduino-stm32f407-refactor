@@ -19,6 +19,7 @@
 #include "globals.h"
 #include "modularization_globals.h"
 #include "automotive_constants.h"
+#include "limp_mode.h"
 
 // Helper: Cut a cylinder based on engine protect type (file scope to reduce nesting)
 static inline void cutCylinder(uint8_t x)
@@ -143,6 +144,9 @@ void applyEngineProtection(uint16_t maxAllowedRPM)
   {
     // Set hard limit status bit
     BIT_SET(currentStatus.status2, BIT_STATUS2_HRDLIM);
+
+    // Activate limp mode on engine protection trigger (overtemp flag)
+    limpModeSetTrigger(LIMP_TRIGGER_OVERTEMP);
   }
   else if(BIT_CHECK(currentStatus.status2, BIT_STATUS2_HRDLIM))
   {

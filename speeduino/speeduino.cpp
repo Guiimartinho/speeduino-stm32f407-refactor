@@ -46,6 +46,8 @@
 #include "maths.h"
 #include "led_button_system.h"  // LED + Button interactive system
 #include "scheduler.h"          // For disableAllFuelSchedules/disableAllIgnSchedules
+#include "storage_safety.h"     // Storage integrity verification
+#include "limp_mode.h"          // Limp mode subsystem
 
 //=============================================================================
 // Global variable definitions (instantiation)
@@ -522,6 +524,9 @@ void loop(void)
   // LED + Button system update (100Hz recommended)
   ledButtonUpdate();
 #endif
+
+  // Periodic storage integrity check (called at loop rate, internally throttled to 1Hz)
+  storageSafetyPeriodicCheck();
 
   // Main calculations (only if synced and RPM in valid range)
   if(isEngineSyncedAndRunning())

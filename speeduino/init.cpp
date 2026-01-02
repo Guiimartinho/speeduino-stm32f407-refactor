@@ -96,6 +96,8 @@
   #include "SD_logger.h"
   #include "rtc_common.h"
 #endif
+#include "storage_safety.h"
+#include "limp_mode.h"
 
 #if defined(CORE_AVR)
 #pragma GCC push_options
@@ -1848,6 +1850,12 @@ static void initialiseAll_FinalSetup(void)
   // Initialize LED + Button interactive system (SCG-ECU 2.0)
   ledButtonInit();
 #endif
+
+  // Initialize storage safety (WAL + CRC verification)
+  storageSafetyInit();
+
+  // Initialize limp mode subsystem
+  limpModeInit();
 
   currentStatus.initialisationComplete = true;
   digitalWrite(LED_BUILTIN, HIGH);

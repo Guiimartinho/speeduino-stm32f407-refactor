@@ -31,6 +31,7 @@
 #include "../../maths.h"
 #include "../../sensors.h"
 #include "../../units.h"
+#include "../../limp_mode.h"
 
 // ============================================================================
 // GLOBAL STATE (Acceleration enrichment tracking)
@@ -307,6 +308,12 @@ uint16_t correctionsFuel(void) {
 
     // Maximum allowable increase during cranking
     if (sumCorrections > 1500) { sumCorrections = 1500; }
+
+    // Limp mode: apply fuel enrichment for safety
+    if (isLimpModeActive()) {
+        uint8_t fuelEnrich = getLimpModeFuelCorrection();
+        sumCorrections = div100(sumCorrections * fuelEnrich);
+    }
 
     return (uint16_t)sumCorrections;
 }
