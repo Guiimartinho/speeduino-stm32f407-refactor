@@ -446,6 +446,10 @@ extern HardwareTimer Timer11;
 #elif defined(TIM7)
 extern HardwareTimer Timer11;
 #endif
+// SCG-ECU 2.0: Timer12 for IGN3/IGN4 (PB14/PB15)
+#if defined(BOARD_SCG_ECU_20) && defined(TIM12)
+extern HardwareTimer Timer12;
+#endif
 #endif
 
 #if ((STM32_CORE_VERSION_MINOR<=8) & (STM32_CORE_VERSION_MAJOR==1))

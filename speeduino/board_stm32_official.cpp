@@ -75,6 +75,10 @@ HardwareTimer Timer11(TIM11);
 #elif defined(TIM7)
 HardwareTimer Timer11(TIM7);
 #endif
+// SCG-ECU 2.0: Timer12 for IGN3/IGN4 (PB14/PB15)
+#if defined(BOARD_SCG_ECU_20) && defined(TIM12)
+HardwareTimer Timer12(TIM12);
+#endif
 #endif
 
 #ifdef RTC_ENABLED
@@ -288,6 +292,21 @@ STM32RTC& rtc = STM32RTC::getInstance();
     Timer4.attachInterrupt(4, ignitionSchedule8Interrupt);
     #endif
 
+    // SCG-ECU 2.0: Initialize Timer12 for IGN3/IGN4 (PB14/PB15)
+    #if defined(BOARD_SCG_ECU_20) && defined(TIM12)
+    Timer12.setOverflow(0xFFFF, TICK_FORMAT);
+    Timer12.setPrescaleFactor(((Timer12.getTimerClkFreq()/1000000) * TIMER_RESOLUTION)-1);   //4us resolution
+    #if ( STM32_CORE_VERSION_MAJOR < 2 )
+    Timer12.setMode(1, TIMER_OUTPUT_COMPARE);
+    Timer12.setMode(2, TIMER_OUTPUT_COMPARE);
+    #else //2.0 forward
+    Timer12.setMode(1, TIMER_OUTPUT_COMPARE_TOGGLE);
+    Timer12.setMode(2, TIMER_OUTPUT_COMPARE_TOGGLE);
+    #endif
+    Timer12.attachInterrupt(1, ignitionSchedule4Interrupt);  // IGN4 on TIM12_CH1 (PB14)
+    Timer12.attachInterrupt(2, ignitionSchedule3Interrupt);  // IGN3 on TIM12_CH2 (PB15)
+    Timer12.resume();
+    #endif
 
   }
 
