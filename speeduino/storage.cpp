@@ -327,6 +327,13 @@ void writeConfig(uint8_t pageNum)
       break;
   }
 
+  // Track EEPROM wear for health monitoring
+  // Only update wear counter if bytes were actually written
+  if (result.counter > 0)
+  {
+    incrementEEPROMWearCount(result.counter);
+  }
+
   BIT_WRITE(currentStatus.status4, BIT_STATUS4_BURNPENDING, !result.can_write());
 }
 
@@ -408,24 +415,172 @@ static inline eeprom_address_t loadTable(void *pTable, table_type_t key, eeprom_
 //  ================================= End internal read support ===============================
 
 
+// Forward declaration for CRC verification
+#include "page_crc.h"
+
+// CRC validation status - set to true if any page fails validation
+static bool configCRCValid = true;
+
+/**
+ * @brief Verify CRC of loaded config page
+ * @param pageNum Page number to verify
+ * @return true if CRC matches, false otherwise
+ *
+ * @details Computes CRC of loaded page and compares to stored CRC.
+ *          Sets configCRCValid to false if mismatch detected.
+ *          Config is still loaded even on mismatch to prevent bricking.
+ */
+static bool verifyPageCRC(uint8_t pageNum)
+{
+  uint32_t storedCRC = readPageCRC32(pageNum);
+  uint32_t computedCRC = calculatePageCRC32(pageNum);
+
+  if (storedCRC != computedCRC)
+  {
+    configCRCValid = false;
+    return false;
+  }
+  return true;
+}
+
+/**
+ * @brief Check if all loaded config pages passed CRC verification
+ * @return true if all CRCs matched, false if any mismatch
+ */
+bool isConfigCRCValid(void)
+{
+  return configCRCValid;
+}
+
+// =============================================================================
+// CONFIG RANGE VALIDATION - Clamps values to safe ranges after load
+// =============================================================================
+
+/**
+ * @brief Clamp a value to a range (inline helper)
+ */
+template<typename T>
+static inline T clampValue(T value, T minVal, T maxVal)
+{
+  if (value < minVal) { return minVal; }
+  if (value > maxVal) { return maxVal; }
+  return value;
+}
+
+/**
+ * @brief Validate and clamp all critical config values to safe ranges
+ *
+ * @details Called after loadConfig() to ensure no corrupted values can
+ *          cause unsafe operation. Values outside expected ranges are
+ *          clamped to safe defaults.
+ *
+ * @note This is a safety net - well-formed tunes should never trigger clamping
+ */
+static void validateConfigRanges(void)
+{
+  // ==========================================================================
+  // Page 2 - Fuel settings
+  // ==========================================================================
+
+  // Number of cylinders: 1-8
+  configPage2.nCylinders = clampValue(configPage2.nCylinders, (uint8_t)1U, (uint8_t)8U);
+
+  // Number of injectors: 1-8
+  configPage2.nInjectors = clampValue(configPage2.nInjectors, (uint8_t)1U, (uint8_t)8U);
+
+  // Req fuel should be reasonable (0.1ms - 25.5ms in 0.1ms units)
+  configPage2.reqFuel = clampValue(configPage2.reqFuel, (uint8_t)1U, (uint8_t)255U);
+
+  // ==========================================================================
+  // Page 4 - Ignition settings (includes rev limits)
+  // ==========================================================================
+
+  // Rev limits: 100-20000 RPM (stored as RPM/100)
+  // Clamp hard limit first with minimum 11 to allow soft limit at 10
+  configPage4.HardRevLim = clampValue(configPage4.HardRevLim, (byte)11U, (byte)200U);
+  configPage4.SoftRevLim = clampValue(configPage4.SoftRevLim, (byte)10U, (byte)199U);
+
+  // Ensure soft limit < hard limit (no underflow possible since Hard >= 11)
+  if (configPage4.SoftRevLim >= configPage4.HardRevLim)
+  {
+    configPage4.SoftRevLim = configPage4.HardRevLim - 1U;
+  }
+
+  // Trigger angle: 0-719 degrees
+  configPage4.triggerAngle = clampValue(configPage4.triggerAngle, (int16_t)0, (int16_t)719);
+
+  // Fixed timing: -10 to 60 degrees (stored as int8_t)
+  configPage4.FixAng = clampValue(configPage4.FixAng, (int8_t)-10, (int8_t)60);
+
+  // Dwell crank: reasonable range (0.1-10ms in 0.1ms units)
+  configPage4.dwellCrank = clampValue(configPage4.dwellCrank, (uint8_t)5U, (uint8_t)100U);
+  configPage4.dwellRun = clampValue(configPage4.dwellRun, (uint8_t)5U, (uint8_t)100U);
+
+  // ==========================================================================
+  // Page 6 - AFR/Boost settings
+  // ==========================================================================
+
+  // Boost limit: reasonable range (in kPa/2)
+  configPage6.boostLimit = clampValue(configPage6.boostLimit, (byte)0U, (byte)255U);
+
+  // IAC settings
+  configPage6.iacStepHome = clampValue(configPage6.iacStepHome, (byte)0U, (byte)255U);
+
+  // PID gains - ensure not zero (would cause divide issues)
+  if (configPage6.boostKP == 0U) { configPage6.boostKP = 1U; }
+  if (configPage6.idleKP == 0U) { configPage6.idleKP = 1U; }
+
+  // ==========================================================================
+  // Page 9 - CAN/Aux settings
+  // ==========================================================================
+
+  // Stepper max steps: reasonable limit
+  configPage9.iacMaxSteps = clampValue(configPage9.iacMaxSteps, (byte)10U, (byte)255U);
+
+  // ==========================================================================
+  // Page 10 - Warmup/advanced settings
+  // ==========================================================================
+
+  // VVT angle limits (ensure MinAng < MaxAng with overflow protection)
+  // Clamp MinAng to 254 max to allow MaxAng = MinAng + 1 without overflow
+  if (configPage10.vvtCLMinAng > 254U) { configPage10.vvtCLMinAng = 254U; }
+  if (configPage10.vvtCLMinAng >= configPage10.vvtCLMaxAng)
+  {
+    configPage10.vvtCLMaxAng = configPage10.vvtCLMinAng + 1U;
+  }
+
+  // ==========================================================================
+  // Page 15 - A/C control settings
+  // ==========================================================================
+
+  // A/C RPM limit: must be reasonable
+  configPage15.airConMinRPMdiv10 = clampValue(configPage15.airConMinRPMdiv10, (byte)0U, (byte)200U);
+}
+
 /** Load all config tables from storage.
  */
 void loadConfig(void)
 {
+  // Reset CRC status for this load
+  configCRCValid = true;
+
   loadTable(&fuelTable, decltype(fuelTable)::type_key, EEPROM_CONFIG1_MAP);
   load_range(EEPROM_CONFIG2_START, (byte *)&configPage2, (byte *)&configPage2+sizeof(configPage2));
+  verifyPageCRC(veSetPage);  // Page 2 CRC check
 
   //*********************************************************************************************************************************************************************************
   //IGNITION CONFIG PAGE (2)
 
   loadTable(&ignitionTable, decltype(ignitionTable)::type_key, EEPROM_CONFIG3_MAP);
   load_range(EEPROM_CONFIG4_START, (byte *)&configPage4, (byte *)&configPage4+sizeof(configPage4));
+  verifyPageCRC(ignSetPage);  // Page 4 CRC check
 
   //*********************************************************************************************************************************************************************************
   //AFR TARGET CONFIG PAGE (3)
 
   loadTable(&afrTable, decltype(afrTable)::type_key, EEPROM_CONFIG5_MAP);
   load_range(EEPROM_CONFIG6_START, (byte *)&configPage6, (byte *)&configPage6+sizeof(configPage6));
+  verifyPageCRC(afrSetPage);  // Page 6 CRC check
 
   //*********************************************************************************************************************************************************************************
   // Boost and vvt tables load
@@ -447,11 +602,13 @@ void loadConfig(void)
   //*********************************************************************************************************************************************************************************
   //canbus control page load
   load_range(EEPROM_CONFIG9_START, (byte *)&configPage9, (byte *)&configPage9+sizeof(configPage9));
+  verifyPageCRC(canbusPage);  // Page 9 CRC check
 
   //*********************************************************************************************************************************************************************************
 
   //CONFIG PAGE (10)
   load_range(EEPROM_CONFIG10_START, (byte *)&configPage10, (byte *)&configPage10+sizeof(configPage10));
+  verifyPageCRC(warmupPage);  // Page 10 CRC check
 
   //*********************************************************************************************************************************************************************************
   //Fuel table 2 (See storage.h for data layout)
@@ -466,6 +623,7 @@ void loadConfig(void)
   //*********************************************************************************************************************************************************************************
   //CONFIG PAGE (13)
   load_range(EEPROM_CONFIG13_START, (byte *)&configPage13, (byte *)&configPage13+sizeof(configPage13));
+  verifyPageCRC(progOutsPage);  // Page 13 CRC check
 
   //*********************************************************************************************************************************************************************************
   //SECOND IGNITION CONFIG PAGE (14)
@@ -476,8 +634,12 @@ void loadConfig(void)
   //CONFIG PAGE (15) + boost duty lookup table (LUT)
   loadTable(&boostTableLookupDuty, decltype(boostTableLookupDuty)::type_key, EEPROM_CONFIG15_MAP);
   load_range(EEPROM_CONFIG15_START, (byte *)&configPage15, (byte *)&configPage15+sizeof(configPage15));
+  verifyPageCRC(boostvvtPage2);  // Page 15 CRC check
 
   //*********************************************************************************************************************************************************************************
+  // SAFETY: Validate all loaded values are within safe ranges
+  // This catches corrupted EEPROM data that could cause unsafe operation
+  validateConfigRanges();
 }
 
 /** Read the calibration information from EEPROM.
@@ -622,6 +784,59 @@ void storeLastBaro(byte newValue) { EEPROM.update(EEPROM_LAST_BARO, newValue); }
 byte readEEPROMVersion(void) { return EEPROM.read(EEPROM_DATA_VERSION); }
 /// Store EEPROM current data format version (to offset EEPROM_DATA_VERSION).
 void storeEEPROMVersion(byte newVersion) { EEPROM.update(EEPROM_DATA_VERSION, newVersion); }
+
+// =============================================================================
+// EEPROM WEAR MONITORING
+// =============================================================================
+
+/**
+ * @brief Read total EEPROM write count for health monitoring
+ * @return Total bytes written to EEPROM since counter initialized
+ *
+ * @details The wear counter tracks cumulative writes to help predict
+ *          EEPROM end-of-life. Typical EEPROM endurance is 100,000-1,000,000 cycles.
+ *
+ * @note Returns 0 if counter was never initialized (new EEPROM)
+ */
+uint32_t readEEPROMWearCount(void)
+{
+  uint32_t wearCount = 0;
+  EEPROM.get(EEPROM_WEAR_COUNTER, wearCount);
+
+  // Detect uninitialized EEPROM (all 0xFF)
+  if (wearCount == 0xFFFFFFFF) { wearCount = 0; }
+
+  return wearCount;
+}
+
+/**
+ * @brief Increment EEPROM wear counter by number of bytes written
+ * @param bytesWritten Number of bytes actually written in this operation
+ *
+ * @details Only call this when actual bytes were written (not just compared).
+ *          The write_location::counter already tracks this.
+ *
+ * @note This function itself writes 4 bytes to EEPROM - minimize call frequency
+ * @note Saturates at 0xFFFFFFFE to prevent wraparound to "uninitialized" value
+ */
+void incrementEEPROMWearCount(uint16_t bytesWritten)
+{
+  if (bytesWritten == 0) { return; }  // No writes, don't update counter
+
+  uint32_t currentCount = readEEPROMWearCount();
+
+  // Saturate to prevent wraparound to 0xFFFFFFFF (uninitialized marker)
+  if (currentCount > (0xFFFFFFFE - bytesWritten))
+  {
+    currentCount = 0xFFFFFFFE;
+  }
+  else
+  {
+    currentCount += bytesWritten;
+  }
+
+  EEPROM.put(EEPROM_WEAR_COUNTER, currentCount);
+}
 
 #if defined(CORE_AVR)
 #pragma GCC pop_options

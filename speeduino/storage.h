@@ -125,6 +125,7 @@ void writeConfig(uint8_t pageNum);
 void EEPROMWriteRaw(uint16_t address, uint8_t data);
 uint8_t EEPROMReadRaw(uint16_t address);
 void loadConfig(void);
+bool isConfigCRCValid(void);  // Check if loaded config passed CRC verification
 void loadCalibration(void);
 void writeCalibration(void);
 void writeCalibrationPage(uint8_t pageNum);
@@ -141,6 +142,10 @@ void storeCalibrationCRC32(uint8_t calibrationPageNum, uint32_t calibrationCRC);
 uint32_t readCalibrationCRC32(uint8_t calibrationPageNum);
 uint16_t getEEPROMSize(void);
 bool isEepromWritePending(void);
+
+// EEPROM wear monitoring
+uint32_t readEEPROMWearCount(void);
+void incrementEEPROMWearCount(uint16_t bytesWritten);
 
 extern uint32_t deferEEPROMWritesUntil;
 
@@ -185,6 +190,10 @@ extern uint32_t deferEEPROMWritesUntil;
 #define EEPROM_CONFIG15_MAP   3199
 #define EEPROM_CONFIG15_START 3281
 #define EEPROM_CONFIG15_END   3457
+
+// EEPROM wear counter - tracks total write cycles for health monitoring
+// Located in empty space between CONFIG15_END (3457) and calibration CRCs (3674)
+#define EEPROM_WEAR_COUNTER   3460  ///< 4-byte wear counter location
 
 
 #define EEPROM_CALIBRATION_CLT_CRC  3674
