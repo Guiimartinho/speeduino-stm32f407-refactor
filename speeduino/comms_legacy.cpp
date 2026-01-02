@@ -1537,11 +1537,15 @@ void sendPageASCII(void)
 
 /**
  * @brief Receive O2 calibration data (1024 8-bit values, use every 32nd)
+ * @note Added timeout protection to prevent ECU freeze if serial connection drops
  */
 static void receiveO2Calibration(void)
 {
+  serialReceiveStartTime = millis();  // Initialize timeout counter
   for (int x = 0; x < 1024; x++) {
-    while (primarySerial.available() < 1) { }
+    // Wait for data with timeout protection (prevents ECU freeze)
+    while ((primarySerial.available() < 1) && (!isRxTimeout())) { }
+    if (!primarySerial.available()) { return; }  // Timeout - abort calibration
     uint8_t tempValue = (uint8_t)primarySerial.read();
     if ((x % 32) == 0) { o2CalibrationTable.values[(x/32)] = (byte)tempValue; o2CalibrationTable.axis[(x/32)] = x; }
   }
@@ -1549,11 +1553,15 @@ static void receiveO2Calibration(void)
 
 /**
  * @brief Receive temperature calibration data (32 16-bit values)
+ * @note Added timeout protection to prevent ECU freeze if serial connection drops
  */
 static void receiveTemperatureCalibration(table2D_u16_u16_32 *pTargetTable)
 {
+  serialReceiveStartTime = millis();  // Initialize timeout counter
   for (uint16_t x = 0; x < 32; x++) {
-    while (primarySerial.available() < 2) { }
+    // Wait for 2 bytes with timeout protection (prevents ECU freeze)
+    while ((primarySerial.available() < 2) && (!isRxTimeout())) { }
+    if (primarySerial.available() < 2) { return; }  // Timeout - abort calibration
     byte tempBuffer[2];
     tempBuffer[0] = primarySerial.read();
     tempBuffer[1] = primarySerial.read();
