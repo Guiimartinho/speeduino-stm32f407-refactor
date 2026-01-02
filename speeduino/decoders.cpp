@@ -410,6 +410,9 @@ uint16_t timeToAngleIntervalTooth(uint32_t time)
       uint16_t tempTriggerToothAngle = triggerToothAngle; // triggerToothAngle is set by interrupts
       interrupts();
 
+      // Guard: prevent division by zero (identical tooth times or no valid data)
+      if (toothTime == 0UL) { return timeToAngleDegPerMicroSec(time); }
+
       return (unsigned long)(time * (uint32_t)tempTriggerToothAngle) / toothTime;
     }
     else {
@@ -594,6 +597,10 @@ void checkPerToothTiming(int16_t crankAngle, uint16_t currentTooth)
 uint16_t __attribute__((noinline)) calcEndTeeth_missingTooth(int endAngle, uint8_t toothAdder) {
   //Temp variable used here to avoid potential issues if a trigger interrupt occurs part way through this function
   int16_t tempEndTooth;
+
+  // Guard: prevent division by zero if triggerToothAngle not initialized
+  if (triggerToothAngle == 0U) { return 1U; }
+
 #ifdef USE_LIBDIVIDE
   tempEndTooth = libdivide::libdivide_s16_do(endAngle - configPage4.triggerAngle, &divTriggerToothAngle);
 #else

@@ -39,9 +39,12 @@ static constexpr uint8_t degreesPerMicro_Shift = UQ1X15_Shift;
  * @note Called when RPM changes significantly
  *
  * @complexity 2 (well below limit of 10)
- * @misra Compliant: 4 lines, no nested conditionals
+ * @misra Compliant: guard clause + 2 calculations
  */
 void setAngleConverterRevolutionTime(uint32_t revolutionTime) {
+  // Guard: prevent division by zero (engine stopped or invalid input)
+  if (revolutionTime == 0U) { return; }
+
   microsPerDegree = div360(lshift<microsPerDegree_Shift>(revolutionTime));
   degreesPerMicro = (uint16_t)UDIV_ROUND_CLOSEST(lshift<degreesPerMicro_Shift>(UINT32_C(360)), revolutionTime, uint32_t);
 }
