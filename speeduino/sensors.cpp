@@ -87,6 +87,14 @@ static constexpr uint8_t ADC_FILTER_MAX_VALID = 240U;
 /** @brief MISRA-C: ADC range for 10-bit conversion (0-1023) */
 static constexpr uint16_t ADC_10BIT_MAX = 1023U;
 
+/** @brief MISRA-C: Temperature sensor ADC fault thresholds */
+static constexpr uint16_t TEMP_ADC_FAULT_LOW = 5U;    /**< ADC < 5 = sensor shorted to ground */
+static constexpr uint16_t TEMP_ADC_FAULT_HIGH = 1018U; /**< ADC > 1018 = sensor open circuit */
+
+/** @brief MISRA-C: Safe default temperatures when sensor fails (offset-corrected values) */
+static constexpr int8_t CLT_DEFAULT_ON_FAULT = 80;  /**< Default 80°C when CLT sensor fails (warm engine assumption) */
+static constexpr int8_t IAT_DEFAULT_ON_FAULT = 20;  /**< Default 20°C when IAT sensor fails (ambient assumption) */
+
 /** @brief MISRA-C: Number of VSS samples in circular buffer */
 static constexpr uint8_t VSS_SAMPLES_COUNT = VSS_SAMPLES;
 
@@ -927,15 +935,33 @@ void readTPS(bool useFilter)
  * @note Updates `currentStatus.coolant`, `currentStatus.cltADC`
  * @note Filter constant: `configPage4.ADCFILTER_CLT`
  * @note Calibration table: `cltCalibrationTable` (32 points)
+ *
+ * @note SENSOR FAULT DETECTION:
+ *       - ADC < 5: Sensor shorted to ground → uses default 80°C
+ *       - ADC > 1018: Sensor open circuit → uses default 80°C
+ *       - Sets BIT_STATUS4_SENSOR_CLT when fault detected
  */
 void readCLT(bool useFilter)
 {
   uint16_t tempReading = readAnalogSensor(pinCLT);
-  //The use of the filter can be overridden if required. This is used on startup so there can be an immediately accurate coolant value for priming
+
+  // Apply filter or use raw value based on parameter
   if(useFilter == true) { currentStatus.cltADC = LOW_PASS_FILTER(tempReading, configPage4.ADCFILTER_CLT, currentStatus.cltADC); }
   else { currentStatus.cltADC = tempReading; }
 
-  currentStatus.coolant = temperatureRemoveOffset(table2D_getValue(&cltCalibrationTable, currentStatus.cltADC)); //Temperature calibration values are stored as positive bytes. We subtract 40 from them to allow for negative temperatures
+  // SENSOR FAULT DETECTION: Check for shorted (ADC≈0) or open circuit (ADC≈1023)
+  if ((currentStatus.cltADC <= TEMP_ADC_FAULT_LOW) || (currentStatus.cltADC >= TEMP_ADC_FAULT_HIGH))
+  {
+    // Sensor fault detected - use safe default (warm engine assumption)
+    currentStatus.coolant = CLT_DEFAULT_ON_FAULT;
+    BIT_SET(currentStatus.status5, BIT_STATUS5_SENSOR_CLT);  // Flag sensor fault
+  }
+  else
+  {
+    // Normal operation - use calibration table
+    currentStatus.coolant = temperatureRemoveOffset(table2D_getValue(&cltCalibrationTable, currentStatus.cltADC));
+    BIT_CLEAR(currentStatus.status5, BIT_STATUS5_SENSOR_CLT);  // Clear fault flag
+  }
 }
 
 /**
@@ -957,11 +983,29 @@ void readCLT(bool useFilter)
  * @note Updates `currentStatus.IAT`, `currentStatus.iatADC`
  * @note Filter constant: `configPage4.ADCFILTER_IAT`
  * @note Always filtered (no bypass parameter like CLT/TPS)
+ *
+ * @note SENSOR FAULT DETECTION:
+ *       - ADC < 5: Sensor shorted to ground → uses default 20°C
+ *       - ADC > 1018: Sensor open circuit → uses default 20°C
+ *       - Sets BIT_STATUS5_SENSOR_IAT when fault detected
  */
 void readIAT(void)
 {
   currentStatus.iatADC = LOW_PASS_FILTER(readAnalogSensor(pinIAT), configPage4.ADCFILTER_IAT, currentStatus.iatADC);
-  currentStatus.IAT = temperatureRemoveOffset(table2D_getValue(&iatCalibrationTable, currentStatus.iatADC));
+
+  // SENSOR FAULT DETECTION: Check for shorted (ADC≈0) or open circuit (ADC≈1023)
+  if ((currentStatus.iatADC <= TEMP_ADC_FAULT_LOW) || (currentStatus.iatADC >= TEMP_ADC_FAULT_HIGH))
+  {
+    // Sensor fault detected - use safe default (ambient assumption)
+    currentStatus.IAT = IAT_DEFAULT_ON_FAULT;
+    BIT_SET(currentStatus.status5, BIT_STATUS5_SENSOR_IAT);  // Flag sensor fault
+  }
+  else
+  {
+    // Normal operation - use calibration table
+    currentStatus.IAT = temperatureRemoveOffset(table2D_getValue(&iatCalibrationTable, currentStatus.iatADC));
+    BIT_CLEAR(currentStatus.status5, BIT_STATUS5_SENSOR_IAT);  // Clear fault flag
+  }
 }
 
 // ========================================== Baro ==========================================

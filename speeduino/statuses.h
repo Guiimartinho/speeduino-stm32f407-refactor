@@ -82,8 +82,8 @@ using byte = uint8_t;
 #define BIT_STATUS5_KNOCK_ACTIVE   3
 #define BIT_STATUS5_KNOCK_PULSE    4
 #define BIT_STATUS5_CLUTCH_PRESS   5
-#define BIT_STATUS5_UNUSED7        6
-#define BIT_STATUS5_UNUSED8        7
+#define BIT_STATUS5_SENSOR_CLT     6  //CLT sensor fault (shorted or open circuit)
+#define BIT_STATUS5_SENSOR_IAT     7  //IAT sensor fault (shorted or open circuit)
 
 #define BIT_AIRCON_REQUEST        0 //Indicates whether the A/C button is pressed
 #define BIT_AIRCON_COMPRESSOR     1 //Indicates whether the A/C compressor is running
