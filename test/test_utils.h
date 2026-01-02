@@ -4,13 +4,57 @@
 
 #include <stdint.h>
 #include <unity.h>
-#include <Arduino.h>
-#include <avr/pgmspace.h>
+
+// =============================================================================
+// PLATFORM-SPECIFIC PROGMEM HANDLING
+// =============================================================================
+// NATIVE_BUILD is defined in platformio.ini for native tests
+// AVR: Has real PROGMEM (flash vs RAM separation)
+// ARM/STM32: Unified address space, PROGMEM is a no-op
+// =============================================================================
+
+#if defined(NATIVE_BUILD)
+  // Native platform (x86/x64) - use standard functions
+  #include <cstring>
+  #define PROGMEM
+  #define PSTR(s) (s)
+  #define strcpy_P(dest, src) strcpy(dest, src)
+  #define pgm_read_byte(addr) (*(const uint8_t *)(addr))
+  #define pgm_read_word(addr) (*(const uint16_t *)(addr))
+  #define memcpy_P(dest, src, n) memcpy(dest, src, n)
+  #define PLATFORM_HAS_PROGMEM 0
+
+#elif defined(__AVR__)
+  // AVR platform - use real PROGMEM functions
+  #include <avr/pgmspace.h>
+  #define PLATFORM_HAS_PROGMEM 1
+
+#else
+  // ARM/STM32 or other platforms
+  #include <Arduino.h>
+  #if __has_include(<avr/pgmspace.h>)
+    #include <avr/pgmspace.h>
+  #else
+    #define PROGMEM
+    #define PSTR(s) (s)
+    #define strcpy_P(dest, src) strcpy(dest, src)
+    #define pgm_read_byte(addr) (*(const uint8_t *)(addr))
+    #define pgm_read_word(addr) (*(const uint16_t *)(addr))
+    #define memcpy_P(dest, src, n) memcpy(dest, src, n)
+  #endif
+  #define PLATFORM_HAS_PROGMEM 0
+#endif
+
+// Include Arduino.h after PROGMEM handling for non-native builds
+#if !defined(NATIVE_BUILD)
+  #include <Arduino.h>
+#endif
+
 #include <unity.h>
 #include "table2d.h"
 #include "table3d.h"
 #include "maths.h"
-#
+
 template<size_t MAX_LEN, size_t N>
 constexpr void STR_LEN_CHECK(char const (&)[N])
 {
@@ -64,7 +108,7 @@ for ( UNITY_FILENAME_RESTORE, _ufname_done = ufname_set(__FILE__);              
 // ============================ end SET_UNITY_FILENAME ============================
 
 // Store test data in flash, if feasible.
-#if defined(PROGMEM)
+#if PLATFORM_HAS_PROGMEM
 #define TEST_DATA_P static constexpr PROGMEM
 #else
 #define TEST_DATA_P static constexpr
@@ -93,7 +137,7 @@ static inline void populate_table_axis_P(table_axis_iterator it,
                                          const table3d_axis_t *pXValues) {   // PROGMEM if available
   while (!it.at_end())
   {
-#if defined(PROGMEM)
+#if PLATFORM_HAS_PROGMEM
     *it = (table3d_axis_t)pgm_read_word(pXValues);
 #else
     *it = *pXValues;
@@ -120,7 +164,7 @@ static inline void populate_table_P(table3d_t &table,
       table_row_iterator itRow = *itZ;
       while (!itRow.at_end())
       {
-#if defined(PROGMEM)
+#if PLATFORM_HAS_PROGMEM
         *itRow = pgm_read_byte(pZValues);
 #else
         *itRow = *pZValues;
@@ -154,12 +198,12 @@ static inline void populate_2dtable(table2D<axis_t, value_t, sizeT> *pTable, con
 // You would typically declare the 2 source arrays using TEST_DATA_P
 template <typename axis_t, typename value_t, uint8_t sizeT>
 static inline void populate_2dtable_P(table2D<axis_t, value_t, sizeT> *pTable, const value_t values[], const axis_t bins[]) {
-#if defined(PROGMEM)
+#if PLATFORM_HAS_PROGMEM
   memcpy_P((void*)pTable->axis, bins, sizeT * sizeof(axis_t));
   memcpy_P((void*)pTable->values, values, sizeT * sizeof(value_t));
   pTable->cache.cacheTime = UINT8_MAX;
 #else
-  populate_2dtable(pTable, values, bins)
+  populate_2dtable(pTable, values, bins);
 #endif
 }
 
