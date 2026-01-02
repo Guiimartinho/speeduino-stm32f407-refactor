@@ -7,13 +7,24 @@
 #include "crankMaths.h"
 #include "corrections/ignition_corrections/ignition_corrections.h"
 
-byte oilProtStartTime = 0;
+unsigned long oilProtStartTime = 0;  // Must be unsigned long to prevent overflow (was byte)
+static unsigned long coolantCriticalStartTime = 0; // Critical coolant protection timer
+
+// Critical coolant threshold (120°C = 248°F) - engine damage imminent
+static constexpr int16_t COOLANT_CRITICAL_TEMP = 120;
 static table2D_u8_u8_4 oilPressureProtectTable(&configPage10.oilPressureProtRPM, &configPage10.oilPressureProtMins);
 static table2D_u8_u8_6 coolantProtectTable(&configPage9.coolantProtTemp, &configPage9.coolantProtRPM);
 
 byte checkEngineProtect(void)
 {
   byte protectActive = 0;
+
+  // CRITICAL: Check critical coolant first - this is a hard cut regardless of other settings
+  if (checkCriticalCoolantProtection())
+  {
+    return 1;  // Immediate protection active
+  }
+
   if(checkBoostLimit() || checkOilPressureLimit() || checkAFRLimit() )
   {
     if( currentStatus.RPMdiv100 > configPage4.engineProtectMaxRPM ) { protectActive = 1; }
@@ -29,7 +40,7 @@ byte checkEngineProtect(void)
 static inline bool isFixedRevLimitExceeded(void)
 {
   bool hardLimitHit = (currentStatus.RPMdiv100 >= configPage4.HardRevLim);
-  bool softLimitHit = (softLimitTime > configPage4.SoftLimMax) &&
+  bool softLimitHit = (softLimitTime >= configPage4.SoftLimMax) &&  // Fixed: >= instead of > to activate at limit
                       (currentStatus.RPMdiv100 >= configPage4.SoftRevLim);
   return hardLimitHit || softLimitHit;
 }
@@ -65,6 +76,70 @@ byte checkRevLimit(void)
   return currentLimitRPM;
 }
 
+//=============================================================================
+// CRITICAL COOLANT PROTECTION
+//=============================================================================
+
+/**
+ * @brief Check critical coolant temperature - TOTAL fuel/ignition cut
+ * @return true if critical coolant protection is active
+ *
+ * @details When coolant exceeds COOLANT_CRITICAL_TEMP (120°C), this function
+ *          activates after a 2-second delay to prevent engine destruction.
+ *          Unlike normal coolant protection, this cuts BOTH fuel AND ignition.
+ *
+ * @note This is a last-resort protection - engine will stall to prevent damage
+ * @note Uses 5°C hysteresis to prevent cycling
+ */
+bool checkCriticalCoolantProtection(void)
+{
+  static bool criticalCoolantActive = false;
+  static constexpr int16_t HYSTERESIS = 5;  // 5°C hysteresis
+  static constexpr unsigned long DELAY_MS = 2000UL;  // 2 second delay before cut
+
+  // Guard: protection disabled
+  if (configPage6.engineProtectType == PROTECT_CUT_OFF) { return false; }
+
+  int16_t coolant = currentStatus.coolant;
+
+  // Hysteresis: deactivate at lower temp
+  if (criticalCoolantActive)
+  {
+    if (coolant < (COOLANT_CRITICAL_TEMP - HYSTERESIS))
+    {
+      criticalCoolantActive = false;
+      coolantCriticalStartTime = 0;
+    }
+    return criticalCoolantActive;
+  }
+
+  // Check if coolant exceeds critical threshold
+  if (coolant < COOLANT_CRITICAL_TEMP)
+  {
+    coolantCriticalStartTime = 0;
+    return false;
+  }
+
+  // Start countdown if first time
+  if (coolantCriticalStartTime == 0) { coolantCriticalStartTime = millis(); }
+
+  // Check if countdown expired
+  if ((millis() - coolantCriticalStartTime) >= DELAY_MS)
+  {
+    criticalCoolantActive = true;
+    // Force BOTH cuts for maximum protection
+    BIT_SET(currentStatus.status1, BIT_STATUS1_BOOSTCUT);  // Fuel cut
+    BIT_SET(currentStatus.status2, BIT_STATUS2_BOOSTCUT);  // Ignition cut
+    BIT_SET(currentStatus.engineProtectStatus, ENGINE_PROTECT_BIT_COOLANT);
+  }
+
+  return criticalCoolantActive;
+}
+
+//=============================================================================
+// BOOST LIMIT
+//=============================================================================
+
 byte checkBoostLimit(void)
 {
   byte boostLimitActive = 0;
@@ -78,36 +153,32 @@ byte checkBoostLimit(void)
     {
       boostLimitActive = 1;
       BIT_SET(currentStatus.engineProtectStatus, ENGINE_PROTECT_BIT_MAP);
-      /*
-      switch(configPage6.boostCutType)
-      {
-        case 1:
-          BIT_SET(currentStatus.status2, BIT_STATUS2_BOOSTCUT);
-          BIT_CLEAR(currentStatus.status1, BIT_STATUS1_BOOSTCUT);
-          BIT_SET(currentStatus.engineProtectStatus, ENGINE_PROTECT_BIT_MAP);
-          break;
-        case 2:
-          BIT_SET(currentStatus.status1, BIT_STATUS1_BOOSTCUT);
-          BIT_CLEAR(currentStatus.status2, BIT_STATUS2_BOOSTCUT);
-          break;
-        case 3:
-          BIT_SET(currentStatus.status2, BIT_STATUS2_BOOSTCUT);
-          BIT_SET(currentStatus.status1, BIT_STATUS1_BOOSTCUT);
-          break;
-        default:
-          //Shouldn't ever happen, but just in case, disable all cuts
-          BIT_CLEAR(currentStatus.status1, BIT_STATUS1_BOOSTCUT);
-          BIT_CLEAR(currentStatus.status2, BIT_STATUS2_BOOSTCUT);
-      }
-      */
+      // Both fuel and ignition cut for maximum safety
+      BIT_SET(currentStatus.status2, BIT_STATUS2_BOOSTCUT);  // Ignition cut
+      BIT_SET(currentStatus.status1, BIT_STATUS1_BOOSTCUT);  // Fuel cut
     }
   }
 
   return boostLimitActive;
 }
 
+//=============================================================================
+// OIL PRESSURE PROTECTION (with hysteresis)
+//=============================================================================
+
+/**
+ * @brief Check oil pressure protection limit with hysteresis
+ * @return 1 if oil pressure protection active, 0 otherwise
+ *
+ * @details Monitors oil pressure vs RPM-based minimum threshold.
+ *          Uses 5 PSI hysteresis to prevent cycling when near threshold.
+ *          Activates after configurable delay to ignore transients.
+ *
+ * @note Hysteresis: activates at limit, deactivates at limit+5 PSI
+ */
 byte checkOilPressureLimit(void)
 {
+  static constexpr byte OIL_PRESSURE_HYSTERESIS = 5;  // 5 PSI hysteresis
   byte oilProtectActive = 0;
   bool alreadyActive = BIT_CHECK(currentStatus.engineProtectStatus, ENGINE_PROTECT_BIT_OIL);
   BIT_CLEAR(currentStatus.engineProtectStatus, ENGINE_PROTECT_BIT_OIL);
@@ -119,18 +190,47 @@ byte checkOilPressureLimit(void)
 
   byte oilLimit = table2D_getValue(&oilPressureProtectTable, currentStatus.RPMdiv100);
 
+  // Hysteresis: if already active, require higher pressure to deactivate
+  byte deactivateLimit = oilLimit;
+  if (alreadyActive)
+  {
+    // Safely add hysteresis without overflow
+    if (oilLimit <= (255U - OIL_PRESSURE_HYSTERESIS))
+    {
+      deactivateLimit = oilLimit + OIL_PRESSURE_HYSTERESIS;
+    }
+    else
+    {
+      deactivateLimit = 255U;
+    }
+  }
+
   // Oil pressure OK - reset timer and return
-  if (currentStatus.oilPressure >= oilLimit)
+  if (currentStatus.oilPressure >= deactivateLimit)
   {
     oilProtStartTime = 0;
     return oilProtectActive;
   }
 
-  // Oil pressure LOW - start countdown if first time
-  if (oilProtStartTime == 0) { oilProtStartTime = div100(millis()); }
+  // Oil pressure LOW - only start countdown if below activation threshold
+  if (currentStatus.oilPressure >= oilLimit)
+  {
+    // In hysteresis band - maintain current state
+    if (alreadyActive)
+    {
+      BIT_SET(currentStatus.engineProtectStatus, ENGINE_PROTECT_BIT_OIL);
+      return 1;
+    }
+    return oilProtectActive;
+  }
+
+  // Oil pressure critically LOW - start countdown if first time
+  if (oilProtStartTime == 0) { oilProtStartTime = millis(); }
 
   // Check if countdown expired or already active
-  bool countdownExpired = (uint8_t(div100(millis())) >= uint16_t(oilProtStartTime + configPage10.oilPressureProtTime));
+  // configPage10.oilPressureProtTime is in 100ms units, multiply by 100 for ms
+  unsigned long protectionDelayMs = (unsigned long)configPage10.oilPressureProtTime * 100UL;
+  bool countdownExpired = (millis() >= (oilProtStartTime + protectionDelayMs));
   if (countdownExpired || alreadyActive)
   {
     BIT_SET(currentStatus.engineProtectStatus, ENGINE_PROTECT_BIT_OIL);
@@ -317,7 +417,15 @@ byte checkAFRLimit(void)
   static bool afrProtectCountEnabled = false;
   static unsigned long afrProtectCount = 0;
 
-  if (!isAFRProtectionEnabled()) { return checkAFRLimitActive; }
+  // Guard: protection disabled - clear all state and return inactive
+  if (!isAFRProtectionEnabled())
+  {
+    checkAFRLimitActive = false;
+    afrProtectCountEnabled = false;
+    afrProtectCount = 0;
+    BIT_CLEAR(currentStatus.engineProtectStatus, ENGINE_PROTECT_BIT_AFR);
+    return 0;
+  }
 
   if (evaluateAFRConditions())
   {
