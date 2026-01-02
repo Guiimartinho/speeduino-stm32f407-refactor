@@ -80,8 +80,12 @@ static void applyFlexCorrection(void)
 
     int16_t flexAdder = table2D_getValue(&flexBoostTable, currentStatus.ethanolPct);
     currentStatus.flexBoostCorrection = flexAdder;
-    currentStatus.boostTarget += flexAdder;
-    if (currentStatus.boostTarget > 511U) { currentStatus.boostTarget = 511U; }
+
+    // Safe addition with underflow/overflow protection
+    int32_t newTarget = (int32_t)currentStatus.boostTarget + flexAdder;
+    if (newTarget < 0) { newTarget = 0; }          // Underflow protection
+    if (newTarget > 511) { newTarget = 511; }      // Overflow protection
+    currentStatus.boostTarget = (uint16_t)newTarget;
 }
 
 /**
@@ -121,10 +125,38 @@ static void handleControlDisabled(void)
 }
 
 /**
+ * @brief Check for overboost condition - safety limit
+ * @return true if overboost detected (MAP > limit + safety margin)
+ *
+ * @details Safety check that immediately disables boost control if MAP
+ *          exceeds the configured limit plus a 10 kPa safety margin.
+ *          This prevents boost controller runaway or sensor failure
+ *          from causing engine damage.
+ *
+ * @note SAFETY_MARGIN_KPA provides buffer above boost limit
+ */
+static inline bool checkOverboost(void)
+{
+    static constexpr uint16_t SAFETY_MARGIN_KPA = 10U;  // 10 kPa above limit
+    uint16_t maxSafeBoost = (configPage6.boostLimit * 2U) + SAFETY_MARGIN_KPA;
+
+    if (currentStatus.MAP > maxSafeBoost)
+    {
+        // Overboost detected - disable boost control immediately
+        speeduino::boost::disable();
+        return true;
+    }
+    return false;
+}
+
+/**
  * @brief Update closed-loop boost control
  */
 static void updateClosedLoop(void)
 {
+    // SAFETY: Check for overboost FIRST before any control
+    if (checkOverboost()) { return; }
+
     // Update target every 8 cycles
     if ((boostCounter & 7U) == 1U) { updateBoostTarget(); applyFlexCorrection(); }
 

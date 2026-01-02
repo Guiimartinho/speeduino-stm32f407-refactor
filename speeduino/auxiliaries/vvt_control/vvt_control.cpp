@@ -31,9 +31,50 @@ struct VVTState {
     bool timeHoldActive;  ///< True when warmup timer started
     uint32_t warmTime;    ///< Time when engine reached operating temp
     uint32_t counter;     ///< Update counter for PID tuning
+    uint8_t lastTarget1;  ///< Previous VVT1 target angle for rate limiting
+    uint8_t lastTarget2;  ///< Previous VVT2 target angle for rate limiting
 };
 
 static VVTState vvtState;
+
+// =============================================================================
+// VVT RATE LIMITER - Protects mechanism from sudden angle changes
+// =============================================================================
+
+/**
+ * @brief Maximum angle change per control cycle (degrees)
+ * @details At 30Hz update rate, this gives max 90°/second movement rate
+ *          Adjustable via configPage10 if needed in future
+ */
+static constexpr uint8_t VVT_MAX_ANGLE_RATE = 3U;
+
+/**
+ * @brief Apply rate limiting to VVT target angle change
+ * @param currentTarget New target angle from table/user
+ * @param lastTarget Previous target angle (updated by reference)
+ * @return Rate-limited target angle
+ * @note Prevents mechanical stress from sudden angle changes
+ */
+static inline uint8_t applyVVTRateLimiter(uint8_t currentTarget, uint8_t& lastTarget)
+{
+    // Calculate signed difference to handle both increase and decrease
+    int16_t diff = (int16_t)currentTarget - (int16_t)lastTarget;
+
+    // Apply rate limit
+    if (diff > (int16_t)VVT_MAX_ANGLE_RATE)
+    {
+        currentTarget = lastTarget + VVT_MAX_ANGLE_RATE;
+    }
+    else if (diff < -(int16_t)VVT_MAX_ANGLE_RATE)
+    {
+        currentTarget = lastTarget - VVT_MAX_ANGLE_RATE;
+    }
+
+    // Update last target for next iteration
+    lastTarget = currentTarget;
+
+    return currentTarget;
+}
 
 /**
  * @brief Get VVT duty from table based on load source
@@ -107,7 +148,8 @@ static inline bool isAngleValid(uint8_t angle)
  */
 static void calculateClosedLoopVVT1(void)
 {
-    currentStatus.vvt1TargetAngle = getVVTDutyFromTable(&vvtTable);
+    uint8_t rawTarget = getVVTDutyFromTable(&vvtTable);
+    currentStatus.vvt1TargetAngle = applyVVTRateLimiter(rawTarget, vvtState.lastTarget1);
 
     // Safety check: angle sensor working?
     if (!isAngleValid(currentStatus.vvt1Angle))
@@ -145,7 +187,8 @@ static void calculateClosedLoopVVT2(void)
 {
     if (configPage10.vvt2Enabled != 1U) { return; }
 
-    currentStatus.vvt2TargetAngle = getVVTDutyFromTable(&vvt2Table);
+    uint8_t rawTarget = getVVTDutyFromTable(&vvt2Table);
+    currentStatus.vvt2TargetAngle = applyVVTRateLimiter(rawTarget, vvtState.lastTarget2);
 
     // Safety check: angle sensor working?
     if (!isAngleValid(currentStatus.vvt2Angle))
@@ -333,6 +376,8 @@ static bool vvt_initialise_impl(void)
     vvtState.timeHoldActive = false;
     vvtState.warmTime = 0U;
     vvtState.counter = 0U;
+    vvtState.lastTarget1 = currentStatus.vvt1Angle;  // Init to current for smooth startup
+    vvtState.lastTarget2 = currentStatus.vvt2Angle;  // Init to current for smooth startup
 
     currentStatus.vvt1Duty = 0U;
     currentStatus.vvt2Duty = 0U;
