@@ -45,6 +45,7 @@
 #include "schedule_calcs.h"
 #include "maths.h"
 #include "led_button_system.h"  // LED + Button interactive system
+#include "scheduler.h"          // For disableAllFuelSchedules/disableAllIgnSchedules
 
 //=============================================================================
 // Global variable definitions (instantiation)
@@ -390,11 +391,39 @@ static inline void handleResetPrevention(void)
 }
 
 /**
- * @brief Clear reset prevention when engine not synced
- * @note MISRA-C compliant: Lines: 10 | Cyclomatic: 2 | Nesting: 1
+ * @brief Handle engine not synced state - clear reset prevention and cancel schedules
+ * @note MISRA-C compliant: Lines: 20 | Cyclomatic: 3 | Nesting: 1
+ *
+ * @details When sync is lost, this function:
+ *          1. Clears reset prevention flag (existing behavior)
+ *          2. Cancels all pending fuel/ignition schedules (CRITICAL safety fix)
+ *
+ * @note Uses static variable to detect sync loss transition (synced → not synced)
+ *       This ensures schedules are cancelled only once per sync loss event
+ *
+ * @warning Without schedule cancellation, already-scheduled injector pulses
+ *          would continue to fire even after sync is lost, potentially
+ *          causing engine damage from incorrect timing
  */
 static inline void clearResetPreventionIfNeeded(void)
 {
+  static bool wasEngineSynced = false;  // Track previous sync state
+
+  // Check for sync loss transition: was synced, now not synced
+  bool isCurrentlySynced = (currentStatus.hasSync == true) ||
+                           BIT_CHECK(currentStatus.status3, BIT_STATUS3_HALFSYNC);
+
+  if (wasEngineSynced && !isCurrentlySynced)
+  {
+    // CRITICAL: Cancel all pending fuel/ignition schedules on sync loss
+    // This prevents incorrect injection/ignition timing when position is unknown
+    disableAllFuelSchedules();
+    disableAllIgnSchedules();
+  }
+
+  wasEngineSynced = isCurrentlySynced;  // Update state for next iteration
+
+  // Original behavior: clear reset prevention
   if((BIT_CHECK(currentStatus.status3, BIT_STATUS3_RESET_PREVENT) > 0) &&
      (resetControl == RESET_CONTROL_PREVENT_WHEN_RUNNING))
   {
