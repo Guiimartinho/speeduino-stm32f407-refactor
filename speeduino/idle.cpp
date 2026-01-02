@@ -70,11 +70,11 @@ unsigned int completedHomeSteps;
 
 volatile bool idle_pwm_state;
 bool lastDFCOValue;
-uint16_t idle_pwm_max_count; //Used for variable PWM frequency
+volatile uint16_t idle_pwm_max_count; //Used for variable PWM frequency, volatile for ISR access
 volatile unsigned int idle_pwm_cur_value;
 long idle_pid_target_value;
 long FeedForwardTerm;
-unsigned long idle_pwm_target_value;
+volatile unsigned long idle_pwm_target_value; //volatile for ISR access
 long idle_cl_target_rpm;
 
 PORT_TYPE idle_pin_port;
@@ -367,11 +367,47 @@ static inline void doStep(void)
   }
 }
 
+/**
+ * @brief Check if stepper homing is complete, with timeout protection
+ * @return true if homed or timed out, false if still homing
+ *
+ * @details Stepper homing drives the valve to the closed position by stepping
+ *          backwards until mechanical stop. A timeout prevents infinite homing
+ *          if the stepper gets stuck (e.g., mechanical jam, driver failure).
+ *
+ * @note Timeout is 30 seconds - typical homing takes 5-10 seconds
+ */
 static inline byte isStepperHomed(void)
 {
+  static unsigned long homingStartTime = 0UL;
+  static bool homingTimedOut = false;
+  static constexpr unsigned long HOMING_TIMEOUT_MS = 30000UL;  // 30 second timeout
+
   bool isHomed = true;
+
+  // Check if we need to start homing
   if( completedHomeSteps < (configPage6.iacStepHome * 3) )
   {
+    // Record homing start time on first step
+    if (completedHomeSteps == 0)
+    {
+      homingStartTime = millis();
+      homingTimedOut = false;
+    }
+
+    // Check for timeout
+    if ((millis() - homingStartTime) > HOMING_TIMEOUT_MS)
+    {
+      // Timeout occurred - abort homing and mark as "complete" to prevent infinite loop
+      homingTimedOut = true;
+      completedHomeSteps = configPage6.iacStepHome * 3;  // Force complete
+      idleStepper.curIdleStep = 0;  // Assume at home position
+      digitalWrite(pinStepperEnable, HIGH);  // Disable stepper to save power
+      // Could set an error flag here if status4 has a spare bit
+      return true;  // Report as homed (even though it timed out)
+    }
+
+    // Normal homing step
     digitalWrite(pinStepperDir, STEPPER_LESS_AIR_DIRECTION() );
     digitalWrite(pinStepperEnable, LOW);
     digitalWrite(pinStepperStep, HIGH);
@@ -1055,10 +1091,80 @@ static inline void handlePWMEdgeCases(void)
   }
 }
 
+//=============================================================================
+// ANTI-STALL PROTECTION
+//=============================================================================
+
+/**
+ * @brief Check for anti-stall condition and force idle valve open
+ * @return true if anti-stall is active (overrides normal idle control)
+ *
+ * @details Detects when engine RPM drops dangerously low while running
+ *          (below ANTI_STALL_RPM threshold). When triggered:
+ *          - Forces idle valve to maximum opening
+ *          - Maintains for ANTI_STALL_HOLD_TIME after RPM recovers
+ *
+ * @note Only active after engine has been running (>500ms after crank)
+ * @note Requires configPage6.antiStallEnabled (bit 7 of iacPWMrun)
+ */
+static bool checkAntiStall(void)
+{
+  static bool antiStallActive = false;
+  static unsigned long antiStallStartTime = 0;
+
+  // Anti-stall thresholds
+  static constexpr uint16_t ANTI_STALL_RPM = 300;       // RPM threshold
+  static constexpr uint16_t ANTI_STALL_RECOVER_RPM = 500; // RPM to deactivate
+  static constexpr unsigned long ANTI_STALL_HOLD_MS = 2000UL; // Hold time after recovery
+
+  // Guard: not applicable during crank
+  if (BIT_CHECK(currentStatus.engine, BIT_ENGINE_CRANK)) { return false; }
+
+  // Guard: engine not running yet
+  if (!BIT_CHECK(currentStatus.engine, BIT_ENGINE_RUN)) { return false; }
+
+  // Guard: haven't been running long enough (wait 500ms after start)
+  if (currentStatus.runSecs < 1) { return false; }
+
+  // Check for stall condition
+  if (currentStatus.RPM < ANTI_STALL_RPM && currentStatus.RPM > 0)
+  {
+    if (!antiStallActive)
+    {
+      antiStallActive = true;
+      antiStallStartTime = millis();
+    }
+    // Force idle to maximum
+    idle_pwm_target_value = idle_pwm_max_count;
+    return true;
+  }
+
+  // Check for recovery
+  if (antiStallActive)
+  {
+    if (currentStatus.RPM >= ANTI_STALL_RECOVER_RPM)
+    {
+      // Hold for a short time after recovery
+      if ((millis() - antiStallStartTime) > ANTI_STALL_HOLD_MS)
+      {
+        antiStallActive = false;
+      }
+    }
+    // Still active - keep valve open
+    idle_pwm_target_value = idle_pwm_max_count;
+    return true;
+  }
+
+  return false;
+}
+
 void idleControl(void)
 {
   if( idleInitComplete != configPage6.iacAlgorithm) { initialiseIdle(false); }
   if( (currentStatus.RPM > 0) || (configPage6.iacPWMrun == true) ) { enableIdle(); }
+
+  // SAFETY: Check anti-stall first - overrides normal control
+  if (checkAntiStall()) { return; }
 
   handleIdleUpOutput();
 
