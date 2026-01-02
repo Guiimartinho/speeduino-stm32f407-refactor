@@ -125,6 +125,10 @@ void writeConfig(uint8_t pageNum);
 void EEPROMWriteRaw(uint16_t address, uint8_t data);
 uint8_t EEPROMReadRaw(uint16_t address);
 void loadConfig(void);
+
+// Table loading function (used by storage_safety for reloading corrupted tables)
+#include "table3d.h"
+eeprom_address_t loadTable(void *pTable, table_type_t key, eeprom_address_t address);
 bool isConfigCRCValid(void);  // Check if loaded config passed CRC verification
 void loadCalibration(void);
 void writeCalibration(void);
