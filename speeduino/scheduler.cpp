@@ -224,8 +224,8 @@ void _setFuelScheduleRunning(FuelSchedule &schedule, unsigned long timeout, unsi
   schedule.startCompare = schedule.counter + uS_TO_TIMER_COMPARE(timeout);
   SET_COMPARE(schedule.compare, schedule.startCompare);
   schedule.Status = PENDING; //Turn this schedule on
+  schedule.pTimerEnable();  // Must be inside noInterrupts() to avoid race condition
   interrupts();
-  schedule.pTimerEnable();
 }
 
 void _setFuelScheduleNext(FuelSchedule &schedule, unsigned long timeout, unsigned long duration)
@@ -254,8 +254,8 @@ void _setIgnitionScheduleRunning(IgnitionSchedule &schedule, unsigned long timeo
   //if(schedule.endScheduleSetByDecoder == false) { schedule.endCompare = schedule.startCompare + uS_TO_TIMER_COMPARE(schedule.duration); } //The .endCompare value is also set by the per tooth timing in decoders.ino. The check here is so that it's not getting overridden.
   SET_COMPARE(schedule.compare, schedule.startCompare);
   schedule.Status = PENDING; //Turn this schedule on
+  schedule.pTimerEnable();  // Must be inside noInterrupts() to avoid race condition
   interrupts();
-  schedule.pTimerEnable();
 }
 
 void _setIgnitionScheduleNext(IgnitionSchedule &schedule, unsigned long timeout, unsigned long duration)
