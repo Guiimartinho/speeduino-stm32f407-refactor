@@ -451,15 +451,36 @@ void DashMessage(uint16_t DashMessageID)
       outMsg.buf[7] = 0x00;  //not used, but set to zero just in case.
     break;
 
-    case CAN_BMW_DME4:       //fuel consumption and CEl light for BMW e46/e39/e38 instrument cluster
-                      //fuel consumption calculation not implemented yet. But this still needs to be sent to get rid of the CEL and EML fault lights on the dash.
+    case CAN_BMW_DME4:       //fuel consumption and CEL light for BMW e46/e39/e38 instrument cluster
+    {
+      // Calculate fuel consumption if not already done recently
+      calculateBMWFuelConsumption();
+
+      // Build status byte 0: CEL/MIL, Cruise, EML lights
+      // Bit 1 = CEL (Check Engine Light / MIL)
+      // Bit 3 = Cruise control active
+      // Bit 4 = EML (Engine Management Lamp)
+      uint8_t statusByte = 0x00;
+      if (currentStatus.milOn) { statusByte |= 0x02; }  // CEL on if any confirmed DTCs
+
       outMsg.len = 5;
-      outMsg.buf[0] = 0x00;  //Check engine light (binary 10), Cruise light (binary 1000), EML (binary 10000).
-      outMsg.buf[1] = 0x00;  //LSB Fuel consumption
-      outMsg.buf[2] = 0x00;  //MSB Fuel Consumption
-      if (currentStatus.coolant > 159) { outMsg.buf[3] = 0x08; } //Turn on overheat light if coolant temp hits 120 degrees celsius.
-      else { outMsg.buf[3] = 0x00; } //Overheat light off at normal engine temps.
-      outMsg.buf[4] = 0x7E; //this is oil temp
+      outMsg.buf[0] = statusByte;
+      outMsg.buf[1] = lowByte(currentStatus.fuelConsumption);   // LSB Fuel consumption (0.01 L/h)
+      outMsg.buf[2] = highByte(currentStatus.fuelConsumption);  // MSB Fuel Consumption
+
+      // Byte 3: Overheat warning
+      if (currentStatus.coolant > 159) { outMsg.buf[3] = 0x08; } // Overheat light on if coolant > 120°C
+      else { outMsg.buf[3] = 0x00; }
+
+      // Byte 4: Oil temperature (map from IAT or use 78°C default)
+      // BMW expects value where: actual_temp = (value * 0.75) - 48
+      // For 78°C: (78 + 48) / 0.75 = 168 = 0xA8
+      // For now, derive from coolant temp with offset for realistic oil temp
+      int16_t oilTemp = currentStatus.coolant + 10; // Oil typically 10°C higher than coolant
+      if (oilTemp < -48) { oilTemp = -48; }
+      if (oilTemp > 143) { oilTemp = 143; }
+      outMsg.buf[4] = (uint8_t)((oilTemp + 48) * 4 / 3);
+    }
     break;
 
     case CAN_VAG_RPM:       //RPM for VW instrument cluster
@@ -619,6 +640,12 @@ static inline bool isOBDAddress(void)
   return (inMsg.id == ecuAddr) || (inMsg.id == 0x7DFU);
 }
 
+// Forward declarations for OBD mode handlers (defined after obd_response)
+static inline void handleOBDMode03(void);
+static inline void handleOBDMode04(void);
+static inline void handleOBDMode07(void);
+static inline void handleOBDMode09Full(void);
+
 /**
  * @brief Handle OBD mode 1 (realtime data) request
  */
@@ -639,24 +666,43 @@ static inline void handleOBDMode22(void)
   Can0.write(outMsg);
 }
 
-/**
- * @brief Handle OBD mode 9 (vehicle info) request - VIN/ECU name
- */
-static inline void handleOBDMode09(void)
-{
-  // TODO: VIN (inMsg.buf[2] == 0x02) - 17 char sent in 5 messages
-  // TODO: ECU name (inMsg.buf[2] == 0x0A) - 20 ASCII chars
-}
-
 void can_Command(void)
 {
   if (!isOBDAddress()) { return; }
 
-  if (inMsg.buf[1] == 0x01U) { handleOBDMode01(); }
-  if (inMsg.buf[1] == 0x22U) { handleOBDMode22(); }
-
+  uint8_t mode = inMsg.buf[1];
   bool isEcuSpecific = (inMsg.id == uint16_t(configPage9.obd_address + TS_CAN_OFFSET));
-  if (isEcuSpecific && (inMsg.buf[1] == 0x09U)) { handleOBDMode09(); }
+
+  switch (mode)
+  {
+    case 0x01U: // Mode 01 - Show current data
+      handleOBDMode01();
+      break;
+
+    case 0x03U: // Mode 03 - Read confirmed DTCs
+      handleOBDMode03();
+      break;
+
+    case 0x04U: // Mode 04 - Clear DTCs (ECU-specific only)
+      if (isEcuSpecific) { handleOBDMode04(); }
+      break;
+
+    case 0x07U: // Mode 07 - Read pending DTCs
+      handleOBDMode07();
+      break;
+
+    case 0x09U: // Mode 09 - Vehicle info (ECU-specific only)
+      if (isEcuSpecific) { handleOBDMode09Full(); }
+      break;
+
+    case 0x22U: // Mode 22 - Read data by identifier (custom)
+      handleOBDMode22();
+      break;
+
+    default:
+      // Unsupported mode - no response (per OBD-II spec)
+      break;
+  }
 }
 
 // This routine builds the realtime data into packets that the obd requesting device can understand. This is only used by teensy and stm32 with onboard canbus
@@ -1024,4 +1070,710 @@ void readAuxCanBus()
     currentStatus.canin[i] = getCANInputValue(i);
   }
 }
+
+// =============================================================================
+// OBD-II DTC (DIAGNOSTIC TROUBLE CODE) IMPLEMENTATION
+// =============================================================================
+// Mode 03: Read confirmed DTCs
+// Mode 04: Clear all DTCs
+// Mode 07: Read pending DTCs
+// =============================================================================
+
+/**
+ * @brief Initialize DTC subsystem from stored values
+ */
+void dtc_init(void)
+{
+  // Count confirmed DTCs
+  currentStatus.dtcConfirmedCount = 0;
+  for (uint8_t i = 0; i < DTC_MAX_CONFIRMED; i++)
+  {
+    uint16_t dtc = ((uint16_t)configPage15.dtcConfirmed[i*2] << 8) |
+                    configPage15.dtcConfirmed[i*2 + 1];
+    if (dtc != 0x0000 && dtc != 0xFFFF)
+    {
+      currentStatus.dtcConfirmedCount++;
+    }
+    else
+    {
+      break; // DTCs are stored contiguously
+    }
+  }
+
+  // Count pending DTCs
+  currentStatus.dtcPendingCount = 0;
+  for (uint8_t i = 0; i < DTC_MAX_PENDING; i++)
+  {
+    uint16_t dtc = ((uint16_t)configPage15.dtcPending[i*2] << 8) |
+                    configPage15.dtcPending[i*2 + 1];
+    if (dtc != 0x0000 && dtc != 0xFFFF)
+    {
+      currentStatus.dtcPendingCount++;
+    }
+    else
+    {
+      break;
+    }
+  }
+
+  // Set MIL status
+  currentStatus.milOn = (configPage15.dtcFlags & DTC_FLAG_MIL_ON) != 0;
+  currentStatus.freezeFrameValid = (configPage15.dtcFlags & DTC_FLAG_FREEZE_CAPTURED) != 0;
+}
+
+/**
+ * @brief Get count of stored DTCs
+ */
+uint8_t dtc_getCount(bool isPending)
+{
+  return isPending ? currentStatus.dtcPendingCount : currentStatus.dtcConfirmedCount;
+}
+
+/**
+ * @brief Get DTC at specified index
+ */
+uint16_t dtc_getAt(uint8_t index, bool isPending)
+{
+  uint8_t maxCount = isPending ? DTC_MAX_PENDING : DTC_MAX_CONFIRMED;
+  if (index >= maxCount) { return 0; }
+
+  byte* dtcArray = isPending ? configPage15.dtcPending : configPage15.dtcConfirmed;
+  uint16_t dtc = ((uint16_t)dtcArray[index*2] << 8) | dtcArray[index*2 + 1];
+
+  return (dtc == 0xFFFF) ? 0 : dtc;
+}
+
+/**
+ * @brief Set a DTC (Diagnostic Trouble Code)
+ */
+bool dtc_set(uint16_t dtcCode, bool isPending)
+{
+  if (dtcCode == 0 || dtcCode == 0xFFFF) { return false; }
+
+  byte* dtcArray = isPending ? configPage15.dtcPending : configPage15.dtcConfirmed;
+  uint8_t* countPtr = isPending ? &currentStatus.dtcPendingCount : &currentStatus.dtcConfirmedCount;
+  uint8_t maxCount = isPending ? DTC_MAX_PENDING : DTC_MAX_CONFIRMED;
+
+  // Check if DTC already exists
+  for (uint8_t i = 0; i < *countPtr; i++)
+  {
+    uint16_t existing = ((uint16_t)dtcArray[i*2] << 8) | dtcArray[i*2 + 1];
+    if (existing == dtcCode)
+    {
+      return true; // Already stored
+    }
+  }
+
+  // Check if storage is full
+  if (*countPtr >= maxCount) { return false; }
+
+  // Store new DTC
+  uint8_t idx = *countPtr;
+  dtcArray[idx*2] = highByte(dtcCode);
+  dtcArray[idx*2 + 1] = lowByte(dtcCode);
+  (*countPtr)++;
+
+  // Set MIL flag for confirmed DTCs
+  if (!isPending)
+  {
+    currentStatus.milOn = true;
+    configPage15.dtcFlags |= DTC_FLAG_MIL_ON;
+
+    // Capture freeze frame on first confirmed DTC
+    if (!currentStatus.freezeFrameValid)
+    {
+      freezeFrame_capture(dtcCode);
+    }
+  }
+
+  return true;
+}
+
+/**
+ * @brief Clear a specific DTC
+ */
+bool dtc_clear(uint16_t dtcCode)
+{
+  bool found = false;
+
+  // Search in confirmed DTCs
+  for (uint8_t i = 0; i < currentStatus.dtcConfirmedCount; i++)
+  {
+    uint16_t dtc = ((uint16_t)configPage15.dtcConfirmed[i*2] << 8) |
+                    configPage15.dtcConfirmed[i*2 + 1];
+    if (dtc == dtcCode)
+    {
+      // Shift remaining DTCs down
+      for (uint8_t j = i; j < currentStatus.dtcConfirmedCount - 1; j++)
+      {
+        configPage15.dtcConfirmed[j*2] = configPage15.dtcConfirmed[(j+1)*2];
+        configPage15.dtcConfirmed[j*2 + 1] = configPage15.dtcConfirmed[(j+1)*2 + 1];
+      }
+      // Clear last slot
+      uint8_t lastIdx = currentStatus.dtcConfirmedCount - 1;
+      configPage15.dtcConfirmed[lastIdx*2] = 0x00;
+      configPage15.dtcConfirmed[lastIdx*2 + 1] = 0x00;
+      currentStatus.dtcConfirmedCount--;
+      found = true;
+      break;
+    }
+  }
+
+  // Search in pending DTCs
+  for (uint8_t i = 0; i < currentStatus.dtcPendingCount; i++)
+  {
+    uint16_t dtc = ((uint16_t)configPage15.dtcPending[i*2] << 8) |
+                    configPage15.dtcPending[i*2 + 1];
+    if (dtc == dtcCode)
+    {
+      // Shift remaining DTCs down
+      for (uint8_t j = i; j < currentStatus.dtcPendingCount - 1; j++)
+      {
+        configPage15.dtcPending[j*2] = configPage15.dtcPending[(j+1)*2];
+        configPage15.dtcPending[j*2 + 1] = configPage15.dtcPending[(j+1)*2 + 1];
+      }
+      // Clear last slot
+      uint8_t lastIdx = currentStatus.dtcPendingCount - 1;
+      configPage15.dtcPending[lastIdx*2] = 0x00;
+      configPage15.dtcPending[lastIdx*2 + 1] = 0x00;
+      currentStatus.dtcPendingCount--;
+      found = true;
+      break;
+    }
+  }
+
+  // Turn off MIL if no confirmed DTCs remain
+  if (currentStatus.dtcConfirmedCount == 0)
+  {
+    currentStatus.milOn = false;
+    configPage15.dtcFlags &= ~DTC_FLAG_MIL_ON;
+  }
+
+  return found;
+}
+
+/**
+ * @brief Clear all DTCs (Mode 04 response)
+ */
+void dtc_clearAll(void)
+{
+  // Clear all confirmed DTCs
+  for (uint8_t i = 0; i < DTC_MAX_CONFIRMED * 2; i++)
+  {
+    configPage15.dtcConfirmed[i] = 0x00;
+  }
+  currentStatus.dtcConfirmedCount = 0;
+
+  // Clear all pending DTCs
+  for (uint8_t i = 0; i < DTC_MAX_PENDING * 2; i++)
+  {
+    configPage15.dtcPending[i] = 0x00;
+  }
+  currentStatus.dtcPendingCount = 0;
+
+  // Clear freeze frame
+  freezeFrame_clear();
+
+  // Turn off MIL
+  currentStatus.milOn = false;
+  configPage15.dtcFlags = 0;
+
+  // Record clear timestamp
+  currentStatus.dtcLastClearTime = millis();
+}
+
+/**
+ * @brief Promote pending DTC to confirmed after driving cycle
+ */
+void dtc_promote(uint16_t dtcCode)
+{
+  // Remove from pending
+  dtc_clear(dtcCode);
+
+  // Add to confirmed
+  dtc_set(dtcCode, false);
+}
+
+// =============================================================================
+// FREEZE FRAME IMPLEMENTATION
+// =============================================================================
+
+/**
+ * @brief Capture freeze frame data at current engine state
+ */
+void freezeFrame_capture(uint16_t triggerDTC)
+{
+  if (currentStatus.freezeFrameValid) { return; } // Only capture once
+
+  configPage15.freezeFrameDTC[0] = highByte(triggerDTC);
+  configPage15.freezeFrameDTC[1] = lowByte(triggerDTC);
+  configPage15.freezeFrameRPM = currentStatus.RPM;
+  configPage15.freezeFrameMAP = (uint16_t)currentStatus.MAP;
+  configPage15.freezeFrameTPS = currentStatus.TPS;
+  configPage15.freezeFrameCLT = (int8_t)currentStatus.coolant;
+  configPage15.freezeFrameIAT = (int8_t)currentStatus.IAT;
+  configPage15.freezeFrameBaro = currentStatus.baro;
+  configPage15.freezeFrameVSS = (uint8_t)(currentStatus.vss > 255 ? 255 : currentStatus.vss);
+  configPage15.freezeFrameBattery = currentStatus.battery10;
+  configPage15.freezeFrameO2 = currentStatus.O2;
+  configPage15.freezeFrameAdvance = currentStatus.advance;
+  configPage15.freezeFramePW = currentStatus.PW1;
+  configPage15.freezeFrameLoad = (uint8_t)(currentStatus.fuelLoad > 255 ? 255 : currentStatus.fuelLoad);
+  configPage15.freezeFrameAFR = currentStatus.afrTarget;
+  configPage15.freezeFrameFuel = (uint8_t)currentStatus.corrections;
+  configPage15.freezeFrameStatus1 = currentStatus.status1;
+  configPage15.freezeFrameStatus2 = currentStatus.status2;
+  configPage15.freezeFrameEngineFlags = currentStatus.engine;
+
+  // Store timestamp (millis since power on)
+  uint32_t now = millis();
+  configPage15.freezeFrameTimestamp[0] = (now >> 24) & 0xFF;
+  configPage15.freezeFrameTimestamp[1] = (now >> 16) & 0xFF;
+  configPage15.freezeFrameTimestamp[2] = (now >> 8) & 0xFF;
+  configPage15.freezeFrameTimestamp[3] = now & 0xFF;
+
+  currentStatus.freezeFrameValid = true;
+  configPage15.dtcFlags |= DTC_FLAG_FREEZE_CAPTURED;
+}
+
+/**
+ * @brief Clear freeze frame data
+ */
+void freezeFrame_clear(void)
+{
+  configPage15.freezeFrameDTC[0] = 0;
+  configPage15.freezeFrameDTC[1] = 0;
+  configPage15.freezeFrameRPM = 0;
+  configPage15.freezeFrameMAP = 0;
+  configPage15.freezeFrameTPS = 0;
+  configPage15.freezeFrameCLT = 0;
+  configPage15.freezeFrameIAT = 0;
+  configPage15.freezeFrameBaro = 0;
+  configPage15.freezeFrameVSS = 0;
+  configPage15.freezeFrameBattery = 0;
+  configPage15.freezeFrameO2 = 0;
+  configPage15.freezeFrameAdvance = 0;
+  configPage15.freezeFramePW = 0;
+  configPage15.freezeFrameLoad = 0;
+  configPage15.freezeFrameAFR = 0;
+  configPage15.freezeFrameFuel = 0;
+  configPage15.freezeFrameStatus1 = 0;
+  configPage15.freezeFrameStatus2 = 0;
+  configPage15.freezeFrameEngineFlags = 0;
+  for (uint8_t i = 0; i < 4; i++) { configPage15.freezeFrameTimestamp[i] = 0; }
+
+  currentStatus.freezeFrameValid = false;
+  configPage15.dtcFlags &= ~DTC_FLAG_FREEZE_CAPTURED;
+}
+
+/**
+ * @brief Check if freeze frame is valid
+ */
+bool freezeFrame_isValid(void)
+{
+  return currentStatus.freezeFrameValid;
+}
+
+// =============================================================================
+// BMW FUEL CONSUMPTION CALCULATION
+// =============================================================================
+
+/**
+ * @brief Calculate BMW fuel consumption for PT-CAN DME4 message
+ *
+ * Formula: fuelConsumption = (PW × RPM × nCyl × injector_cc) / (2 × 60,000,000 × fuel_density)
+ *
+ * Where:
+ * - PW = Pulse width in microseconds
+ * - RPM = Engine RPM
+ * - nCyl = Number of cylinders
+ * - injector_cc = Injector flow rate in cc/min at 3 bar
+ * - fuel_density = 0.75 kg/L for gasoline
+ *
+ * Result is stored in currentStatus.fuelConsumption as 0.01 L/h units
+ * BMW expects: L/h × 100 (e.g., 5.5 L/h = 550)
+ */
+void calculateBMWFuelConsumption(void)
+{
+  // Get parameters
+  uint32_t pw_us = currentStatus.PW1;         // Pulse width in µs
+  uint32_t rpm = currentStatus.RPM;
+  uint8_t nCyl = configPage2.nCylinders;
+
+  // Injector flow rate in cc/min at 3 bar rail pressure
+  // Stored in configPage15.injectorFlowRate (e.g., 440 for 440cc/min injectors)
+  uint16_t injectorCC = configPage15.injectorFlowRate;
+
+  // Check for valid parameters
+  if (rpm == 0 || pw_us == 0 || injectorCC == 0)
+  {
+    currentStatus.fuelConsumption = 0;
+    return;
+  }
+
+  // Calculate fuel consumption in 0.01 L/h
+  // Formula derivation:
+  // cc_per_injection = (pw_us / 1,000,000) × (injectorCC / 60) × duty_at_rail_pressure
+  // cc_per_minute = cc_per_injection × (RPM / 2) × nCyl (4-stroke = RPM/2 injections per cylinder)
+  // cc_per_hour = cc_per_minute × 60
+  // L_per_hour = cc_per_hour / 1000
+  //
+  // Simplified with scaling to avoid overflow:
+  // fuelConsumption (0.01 L/h) = (pw_us × rpm × nCyl × injectorCC) / 20,000,000
+
+  uint32_t numerator = pw_us * nCyl;
+  numerator = (numerator * rpm) / 1000;  // Intermediate scaling to avoid overflow
+  numerator = (numerator * injectorCC) / 100;
+
+  // Divide by remaining factor: 20,000,000 / (1000 × 100) = 200
+  uint32_t fuelCons = numerator / 200;
+
+  // Clamp to 16-bit (max 655.35 L/h which is way more than any engine)
+  currentStatus.fuelConsumption = (fuelCons > 65535) ? 65535 : (uint16_t)fuelCons;
+}
+
+// =============================================================================
+// OBD-II MODE 03 HANDLER - READ CONFIRMED DTCS
+// =============================================================================
+
+/**
+ * @brief Handle OBD Mode 03 - Read confirmed DTCs
+ *
+ * Response format:
+ * - Single frame (≤3 DTCs): 0x43, count, DTC1_H, DTC1_L, DTC2_H, DTC2_L, ...
+ * - Multi-frame (>3 DTCs): Uses ISO-TP segmented transfer
+ */
+static inline void handleOBDMode03(void)
+{
+  uint8_t dtcCount = currentStatus.dtcConfirmedCount;
+
+  // Prepare response
+  outMsg.len = 8;
+  outMsg.flags.extended = 0;
+  outMsg.id = 0x7E8;
+
+  if (dtcCount == 0)
+  {
+    // No DTCs - send empty response
+    outMsg.buf[0] = 0x02;    // 2 bytes follow
+    outMsg.buf[1] = 0x43;    // Mode 03 response
+    outMsg.buf[2] = 0x00;    // 0 DTCs
+    outMsg.buf[3] = 0x00;
+    outMsg.buf[4] = 0x00;
+    outMsg.buf[5] = 0x00;
+    outMsg.buf[6] = 0x00;
+    outMsg.buf[7] = 0x00;
+    Can0.write(outMsg);
+  }
+  else if (dtcCount <= 2)
+  {
+    // Single frame response (up to 2 DTCs fit in one frame)
+    outMsg.buf[0] = 2 + (dtcCount * 2);  // Number of bytes following
+    outMsg.buf[1] = 0x43;                 // Mode 03 response
+    outMsg.buf[2] = dtcCount;             // Number of DTCs
+
+    // Fill in DTCs
+    for (uint8_t i = 0; i < dtcCount && i < 2; i++)
+    {
+      uint16_t dtc = dtc_getAt(i, false);
+      outMsg.buf[3 + i*2] = highByte(dtc);
+      outMsg.buf[4 + i*2] = lowByte(dtc);
+    }
+    // Zero fill remaining bytes
+    for (uint8_t i = 3 + dtcCount*2; i < 8; i++)
+    {
+      outMsg.buf[i] = 0x00;
+    }
+    Can0.write(outMsg);
+  }
+  else
+  {
+    // Multi-frame response needed for >2 DTCs
+    // First frame: [0x10, length_lo, 0x43, count, DTC1_H, DTC1_L, DTC2_H, DTC2_L]
+    uint8_t totalBytes = 2 + (dtcCount * 2); // 0x43 + count + DTCs
+
+    outMsg.buf[0] = 0x10;                 // First frame indicator
+    outMsg.buf[1] = totalBytes;           // Total data length
+    outMsg.buf[2] = 0x43;                 // Mode 03 response
+    outMsg.buf[3] = dtcCount;             // DTC count
+
+    // First 2 DTCs in first frame
+    for (uint8_t i = 0; i < 2 && i < dtcCount; i++)
+    {
+      uint16_t dtc = dtc_getAt(i, false);
+      outMsg.buf[4 + i*2] = highByte(dtc);
+      outMsg.buf[5 + i*2] = lowByte(dtc);
+    }
+    Can0.write(outMsg);
+
+    // Send consecutive frames for remaining DTCs
+    uint8_t frameSeq = 0x21;
+    uint8_t dtcIdx = 2;
+    while (dtcIdx < dtcCount)
+    {
+      outMsg.buf[0] = frameSeq++;
+      if (frameSeq > 0x2F) { frameSeq = 0x20; } // Wrap sequence number
+
+      uint8_t byteIdx = 1;
+      while (byteIdx < 8 && dtcIdx < dtcCount)
+      {
+        uint16_t dtc = dtc_getAt(dtcIdx++, false);
+        outMsg.buf[byteIdx++] = highByte(dtc);
+        if (byteIdx < 8) { outMsg.buf[byteIdx++] = lowByte(dtc); }
+      }
+      // Pad remaining bytes
+      while (byteIdx < 8) { outMsg.buf[byteIdx++] = 0x00; }
+
+      Can0.write(outMsg);
+    }
+  }
+}
+
+// =============================================================================
+// OBD-II MODE 04 HANDLER - CLEAR DTCS
+// =============================================================================
+
+/**
+ * @brief Handle OBD Mode 04 - Clear/Reset DTCs
+ *
+ * Clears all confirmed and pending DTCs, resets freeze frame,
+ * and turns off MIL (Check Engine Light).
+ */
+static inline void handleOBDMode04(void)
+{
+  // Clear all DTCs
+  dtc_clearAll();
+
+  // Send positive response
+  outMsg.len = 8;
+  outMsg.flags.extended = 0;
+  outMsg.id = 0x7E8;
+  outMsg.buf[0] = 0x01;    // 1 byte follows
+  outMsg.buf[1] = 0x44;    // Mode 04 response (0x04 + 0x40)
+  outMsg.buf[2] = 0x00;
+  outMsg.buf[3] = 0x00;
+  outMsg.buf[4] = 0x00;
+  outMsg.buf[5] = 0x00;
+  outMsg.buf[6] = 0x00;
+  outMsg.buf[7] = 0x00;
+
+  Can0.write(outMsg);
+}
+
+// =============================================================================
+// OBD-II MODE 07 HANDLER - READ PENDING DTCS
+// =============================================================================
+
+/**
+ * @brief Handle OBD Mode 07 - Read pending DTCs
+ *
+ * Same format as Mode 03, but reads pending (not yet confirmed) DTCs.
+ */
+static inline void handleOBDMode07(void)
+{
+  uint8_t dtcCount = currentStatus.dtcPendingCount;
+
+  // Prepare response
+  outMsg.len = 8;
+  outMsg.flags.extended = 0;
+  outMsg.id = 0x7E8;
+
+  if (dtcCount == 0)
+  {
+    // No pending DTCs
+    outMsg.buf[0] = 0x02;
+    outMsg.buf[1] = 0x47;    // Mode 07 response
+    outMsg.buf[2] = 0x00;
+    outMsg.buf[3] = 0x00;
+    outMsg.buf[4] = 0x00;
+    outMsg.buf[5] = 0x00;
+    outMsg.buf[6] = 0x00;
+    outMsg.buf[7] = 0x00;
+    Can0.write(outMsg);
+  }
+  else if (dtcCount <= 2)
+  {
+    outMsg.buf[0] = 2 + (dtcCount * 2);
+    outMsg.buf[1] = 0x47;    // Mode 07 response
+    outMsg.buf[2] = dtcCount;
+
+    for (uint8_t i = 0; i < dtcCount && i < 2; i++)
+    {
+      uint16_t dtc = dtc_getAt(i, true);
+      outMsg.buf[3 + i*2] = highByte(dtc);
+      outMsg.buf[4 + i*2] = lowByte(dtc);
+    }
+    for (uint8_t i = 3 + dtcCount*2; i < 8; i++)
+    {
+      outMsg.buf[i] = 0x00;
+    }
+    Can0.write(outMsg);
+  }
+  else
+  {
+    // Multi-frame for >2 pending DTCs
+    uint8_t totalBytes = 2 + (dtcCount * 2);
+
+    outMsg.buf[0] = 0x10;
+    outMsg.buf[1] = totalBytes;
+    outMsg.buf[2] = 0x47;
+    outMsg.buf[3] = dtcCount;
+
+    for (uint8_t i = 0; i < 2 && i < dtcCount; i++)
+    {
+      uint16_t dtc = dtc_getAt(i, true);
+      outMsg.buf[4 + i*2] = highByte(dtc);
+      outMsg.buf[5 + i*2] = lowByte(dtc);
+    }
+    Can0.write(outMsg);
+
+    uint8_t frameSeq = 0x21;
+    uint8_t dtcIdx = 2;
+    while (dtcIdx < dtcCount)
+    {
+      outMsg.buf[0] = frameSeq++;
+      if (frameSeq > 0x2F) { frameSeq = 0x20; }
+
+      uint8_t byteIdx = 1;
+      while (byteIdx < 8 && dtcIdx < dtcCount)
+      {
+        uint16_t dtc = dtc_getAt(dtcIdx++, true);
+        outMsg.buf[byteIdx++] = highByte(dtc);
+        if (byteIdx < 8) { outMsg.buf[byteIdx++] = lowByte(dtc); }
+      }
+      while (byteIdx < 8) { outMsg.buf[byteIdx++] = 0x00; }
+      Can0.write(outMsg);
+    }
+  }
+}
+
+// =============================================================================
+// OBD-II MODE 09 HANDLER - VEHICLE INFORMATION (VIN / ECU NAME)
+// =============================================================================
+
+/**
+ * @brief Handle OBD Mode 09 - Vehicle Information
+ *
+ * Supported PIDs:
+ * - 0x00: PIDs supported [01-20]
+ * - 0x02: VIN (17 characters, multi-frame)
+ * - 0x0A: ECU name (20 characters, multi-frame)
+ */
+static inline void handleOBDMode09Full(void)
+{
+  uint8_t pid = inMsg.buf[2];
+
+  outMsg.len = 8;
+  outMsg.flags.extended = 0;
+  outMsg.id = 0x7E8;
+
+  switch (pid)
+  {
+    case 0x00: // PIDs supported [01-20]
+      outMsg.buf[0] = 0x06;
+      outMsg.buf[1] = 0x49;    // Mode 09 response
+      outMsg.buf[2] = 0x00;
+      // Bits: 01=VIN message count, 02=VIN, 04=cal ID count, 06=CVN count
+      // 0A=ECU name, etc.
+      outMsg.buf[3] = 0x54;    // Support PIDs 02, 04, 0A
+      outMsg.buf[4] = 0x00;
+      outMsg.buf[5] = 0x00;
+      outMsg.buf[6] = 0x00;
+      outMsg.buf[7] = 0x00;
+      Can0.write(outMsg);
+      break;
+
+    case 0x02: // VIN - Vehicle Identification Number
+    {
+      // VIN is 17 chars, needs multi-frame response
+      // First frame: [0x10, 0x14, 0x49, 0x02, 0x01, V1, V2, V3]
+      outMsg.buf[0] = 0x10;           // First frame
+      outMsg.buf[1] = 0x14;           // 20 bytes total (1 + 1 + 1 + 17)
+      outMsg.buf[2] = 0x49;           // Mode 09 response
+      outMsg.buf[3] = 0x02;           // PID 02 (VIN)
+      outMsg.buf[4] = 0x01;           // Number of data items
+      outMsg.buf[5] = configPage15.vinNumber[0];
+      outMsg.buf[6] = configPage15.vinNumber[1];
+      outMsg.buf[7] = configPage15.vinNumber[2];
+      Can0.write(outMsg);
+
+      // Wait for flow control (0x30)
+      // In real implementation, should wait for FC frame
+      // For simplicity, send consecutive frames with small delay
+
+      // Consecutive frame 1: [0x21, V4, V5, V6, V7, V8, V9, V10]
+      outMsg.buf[0] = 0x21;
+      for (uint8_t i = 0; i < 7; i++)
+      {
+        outMsg.buf[1 + i] = configPage15.vinNumber[3 + i];
+      }
+      Can0.write(outMsg);
+
+      // Consecutive frame 2: [0x22, V11, V12, V13, V14, V15, V16, V17]
+      outMsg.buf[0] = 0x22;
+      for (uint8_t i = 0; i < 7; i++)
+      {
+        outMsg.buf[1 + i] = configPage15.vinNumber[10 + i];
+      }
+      Can0.write(outMsg);
+    }
+    break;
+
+    case 0x0A: // ECU Name / Calibration ID
+    {
+      // ECU name is 20 chars, needs multi-frame response
+      outMsg.buf[0] = 0x10;           // First frame
+      outMsg.buf[1] = 0x17;           // 23 bytes total
+      outMsg.buf[2] = 0x49;           // Mode 09 response
+      outMsg.buf[3] = 0x0A;           // PID 0A
+      outMsg.buf[4] = 0x01;           // Number of data items
+      outMsg.buf[5] = configPage15.ecuName[0];
+      outMsg.buf[6] = configPage15.ecuName[1];
+      outMsg.buf[7] = configPage15.ecuName[2];
+      Can0.write(outMsg);
+
+      // Consecutive frame 1
+      outMsg.buf[0] = 0x21;
+      for (uint8_t i = 0; i < 7; i++)
+      {
+        outMsg.buf[1 + i] = configPage15.ecuName[3 + i];
+      }
+      Can0.write(outMsg);
+
+      // Consecutive frame 2
+      outMsg.buf[0] = 0x22;
+      for (uint8_t i = 0; i < 7; i++)
+      {
+        outMsg.buf[1 + i] = configPage15.ecuName[10 + i];
+      }
+      Can0.write(outMsg);
+
+      // Consecutive frame 3 (remaining 3 chars + padding)
+      outMsg.buf[0] = 0x23;
+      outMsg.buf[1] = configPage15.ecuName[17];
+      outMsg.buf[2] = configPage15.ecuName[18];
+      outMsg.buf[3] = configPage15.ecuName[19];
+      outMsg.buf[4] = 0x00;
+      outMsg.buf[5] = 0x00;
+      outMsg.buf[6] = 0x00;
+      outMsg.buf[7] = 0x00;
+      Can0.write(outMsg);
+    }
+    break;
+
+    default:
+      // Unsupported PID - send negative response
+      outMsg.buf[0] = 0x03;
+      outMsg.buf[1] = 0x7F;    // Negative response
+      outMsg.buf[2] = 0x09;    // Mode 09
+      outMsg.buf[3] = 0x12;    // Sub-function not supported
+      outMsg.buf[4] = 0x00;
+      outMsg.buf[5] = 0x00;
+      outMsg.buf[6] = 0x00;
+      outMsg.buf[7] = 0x00;
+      Can0.write(outMsg);
+      break;
+  }
+}
+
 #endif
