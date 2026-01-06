@@ -238,6 +238,20 @@ struct statuses {
   byte TS_SD_Status; //TunerStudios SD card status
   byte airConStatus;
   uint8_t systemTemp;
+
+  // =========================================================================
+  // OBD-II DTC (Diagnostic Trouble Code) Runtime Status
+  // =========================================================================
+  byte dtcConfirmedCount;      ///< Number of confirmed DTCs currently stored
+  byte dtcPendingCount;        ///< Number of pending DTCs currently stored
+  bool milOn;                  ///< Malfunction Indicator Lamp (CEL) status
+  bool freezeFrameValid;       ///< Freeze frame data has been captured
+  uint32_t dtcLastClearTime;   ///< millis() when DTCs were last cleared
+
+  // =========================================================================
+  // BMW Fuel Consumption (calculated for PT-CAN)
+  // =========================================================================
+  uint16_t fuelConsumption;    ///< Current fuel consumption in 0.01 L/h (divide by 100 for L/h)
 };
 
 /**

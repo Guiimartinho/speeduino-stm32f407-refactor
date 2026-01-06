@@ -232,7 +232,7 @@ using byte = uint8_t;
 #define BATTV_COR_MODE_WHOLE 0
 #define BATTV_COR_MODE_OPENTIME 1
 
-enum MAPSamplingMethod {
+enum MAPSamplingMethod : uint8_t {
   MAPSamplingInstantaneous = 0,
   MAPSamplingCycleAverage = 1,
   MAPSamplingCycleMinimum = 2,
@@ -404,7 +404,7 @@ struct config2 {
   byte canWBO : 2 ;
   byte vssAuxCh : 4;
 
-  byte decelAmount;
+  byte decelAmount;  ///< Byte 127 - Deceleration fuel cut amount
 
 #if defined(CORE_AVR)
   };
@@ -993,8 +993,76 @@ struct config15 {
   int8_t rollingProtRPMDelta[4]; // Signed RPM value representing how much below the RPM limit. Divided by 10
   byte rollingProtCutPercent[4];
 
-  //Bytes 106-255
-  byte Unused15_106_255[150];
+  // =========================================================================
+  // CAN/OBD-II EXTENDED FEATURES (Bytes 106-255)
+  // =========================================================================
+
+  // VIN Storage (17 bytes) - Mode 09 PID 02
+  // Bytes 106-122
+  byte vinNumber[17];           ///< Vehicle Identification Number (17 ASCII chars)
+
+  // ECU Name Storage (20 bytes) - Mode 09 PID 0A
+  // Bytes 123-142
+  byte ecuName[20];             ///< ECU calibration name (20 ASCII chars)
+
+  // DTC Configuration (2 bytes)
+  // Bytes 143-144
+  byte dtcMaxConfirmed : 4;     ///< Max confirmed DTCs to store (0-10, default 10)
+  byte dtcMaxPending : 4;       ///< Max pending DTCs to store (0-10, default 10)
+  byte dtcFlags;                ///< DTC flags: bit0=MIL on, bit1=freeze frame captured
+
+  // Confirmed DTCs (20 bytes = 10 DTCs × 2 bytes)
+  // Bytes 145-164
+  // Format: High byte = type (00=P0, 01=P1, 02=P2, 03=P3), Low byte = code
+  byte dtcConfirmed[20];        ///< Stored confirmed DTCs (10 × 2 bytes)
+
+  // Pending DTCs (20 bytes = 10 DTCs × 2 bytes)
+  // Bytes 165-184
+  byte dtcPending[20];          ///< Stored pending DTCs (10 × 2 bytes)
+
+  // Freeze Frame Data (50 bytes) - Captured when first DTC is set
+  // Bytes 185-234
+  byte freezeFrameDTC[2];       ///< DTC that triggered freeze frame
+  uint16_t freezeFrameRPM;      ///< RPM when DTC occurred
+  uint16_t freezeFrameMAP;      ///< MAP when DTC occurred (kPa)
+  byte freezeFrameTPS;          ///< TPS when DTC occurred (%)
+  int8_t freezeFrameCLT;        ///< Coolant temp when DTC occurred
+  int8_t freezeFrameIAT;        ///< Intake air temp when DTC occurred
+  byte freezeFrameBaro;         ///< Barometric pressure (kPa)
+  byte freezeFrameVSS;          ///< Vehicle speed (km/h)
+  byte freezeFrameBattery;      ///< Battery voltage × 10
+  byte freezeFrameO2;           ///< O2 sensor reading
+  int8_t freezeFrameAdvance;    ///< Ignition advance
+  uint16_t freezeFramePW;       ///< Injector pulse width (µs)
+  byte freezeFrameLoad;         ///< Engine load %
+  byte freezeFrameAFR;          ///< Target AFR × 10
+  byte freezeFrameFuel;         ///< Fuel corrections %
+  byte freezeFrameStatus1;      ///< Status1 byte at capture
+  byte freezeFrameStatus2;      ///< Status2 byte at capture
+  byte freezeFrameEngineFlags;  ///< Engine status flags
+  byte freezeFrameTimestamp[4]; ///< Seconds since power-on (32-bit)
+  byte freezeFrameReserved[25]; ///< Reserved for future use
+
+  // Dual CAN Configuration (4 bytes)
+  // Bytes 235-238
+  byte can2Enable : 1;          ///< Enable CAN2 bus
+  byte can2Protocol : 3;        ///< CAN2 broadcast protocol (0=off, 1=BMW, 2=VAG, 3=Haltech)
+  byte can2Speed : 4;           ///< CAN2 speed (0=125k, 1=250k, 2=500k, 3=1M)
+  byte can2BaseAddress;         ///< CAN2 base address for OBD
+  byte can2FilterMask[2];       ///< CAN2 receive filter mask
+
+  // BMW/Extended Configuration (4 bytes)
+  // Bytes 164-167
+  uint16_t injectorFlowRate;    ///< Injector flow rate in cc/min at 3 bar (for BMW fuel consumption)
+  uint16_t fuelDensity;         ///< Fuel density × 1000 (e.g., 750 for gasoline = 0.750 g/mL)
+
+  // =========================================================================
+  // RESERVED BYTES - TunerStudio page 15 requires 256 bytes total
+  // =========================================================================
+  // These reserved bytes ensure the struct matches the INI pageSize=256
+  // DO NOT remove or reduce - TunerStudio communication will fail!
+  // Current fields: 245 bytes. Reserved needed: 256-245=11 bytes
+  byte Unused15_245_255[11];    ///< Reserved for future use (11 bytes)
 
 #if defined(CORE_AVR)
   };
