@@ -5,7 +5,7 @@
 /** \enum LoadSource
  * @brief The load source for various tables
  * */
-enum LoadSource {
+enum LoadSource : uint8_t {
   /** Manifold Absolute Pressure (MAP). Aka Intake MAP (IMAP).
    * I.e. a pressure sensor that reads the pressure (positive or negative)
    * in the intake manifold */
