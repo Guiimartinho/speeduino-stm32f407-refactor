@@ -456,29 +456,20 @@ void DashMessage(uint16_t DashMessageID)
       // Calculate fuel consumption if not already done recently
       calculateBMWFuelConsumption();
 
-      // Build status byte 0: CEL/MIL, Cruise, EML lights
-      // Bit 1 = CEL (Check Engine Light / MIL)
-      // Bit 3 = Cruise control active
-      // Bit 4 = EML (Engine Management Lamp)
-      uint8_t statusByte = 0x00;
-      if (currentStatus.milOn) { statusByte |= 0x02; }  // CEL on if any confirmed DTCs
+      // Build status byte 0: CEL/MIL (Bit 1), Cruise (Bit 3), EML (Bit 4)
+      uint8_t statusByte = currentStatus.milOn ? 0x02 : 0x00;
 
       outMsg.len = 5;
       outMsg.buf[0] = statusByte;
       outMsg.buf[1] = lowByte(currentStatus.fuelConsumption);   // LSB Fuel consumption (0.01 L/h)
       outMsg.buf[2] = highByte(currentStatus.fuelConsumption);  // MSB Fuel Consumption
 
-      // Byte 3: Overheat warning
-      if (currentStatus.coolant > 159) { outMsg.buf[3] = 0x08; } // Overheat light on if coolant > 120°C
-      else { outMsg.buf[3] = 0x00; }
+      // Byte 3: Overheat warning (on if coolant > 120°C / 159 in Speeduino units)
+      outMsg.buf[3] = (currentStatus.coolant > 159) ? 0x08 : 0x00;
 
-      // Byte 4: Oil temperature (map from IAT or use 78°C default)
-      // BMW expects value where: actual_temp = (value * 0.75) - 48
-      // For 78°C: (78 + 48) / 0.75 = 168 = 0xA8
-      // For now, derive from coolant temp with offset for realistic oil temp
-      int16_t oilTemp = currentStatus.coolant + 10; // Oil typically 10°C higher than coolant
-      if (oilTemp < -48) { oilTemp = -48; }
-      if (oilTemp > 143) { oilTemp = 143; }
+      // Byte 4: Oil temperature (derived from coolant + 10°C offset)
+      // BMW expects: actual_temp = (value * 0.75) - 48, clamped to -48 to 143°C
+      int16_t oilTemp = constrain(currentStatus.coolant + 10, -48, 143);
       outMsg.buf[4] = (uint8_t)((oilTemp + 48) * 4 / 3);
     }
     break;
@@ -1190,6 +1181,22 @@ bool dtc_set(uint16_t dtcCode, bool isPending)
 }
 
 /**
+ * @brief Helper: Shift DTC array down after removal (reduces nesting)
+ */
+static inline void dtc_shiftArrayDown(byte* dtcArray, uint8_t fromIdx, uint8_t count)
+{
+  for (uint8_t j = fromIdx; j < count - 1; j++)
+  {
+    dtcArray[j*2] = dtcArray[(j+1)*2];
+    dtcArray[j*2 + 1] = dtcArray[(j+1)*2 + 1];
+  }
+  // Clear last slot
+  uint8_t lastIdx = count - 1;
+  dtcArray[lastIdx*2] = 0x00;
+  dtcArray[lastIdx*2 + 1] = 0x00;
+}
+
+/**
  * @brief Clear a specific DTC
  */
 bool dtc_clear(uint16_t dtcCode)
@@ -1201,22 +1208,12 @@ bool dtc_clear(uint16_t dtcCode)
   {
     uint16_t dtc = ((uint16_t)configPage15.dtcConfirmed[i*2] << 8) |
                     configPage15.dtcConfirmed[i*2 + 1];
-    if (dtc == dtcCode)
-    {
-      // Shift remaining DTCs down
-      for (uint8_t j = i; j < currentStatus.dtcConfirmedCount - 1; j++)
-      {
-        configPage15.dtcConfirmed[j*2] = configPage15.dtcConfirmed[(j+1)*2];
-        configPage15.dtcConfirmed[j*2 + 1] = configPage15.dtcConfirmed[(j+1)*2 + 1];
-      }
-      // Clear last slot
-      uint8_t lastIdx = currentStatus.dtcConfirmedCount - 1;
-      configPage15.dtcConfirmed[lastIdx*2] = 0x00;
-      configPage15.dtcConfirmed[lastIdx*2 + 1] = 0x00;
-      currentStatus.dtcConfirmedCount--;
-      found = true;
-      break;
-    }
+    if (dtc != dtcCode) { continue; }
+
+    dtc_shiftArrayDown(configPage15.dtcConfirmed, i, currentStatus.dtcConfirmedCount);
+    currentStatus.dtcConfirmedCount--;
+    found = true;
+    break;
   }
 
   // Search in pending DTCs
@@ -1224,22 +1221,12 @@ bool dtc_clear(uint16_t dtcCode)
   {
     uint16_t dtc = ((uint16_t)configPage15.dtcPending[i*2] << 8) |
                     configPage15.dtcPending[i*2 + 1];
-    if (dtc == dtcCode)
-    {
-      // Shift remaining DTCs down
-      for (uint8_t j = i; j < currentStatus.dtcPendingCount - 1; j++)
-      {
-        configPage15.dtcPending[j*2] = configPage15.dtcPending[(j+1)*2];
-        configPage15.dtcPending[j*2 + 1] = configPage15.dtcPending[(j+1)*2 + 1];
-      }
-      // Clear last slot
-      uint8_t lastIdx = currentStatus.dtcPendingCount - 1;
-      configPage15.dtcPending[lastIdx*2] = 0x00;
-      configPage15.dtcPending[lastIdx*2 + 1] = 0x00;
-      currentStatus.dtcPendingCount--;
-      found = true;
-      break;
-    }
+    if (dtc != dtcCode) { continue; }
+
+    dtc_shiftArrayDown(configPage15.dtcPending, i, currentStatus.dtcPendingCount);
+    currentStatus.dtcPendingCount--;
+    found = true;
+    break;
   }
 
   // Turn off MIL if no confirmed DTCs remain
@@ -1433,6 +1420,50 @@ void calculateBMWFuelConsumption(void)
 }
 
 // =============================================================================
+// OBD-II DTC FRAME HELPERS (reduces nesting in Mode 03/07 handlers)
+// =============================================================================
+
+/**
+ * @brief Fill one consecutive frame with DTCs (helper to reduce nesting)
+ * @param dtcIdx Starting DTC index (modified in place)
+ * @param dtcCount Total number of DTCs
+ * @param isPending true for pending DTCs, false for confirmed
+ * @return Number of bytes filled (1-7)
+ */
+static inline uint8_t fillDTCConsecutiveFrame(uint8_t* dtcIdx, uint8_t dtcCount, bool isPending)
+{
+  uint8_t byteIdx = 1;
+  while (byteIdx < 8 && *dtcIdx < dtcCount)
+  {
+    uint16_t dtc = dtc_getAt((*dtcIdx)++, isPending);
+    outMsg.buf[byteIdx++] = highByte(dtc);
+    if (byteIdx < 8) { outMsg.buf[byteIdx++] = lowByte(dtc); }
+  }
+  // Pad remaining bytes
+  while (byteIdx < 8) { outMsg.buf[byteIdx++] = 0x00; }
+  return byteIdx;
+}
+
+/**
+ * @brief Send consecutive frames for DTC multi-frame response
+ * @param startIdx Starting DTC index (after first frame DTCs)
+ * @param dtcCount Total number of DTCs
+ * @param isPending true for pending DTCs, false for confirmed
+ */
+static inline void sendDTCConsecutiveFrames(uint8_t startIdx, uint8_t dtcCount, bool isPending)
+{
+  uint8_t frameSeq = 0x21;
+  uint8_t dtcIdx = startIdx;
+  while (dtcIdx < dtcCount)
+  {
+    outMsg.buf[0] = frameSeq++;
+    if (frameSeq > 0x2F) { frameSeq = 0x20; }
+    fillDTCConsecutiveFrame(&dtcIdx, dtcCount, isPending);
+    Can0.write(outMsg);
+  }
+}
+
+// =============================================================================
 // OBD-II MODE 03 HANDLER - READ CONFIRMED DTCS
 // =============================================================================
 
@@ -1506,26 +1537,8 @@ static inline void handleOBDMode03(void)
     }
     Can0.write(outMsg);
 
-    // Send consecutive frames for remaining DTCs
-    uint8_t frameSeq = 0x21;
-    uint8_t dtcIdx = 2;
-    while (dtcIdx < dtcCount)
-    {
-      outMsg.buf[0] = frameSeq++;
-      if (frameSeq > 0x2F) { frameSeq = 0x20; } // Wrap sequence number
-
-      uint8_t byteIdx = 1;
-      while (byteIdx < 8 && dtcIdx < dtcCount)
-      {
-        uint16_t dtc = dtc_getAt(dtcIdx++, false);
-        outMsg.buf[byteIdx++] = highByte(dtc);
-        if (byteIdx < 8) { outMsg.buf[byteIdx++] = lowByte(dtc); }
-      }
-      // Pad remaining bytes
-      while (byteIdx < 8) { outMsg.buf[byteIdx++] = 0x00; }
-
-      Can0.write(outMsg);
-    }
+    // Send consecutive frames for remaining DTCs (starting at index 2)
+    sendDTCConsecutiveFrames(2, dtcCount, false);
   }
 }
 
@@ -1627,23 +1640,8 @@ static inline void handleOBDMode07(void)
     }
     Can0.write(outMsg);
 
-    uint8_t frameSeq = 0x21;
-    uint8_t dtcIdx = 2;
-    while (dtcIdx < dtcCount)
-    {
-      outMsg.buf[0] = frameSeq++;
-      if (frameSeq > 0x2F) { frameSeq = 0x20; }
-
-      uint8_t byteIdx = 1;
-      while (byteIdx < 8 && dtcIdx < dtcCount)
-      {
-        uint16_t dtc = dtc_getAt(dtcIdx++, true);
-        outMsg.buf[byteIdx++] = highByte(dtc);
-        if (byteIdx < 8) { outMsg.buf[byteIdx++] = lowByte(dtc); }
-      }
-      while (byteIdx < 8) { outMsg.buf[byteIdx++] = 0x00; }
-      Can0.write(outMsg);
-    }
+    // Send consecutive frames for remaining DTCs (starting at index 2)
+    sendDTCConsecutiveFrames(2, dtcCount, true);
   }
 }
 
@@ -1703,18 +1701,12 @@ static inline void handleOBDMode09Full(void)
 
       // Consecutive frame 1: [0x21, V4, V5, V6, V7, V8, V9, V10]
       outMsg.buf[0] = 0x21;
-      for (uint8_t i = 0; i < 7; i++)
-      {
-        outMsg.buf[1 + i] = configPage15.vinNumber[3 + i];
-      }
+      memcpy(&outMsg.buf[1], &configPage15.vinNumber[3], 7);
       Can0.write(outMsg);
 
       // Consecutive frame 2: [0x22, V11, V12, V13, V14, V15, V16, V17]
       outMsg.buf[0] = 0x22;
-      for (uint8_t i = 0; i < 7; i++)
-      {
-        outMsg.buf[1 + i] = configPage15.vinNumber[10 + i];
-      }
+      memcpy(&outMsg.buf[1], &configPage15.vinNumber[10], 7);
       Can0.write(outMsg);
     }
     break;
@@ -1734,18 +1726,12 @@ static inline void handleOBDMode09Full(void)
 
       // Consecutive frame 1
       outMsg.buf[0] = 0x21;
-      for (uint8_t i = 0; i < 7; i++)
-      {
-        outMsg.buf[1 + i] = configPage15.ecuName[3 + i];
-      }
+      memcpy(&outMsg.buf[1], &configPage15.ecuName[3], 7);
       Can0.write(outMsg);
 
       // Consecutive frame 2
       outMsg.buf[0] = 0x22;
-      for (uint8_t i = 0; i < 7; i++)
-      {
-        outMsg.buf[1 + i] = configPage15.ecuName[10 + i];
-      }
+      memcpy(&outMsg.buf[1], &configPage15.ecuName[10], 7);
       Can0.write(outMsg);
 
       // Consecutive frame 3 (remaining 3 chars + padding)
