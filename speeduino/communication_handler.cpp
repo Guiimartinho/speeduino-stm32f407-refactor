@@ -53,6 +53,7 @@ void handleCANComms(void)
       can_Command();
       readAuxCanBus();
       if(configPage2.canWBO > 0) { receiveCANwbo(); }
+      receiveBMWCanBus();  // Process BMW E46 PT-CAN messages
     }
   #endif
 }

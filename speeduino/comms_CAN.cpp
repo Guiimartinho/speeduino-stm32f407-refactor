@@ -632,6 +632,7 @@ static inline bool isOBDAddress(void)
 }
 
 // Forward declarations for OBD mode handlers (defined after obd_response)
+static inline void handleOBDMode02(void);
 static inline void handleOBDMode03(void);
 static inline void handleOBDMode04(void);
 static inline void handleOBDMode07(void);
@@ -668,6 +669,10 @@ void can_Command(void)
   {
     case 0x01U: // Mode 01 - Show current data
       handleOBDMode01();
+      break;
+
+    case 0x02U: // Mode 02 - Read freeze frame data
+      handleOBDMode02();
       break;
 
     case 0x03U: // Mode 03 - Read confirmed DTCs
@@ -721,10 +726,10 @@ void obd_response(uint8_t PIDmode, uint8_t requestedPIDlow, uint8_t requestedPID
         outMsg.buf[0] =  0x06;    // sending 6 bytes
         outMsg.buf[1] =  0x41;    // Same as query, except that 40h is added to the mode value. So:41h = show current data ,42h = freeze frame ,etc.
         outMsg.buf[2] =  0x00;    // PID code
-        outMsg.buf[3] =  0x08;   //B0000 1000   1-8
-        outMsg.buf[4] =  B01111110;   //9-16
-        outMsg.buf[5] =  B10100000;   //17-24
-        outMsg.buf[6] =  B00010001;   //17-32
+        outMsg.buf[3] =  B00001111;   // PIDs 05-08: CLT, STFT1, LTFT1, STFT2
+        outMsg.buf[4] =  B11111110;   // PIDs 09-10,0B-0F: LTFT2, FuelPress, MAP, RPM, VSS, Advance, IAT
+        outMsg.buf[5] =  B10100000;   // PIDs 11, 13: TPS, O2 present
+        outMsg.buf[6] =  B00010001;   // PIDs 1C, 20: OBD standard, PIDs 21-40 supported
         outMsg.buf[7] =  B00000000;
       break;
 
@@ -734,6 +739,57 @@ void obd_response(uint8_t PIDmode, uint8_t requestedPIDlow, uint8_t requestedPID
         outMsg.buf[2] =  0x05;                 // pid code
         outMsg.buf[3] =  temperatureAddOffset(currentStatus.coolant);   //the data value A
         outMsg.buf[4] =  0x00;                 //the data value B which is 0 as unused
+        outMsg.buf[5] =  0x00;
+        outMsg.buf[6] =  0x00;
+        outMsg.buf[7] =  0x00;
+      break;
+
+      case 6:       //PID-0x06 Short term fuel trim - Bank 1, range -100% to +99.2%, formula = (A-128)*100/128
+        // egoCorrection: 100=neutral, >100=rich correction, <100=lean correction
+        // OBD-II: 128=neutral, >128=adding fuel (lean condition), <128=removing fuel (rich condition)
+        obdcalcA = constrain(((int16_t)currentStatus.egoCorrection - 100) * 128 / 100 + 128, 0, 255);
+        outMsg.buf[0] =  0x03;
+        outMsg.buf[1] =  0x41;
+        outMsg.buf[2] =  0x06;
+        outMsg.buf[3] =  obdcalcA;
+        outMsg.buf[4] =  0x00;
+        outMsg.buf[5] =  0x00;
+        outMsg.buf[6] =  0x00;
+        outMsg.buf[7] =  0x00;
+      break;
+
+      case 7:       //PID-0x07 Long term fuel trim - Bank 1, range -100% to +99.2%, formula = (A-128)*100/128
+        // Using total corrections as LTFT approximation, corrections: 100=neutral
+        obdcalcA = constrain(((int16_t)currentStatus.corrections - 100) * 128 / 100 + 128, 0, 255);
+        outMsg.buf[0] =  0x03;
+        outMsg.buf[1] =  0x41;
+        outMsg.buf[2] =  0x07;
+        outMsg.buf[3] =  obdcalcA;
+        outMsg.buf[4] =  0x00;
+        outMsg.buf[5] =  0x00;
+        outMsg.buf[6] =  0x00;
+        outMsg.buf[7] =  0x00;
+      break;
+
+      case 8:       //PID-0x08 Short term fuel trim - Bank 2 (same as Bank 1 for single-bank engines)
+        obdcalcA = constrain(((int16_t)currentStatus.egoCorrection - 100) * 128 / 100 + 128, 0, 255);
+        outMsg.buf[0] =  0x03;
+        outMsg.buf[1] =  0x41;
+        outMsg.buf[2] =  0x08;
+        outMsg.buf[3] =  obdcalcA;
+        outMsg.buf[4] =  0x00;
+        outMsg.buf[5] =  0x00;
+        outMsg.buf[6] =  0x00;
+        outMsg.buf[7] =  0x00;
+      break;
+
+      case 9:       //PID-0x09 Long term fuel trim - Bank 2 (same as Bank 1 for single-bank engines)
+        obdcalcA = constrain(((int16_t)currentStatus.corrections - 100) * 128 / 100 + 128, 0, 255);
+        outMsg.buf[0] =  0x03;
+        outMsg.buf[1] =  0x41;
+        outMsg.buf[2] =  0x09;
+        outMsg.buf[3] =  obdcalcA;
+        outMsg.buf[4] =  0x00;
         outMsg.buf[5] =  0x00;
         outMsg.buf[6] =  0x00;
         outMsg.buf[7] =  0x00;
@@ -830,7 +886,11 @@ void obd_response(uint8_t PIDmode, uint8_t requestedPIDlow, uint8_t requestedPID
 
       case 19:      //PID-0x13 , oxygen sensors present, A0-A3 == bank1 , A4-A7 == bank2 ,
         uint16_t O2present;
-        O2present = B00000011 ;       //realtimebufferA[24];         TEST VALUE !!!!!
+        // Build O2 present bitmap based on actual sensor configuration
+        // Bit 0 = Bank 1 Sensor 1, Bit 1 = Bank 1 Sensor 2, etc.
+        O2present = 0;
+        if (configPage6.egoType != 0) { O2present |= 0x01; }  // Primary O2 enabled
+        if (configPage6.egoType == 2) { O2present |= 0x02; }  // Wideband typically has 2nd sensor
         outMsg.buf[0] =  0x03;           // sending 3 bytes
         outMsg.buf[1] =  0x41;           // Same as query, except that 40h is added to the mode value. So:41h = show current data ,42h = freeze frame ,etc.
         outMsg.buf[2] =  0x13;           // pid code
@@ -858,11 +918,26 @@ void obd_response(uint8_t PIDmode, uint8_t requestedPIDlow, uint8_t requestedPID
         outMsg.buf[0] =  0x06;          // sending 4 bytes
         outMsg.buf[1] =  0x41;          // Same as query, except that 40h is added to the mode value. So:41h = show current data ,42h = freeze frame ,etc.
         outMsg.buf[2] =  0x20;          // pid code
-        outMsg.buf[3] =  B00011000;     // 33-40
+        outMsg.buf[3] =  B10011000;     // PID 21, 24, 25: Dist w/MIL, O2 sensors
         outMsg.buf[4] =  B00000000;     //41 - 48
         outMsg.buf[5] =  B00100000;     //49-56
         outMsg.buf[6] =  B00000001;     //57-64
         outMsg.buf[7] = 0x00;
+      break;
+
+      case 33:      // PID-0x21 Distance traveled with MIL on, range 0-65535 km, formula = 256A + B
+        // Track distance while MIL (Check Engine Light) is on
+        // Estimate from runtime and average speed when MIL is active
+        obdcalcG16 = 0;
+        if (currentStatus.milOn) { obdcalcG16 = (uint16_t)(((millis() - currentStatus.dtcLastClearTime) / 1000UL * currentStatus.vss) / 3600UL); }
+        outMsg.buf[0] =  0x04;          // sending 2 data bytes
+        outMsg.buf[1] =  0x41;
+        outMsg.buf[2] =  0x21;
+        outMsg.buf[3] =  highByte(obdcalcG16);
+        outMsg.buf[4] =  lowByte(obdcalcG16);
+        outMsg.buf[5] =  0x00;
+        outMsg.buf[6] =  0x00;
+        outMsg.buf[7] =  0x00;
       break;
 
       case 36:      // PID-0x24 O2 sensor2, AB: fuel/air equivalence ratio, CD: voltage ,  Formula == (2/65536)(256A +B) , 8/65536(256C+D) , Range is 0 to <2 and 0 to >8V
@@ -948,9 +1023,9 @@ void obd_response(uint8_t PIDmode, uint8_t requestedPIDlow, uint8_t requestedPID
       break;
 
       case 70:        //PID-0x46 Ambient Air Temperature , range is -40 to 215 deg C , formula == A-40
-        uint16_t temp_ambientair;
-        temp_ambientair = 11;              // TEST VALUE !!!!!!!!!!
-        obdcalcA = temperatureAddOffset(temp_ambientair);
+        // Use IAT as ambient temperature approximation (best available without dedicated sensor)
+        // IAT is closest to ambient when engine is cold or at startup
+        obdcalcA = temperatureAddOffset(currentStatus.IAT);
         outMsg.buf[0] =  0x03;             // sending 3 byte
         outMsg.buf[1] =  0x41;             // Same as query, except that 40h is added to the mode value. So:41h = show current data ,42h = freeze frame ,etc.
         outMsg.buf[2] =  0x46;             // pid code
@@ -976,9 +1051,11 @@ void obd_response(uint8_t PIDmode, uint8_t requestedPIDlow, uint8_t requestedPID
       break;
 
       case 92:        //PID-0x5C Engine oil temperature , range is -40 to 210 deg C , formula == A-40
-        uint16_t temp_engineoiltemp;
-        temp_engineoiltemp = 40;              // TEST VALUE !!!!!!!!!!
-        obdcalcA = temperatureAddOffset(temp_engineoiltemp);
+        // Estimate oil temp from coolant temp (oil typically runs ~10°C warmer than coolant)
+        // Constrain to valid OBD-II range: -40 to 210°C
+        int16_t estimatedOilTemp;
+        estimatedOilTemp = constrain(currentStatus.coolant + 10, -40, 210);
+        obdcalcA = temperatureAddOffset(estimatedOilTemp);
         outMsg.buf[0] =  0x03;                // sending 3 byte
         outMsg.buf[1] =  0x41;                // Same as query, except that 40h is added to the mode value. So:41h = show current data ,42h = freeze frame ,etc.
         outMsg.buf[2] =  0x5C;                // pid code
@@ -1059,6 +1136,98 @@ void readAuxCanBus()
     if (inMsg.id != channelAddress) { continue; }
 
     currentStatus.canin[i] = getCANInputValue(i);
+  }
+}
+
+// =============================================================================
+// BMW E46 CAN RX HANDLER
+// =============================================================================
+
+/**
+ * @brief Process BMW PT-CAN messages for E46/E39/E38 ECU replacement
+ *
+ * Receives and decodes messages from:
+ * - ASC1 (0x153): Wheel speeds from DSC/ASC module
+ * - EGS1 (0x1F3): Transmission gear and status
+ * - EGS2 (0x1F5): Torque request from transmission
+ * - ICL3 (0x615): Odometer reading from instrument cluster
+ * - SAS (0x0C8): Steering angle sensor
+ *
+ * @note Call from main CAN processing loop when BMW protocol is enabled
+ */
+void receiveBMWCanBus(void)
+{
+  // Only process if BMW broadcast protocol is enabled
+  if (configPage4.CANBroadcastProtocol != CAN_BROADCAST_PROTOCOL_BMW) { return; }
+
+  switch (inMsg.id)
+  {
+    case CAN_BMW_ASC1:  // 0x153 - Wheel Speeds from ASC/DSC
+    {
+      // Bytes 0-1: Front left wheel speed (0.0625 km/h per bit)
+      // Bytes 2-3: Front right wheel speed
+      // Bytes 4-5: Rear left wheel speed
+      // Bytes 6-7: Rear right wheel speed
+      currentStatus.bmwWheelSpeedFL = ((uint16_t)inMsg.buf[0] << 8) | inMsg.buf[1];
+      currentStatus.bmwWheelSpeedFR = ((uint16_t)inMsg.buf[2] << 8) | inMsg.buf[3];
+      currentStatus.bmwWheelSpeedRL = ((uint16_t)inMsg.buf[4] << 8) | inMsg.buf[5];
+      currentStatus.bmwWheelSpeedRR = ((uint16_t)inMsg.buf[6] << 8) | inMsg.buf[7];
+
+      // Calculate average speed for VSS (divide by 16 for km/h)
+      uint32_t avgSpeed = (currentStatus.bmwWheelSpeedFL + currentStatus.bmwWheelSpeedFR +
+                           currentStatus.bmwWheelSpeedRL + currentStatus.bmwWheelSpeedRR) / 4U;
+      currentStatus.vss = (uint16_t)(avgSpeed / 16U);
+
+      currentStatus.bmwLastRxTime = millis();
+    }
+    break;
+
+    case CAN_BMW_EGS1:  // 0x1F3 - Transmission Status
+    {
+      // Byte 0: Gear position
+      // 0=Park, 1=1st, 2=2nd, 3=3rd, 4=4th, 5=5th, 6=6th, 7=Reverse, 8=Neutral
+      currentStatus.bmwGear = inMsg.buf[0] & 0x0F;
+      currentStatus.gear = currentStatus.bmwGear;  // Copy to main gear field
+
+      // Byte 1: EGS status flags
+      currentStatus.bmwEgsStatus = inMsg.buf[1];
+
+      currentStatus.bmwLastRxTime = millis();
+    }
+    break;
+
+    case CAN_BMW_EGS2:  // 0x1F5 - Torque Request
+    {
+      // Bytes 0-1: Torque request (Nm × 4)
+      currentStatus.bmwTorqueRequest = ((uint16_t)inMsg.buf[0] << 8) | inMsg.buf[1];
+
+      currentStatus.bmwLastRxTime = millis();
+    }
+    break;
+
+    case CAN_BMW_ICL3:  // 0x615 - Odometer
+    {
+      // Bytes 0-2: Odometer value in km (24-bit)
+      currentStatus.bmwOdometer = ((uint32_t)inMsg.buf[0] << 16) |
+                                   ((uint32_t)inMsg.buf[1] << 8) |
+                                   inMsg.buf[2];
+
+      currentStatus.bmwLastRxTime = millis();
+    }
+    break;
+
+    case CAN_BMW_SAS:   // 0x0C8 - Steering Angle Sensor
+    {
+      // Bytes 0-1: Steering angle (degrees × 10, signed, + = right)
+      currentStatus.bmwSteeringAngle = (int16_t)(((uint16_t)inMsg.buf[0] << 8) | inMsg.buf[1]);
+
+      currentStatus.bmwLastRxTime = millis();
+    }
+    break;
+
+    default:
+      // Not a BMW message we handle
+      break;
   }
 }
 
@@ -1461,6 +1630,193 @@ static inline void sendDTCConsecutiveFrames(uint8_t startIdx, uint8_t dtcCount, 
     fillDTCConsecutiveFrame(&dtcIdx, dtcCount, isPending);
     Can0.write(outMsg);
   }
+}
+
+// =============================================================================
+// OBD-II MODE 02 HANDLER - READ FREEZE FRAME DATA
+// =============================================================================
+
+/**
+ * @brief Handle OBD Mode 02 - Read freeze frame data
+ *
+ * Request: [02] [PID] [Frame#]  (frame# is always 0x00 for single freeze frame)
+ * Response: [42] [PID] [Frame#] [Data...]
+ *
+ * Supports PIDs: 0x02 (DTC), 0x04 (Load), 0x05 (CLT), 0x06 (STFT), 0x0B (MAP),
+ *                0x0C (RPM), 0x0D (VSS), 0x0E (Advance), 0x0F (IAT), 0x11 (TPS)
+ */
+static inline void handleOBDMode02(void)
+{
+  uint8_t requestedPID = inMsg.buf[2];
+  uint8_t frameNumber = inMsg.buf[3];
+
+  outMsg.len = 8;
+  outMsg.flags.extended = 0;
+  outMsg.id = 0x7E8;
+
+  // Only frame 0 is supported (single freeze frame)
+  if (frameNumber != 0x00)
+  {
+    // No response for invalid frame number
+    return;
+  }
+
+  // Check if freeze frame data is valid
+  if (!freezeFrame_isValid())
+  {
+    // No freeze frame data available - send empty response for PID 0x02
+    if (requestedPID == 0x02)
+    {
+      outMsg.buf[0] = 0x04;    // 4 bytes follow
+      outMsg.buf[1] = 0x42;    // Mode 02 response
+      outMsg.buf[2] = 0x02;    // PID 02 (DTC that triggered freeze frame)
+      outMsg.buf[3] = 0x00;    // Frame 0
+      outMsg.buf[4] = 0x00;    // No DTC
+      outMsg.buf[5] = 0x00;
+      outMsg.buf[6] = 0x00;
+      outMsg.buf[7] = 0x00;
+      Can0.write(outMsg);
+    }
+    return;
+  }
+
+  // Response based on requested PID
+  switch (requestedPID)
+  {
+    case 0x00: // PIDs supported [01-20] in freeze frame
+      outMsg.buf[0] = 0x06;
+      outMsg.buf[1] = 0x42;
+      outMsg.buf[2] = 0x00;
+      outMsg.buf[3] = 0x00;    // Frame 0
+      outMsg.buf[4] = B00011100; // PIDs 04, 05, 06 supported
+      outMsg.buf[5] = B01111100; // PIDs 0B, 0C, 0D, 0E, 0F supported
+      outMsg.buf[6] = B10000000; // PID 11 supported
+      outMsg.buf[7] = B00000000;
+      break;
+
+    case 0x02: // DTC that triggered freeze frame
+      outMsg.buf[0] = 0x06;
+      outMsg.buf[1] = 0x42;
+      outMsg.buf[2] = 0x02;
+      outMsg.buf[3] = 0x00;    // Frame 0
+      outMsg.buf[4] = configPage15.freezeFrameDTC[0];  // High byte
+      outMsg.buf[5] = configPage15.freezeFrameDTC[1];  // Low byte
+      outMsg.buf[6] = 0x00;
+      outMsg.buf[7] = 0x00;
+      break;
+
+    case 0x04: // Calculated engine load
+      outMsg.buf[0] = 0x05;
+      outMsg.buf[1] = 0x42;
+      outMsg.buf[2] = 0x04;
+      outMsg.buf[3] = 0x00;    // Frame 0
+      outMsg.buf[4] = (configPage15.freezeFrameLoad * 255U) / 100U;  // Convert to 0-255
+      outMsg.buf[5] = 0x00;
+      outMsg.buf[6] = 0x00;
+      outMsg.buf[7] = 0x00;
+      break;
+
+    case 0x05: // Coolant temperature
+      outMsg.buf[0] = 0x05;
+      outMsg.buf[1] = 0x42;
+      outMsg.buf[2] = 0x05;
+      outMsg.buf[3] = 0x00;    // Frame 0
+      outMsg.buf[4] = (uint8_t)(configPage15.freezeFrameCLT + 40);  // OBD-II offset
+      outMsg.buf[5] = 0x00;
+      outMsg.buf[6] = 0x00;
+      outMsg.buf[7] = 0x00;
+      break;
+
+    case 0x0B: // MAP
+      outMsg.buf[0] = 0x05;
+      outMsg.buf[1] = 0x42;
+      outMsg.buf[2] = 0x0B;
+      outMsg.buf[3] = 0x00;    // Frame 0
+      outMsg.buf[4] = (uint8_t)(configPage15.freezeFrameMAP > 255 ? 255 : configPage15.freezeFrameMAP);
+      outMsg.buf[5] = 0x00;
+      outMsg.buf[6] = 0x00;
+      outMsg.buf[7] = 0x00;
+      break;
+
+    case 0x0C: // RPM (formula: (256*A + B) / 4)
+    {
+      uint16_t rpmValue = configPage15.freezeFrameRPM * 4U;
+      outMsg.buf[0] = 0x06;
+      outMsg.buf[1] = 0x42;
+      outMsg.buf[2] = 0x0C;
+      outMsg.buf[3] = 0x00;    // Frame 0
+      outMsg.buf[4] = highByte(rpmValue);
+      outMsg.buf[5] = lowByte(rpmValue);
+      outMsg.buf[6] = 0x00;
+      outMsg.buf[7] = 0x00;
+    }
+    break;
+
+    case 0x0D: // Vehicle speed
+      outMsg.buf[0] = 0x05;
+      outMsg.buf[1] = 0x42;
+      outMsg.buf[2] = 0x0D;
+      outMsg.buf[3] = 0x00;    // Frame 0
+      outMsg.buf[4] = configPage15.freezeFrameVSS;
+      outMsg.buf[5] = 0x00;
+      outMsg.buf[6] = 0x00;
+      outMsg.buf[7] = 0x00;
+      break;
+
+    case 0x0E: // Timing advance
+      outMsg.buf[0] = 0x05;
+      outMsg.buf[1] = 0x42;
+      outMsg.buf[2] = 0x0E;
+      outMsg.buf[3] = 0x00;    // Frame 0
+      outMsg.buf[4] = (uint8_t)((configPage15.freezeFrameAdvance + 64) * 2);  // OBD-II formula
+      outMsg.buf[5] = 0x00;
+      outMsg.buf[6] = 0x00;
+      outMsg.buf[7] = 0x00;
+      break;
+
+    case 0x0F: // Intake air temperature
+      outMsg.buf[0] = 0x05;
+      outMsg.buf[1] = 0x42;
+      outMsg.buf[2] = 0x0F;
+      outMsg.buf[3] = 0x00;    // Frame 0
+      outMsg.buf[4] = (uint8_t)(configPage15.freezeFrameIAT + 40);  // OBD-II offset
+      outMsg.buf[5] = 0x00;
+      outMsg.buf[6] = 0x00;
+      outMsg.buf[7] = 0x00;
+      break;
+
+    case 0x11: // TPS
+      outMsg.buf[0] = 0x05;
+      outMsg.buf[1] = 0x42;
+      outMsg.buf[2] = 0x11;
+      outMsg.buf[3] = 0x00;    // Frame 0
+      outMsg.buf[4] = (configPage15.freezeFrameTPS * 255U) / 100U;  // Convert to 0-255
+      outMsg.buf[5] = 0x00;
+      outMsg.buf[6] = 0x00;
+      outMsg.buf[7] = 0x00;
+      break;
+
+    case 0x42: // Battery voltage
+      outMsg.buf[0] = 0x06;
+      outMsg.buf[1] = 0x42;
+      outMsg.buf[2] = 0x42;
+      outMsg.buf[3] = 0x00;    // Frame 0
+      // Battery is stored as V×10, OBD needs V×1000 (mV in 16-bit)
+      {
+        uint16_t batteryMv = (uint16_t)configPage15.freezeFrameBattery * 100U;
+        outMsg.buf[4] = highByte(batteryMv);
+        outMsg.buf[5] = lowByte(batteryMv);
+      }
+      outMsg.buf[6] = 0x00;
+      outMsg.buf[7] = 0x00;
+      break;
+
+    default:
+      // Unsupported PID - no response
+      return;
+  }
+
+  Can0.write(outMsg);
 }
 
 // =============================================================================
