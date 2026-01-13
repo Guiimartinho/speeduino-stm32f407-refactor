@@ -252,6 +252,32 @@ struct statuses {
   // BMW Fuel Consumption (calculated for PT-CAN)
   // =========================================================================
   uint16_t fuelConsumption;    ///< Current fuel consumption in 0.01 L/h (divide by 100 for L/h)
+
+  // =========================================================================
+  // BMW E46 CAN RX Data (received from vehicle network)
+  // =========================================================================
+  // From ASC1 (0x153) - Wheel Speeds
+  uint16_t bmwWheelSpeedFL;    ///< Front left wheel speed (km/h × 16)
+  uint16_t bmwWheelSpeedFR;    ///< Front right wheel speed (km/h × 16)
+  uint16_t bmwWheelSpeedRL;    ///< Rear left wheel speed (km/h × 16)
+  uint16_t bmwWheelSpeedRR;    ///< Rear right wheel speed (km/h × 16)
+
+  // From EGS1 (0x1F3) - Transmission
+  uint8_t bmwGear;             ///< Current gear (0=P, 1-6=gear, 7=R, 8=N)
+  uint8_t bmwEgsStatus;        ///< EGS status byte
+
+  // From EGS2 (0x1F5) - Torque
+  uint16_t bmwTorqueRequest;   ///< Transmission torque request (Nm × 4)
+
+  // From ICL3 (0x615) - Odometer
+  uint32_t bmwOdometer;        ///< Odometer reading in km
+
+  // From SAS (0x0C8) - Steering
+  int16_t bmwSteeringAngle;    ///< Steering angle (degrees × 10, + = right)
+
+  // CAN RX Status
+  uint32_t bmwLastRxTime;      ///< Last BMW CAN message received (millis)
+  uint8_t bmwCanStatus;        ///< BMW CAN status flags
 };
 
 /**
