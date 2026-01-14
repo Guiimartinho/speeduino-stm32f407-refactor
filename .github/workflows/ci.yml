@@ -297,7 +297,7 @@ jobs:
         echo "  RAM: $RAM_DELTA bytes"
 
     - name: Comment memory delta on PR
-      uses: actions/github-script@v7
+      uses: actions/github-script@v8
       with:
         script: |
           const flashDelta = parseInt(process.env.FLASH_DELTA);
