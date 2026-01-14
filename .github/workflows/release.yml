@@ -63,7 +63,7 @@ jobs:
         cp .pio/build/black_F407VE-EEPROM-SPI/firmware.elf firmware-scu-ecu-2.0-${VERSION}.elf
 
     - name: Upload build artifacts
-      uses: actions/upload-artifact@v4
+      uses: actions/upload-artifact@v5
       with:
         name: release-firmware-${{ steps.tag_version.outputs.VERSION }}
         path: |
